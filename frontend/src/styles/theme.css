@@ -1,0 +1,179 @@
+/**
+ * TTMEvolve 主题系统 — 设计令牌（Design Tokens）
+ *
+ * 借鉴 taptap-maker-plus 的 CSS 变量方案。
+ * 所有颜色、圆角、阴影、间距统一通过 CSS 变量管理。
+ *
+ * 用法：
+ *   <html data-theme="light">  ← 亮色（默认）
+ *   <html data-theme="dark">   ← 暗色
+ *
+ * 切换主题：document.documentElement.setAttribute('data-theme', 'dark')
+ */
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  /* 品牌色 */
+  --color-brand: #00D9C5;
+  --color-brand-strong: #00CDBA;
+  --color-brand-soft: rgba(0, 217, 197, 0.12);
+
+  /* 文本 */
+  --color-text: #060A26;
+  --color-text-muted: rgba(6, 10, 38, 0.6);
+  --color-text-subtle: rgba(6, 10, 38, 0.4);
+  --color-text-inverse: #FFFFFF;
+
+  /* 边框 */
+  --color-border: rgba(6, 10, 38, 0.12);
+  --color-border-soft: rgba(6, 10, 38, 0.06);
+
+  /* 表面 */
+  --surface-app: #F7F9FA;
+  --surface-panel: #FFFFFF;
+  --surface-raised: #FFFFFF;
+  --surface-muted: rgba(6, 10, 38, 0.04);
+  --surface-hover: rgba(6, 10, 38, 0.06);
+  --surface-active: rgba(6, 10, 38, 0.08);
+
+  /* 状态 */
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-info: #3B82F6;
+
+  /* 圆角 */
+  --radius-control: 6px;
+  --radius-card: 8px;
+  --radius-panel: 10px;
+  --radius-large: 16px;
+  --radius-pill: 999px;
+
+  /* 阴影 */
+  --shadow-panel: 0 18px 40px rgba(6, 10, 38, 0.08);
+  --shadow-popover: 0 12px 32px -6px rgba(6, 10, 38, 0.16);
+  --shadow-button: 0 1px 2px rgba(6, 10, 38, 0.05);
+
+  /* 间距 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* 字体 */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, "Source Code Pro",
+    monospace;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-brand: #00D9C5;
+  --color-brand-strong: #00CDBA;
+  --color-brand-soft: rgba(0, 217, 197, 0.18);
+
+  --color-text: #ECECF1;
+  --color-text-muted: #B4B4BC;
+  --color-text-subtle: #878A92;
+  --color-text-inverse: #060A26;
+
+  --color-border: rgba(255, 255, 255, 0.11);
+  --color-border-soft: rgba(255, 255, 255, 0.07);
+
+  --surface-app: #18191B;
+  --surface-panel: #202123;
+  --surface-raised: #2B2C2F;
+  --surface-muted: rgba(255, 255, 255, 0.05);
+  --surface-hover: rgba(255, 255, 255, 0.08);
+  --surface-active: rgba(255, 255, 255, 0.11);
+
+  --color-success: #34D399;
+  --color-warning: #FBBF24;
+  --color-error: #F87171;
+  --color-info: #60A5FA;
+
+  --radius-control: 6px;
+  --radius-card: 8px;
+  --radius-panel: 10px;
+  --radius-large: 16px;
+  --radius-pill: 999px;
+
+  --shadow-panel: 0 18px 40px rgba(0, 0, 0, 0.32);
+  --shadow-popover: 0 12px 32px -6px rgba(0, 0, 0, 0.46);
+  --shadow-button: 0 1px 2px rgba(0, 0, 0, 0.2);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, "Source Code Pro",
+    monospace;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+}
+
+/* 全局基线 */
+* {
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-pill);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-subtle);
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-color: var(--surface-app);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
