@@ -14,6 +14,7 @@ use serde::Serialize;
 use tauri::{Manager, RunEvent, WindowEvent};
 
 mod commands;
+mod fast_ops;
 mod server_manager;
 
 use server_manager::{ServerLaunchInfo, ServerManager, ServerStatus};

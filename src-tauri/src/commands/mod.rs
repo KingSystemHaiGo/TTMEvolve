@@ -5,6 +5,9 @@ use std::sync::Arc;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State, Window};
 
+use crate::fast_ops::{
+    self, DirSizeResult, FileEntry, LogTail, PortProbeResult,
+};
 use crate::server_manager::{ServerManager, ServerStatus};
 
 #[derive(Serialize)]
@@ -68,6 +71,44 @@ pub fn open_devtools<R: Runtime>(window: Window<R>) -> Result<(), String> {
     Ok(())
 }
 
+// ---------- fast_ops: hot path commands ----------
+
+#[tauri::command]
+pub fn fast_probe_port(host: String, port: u16, timeout_ms: Option<u64>) -> PortProbeResult {
+    fast_ops::probe_port(&host, port, timeout_ms.unwrap_or(200))
+}
+
+#[tauri::command]
+pub fn fast_find_available_port(
+    host: String,
+    start: u16,
+    limit: u16,
+    timeout_ms: Option<u64>,
+) -> Option<u16> {
+    fast_ops::find_available_port(&host, start, limit, timeout_ms.unwrap_or(200))
+}
+
+#[tauri::command]
+pub fn fast_tail_log(path: String, max_bytes: Option<u64>) -> Result<LogTail, String> {
+    fast_ops::tail_log(std::path::Path::new(&path), max_bytes.unwrap_or(262144))
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn fast_dir_size(path: String) -> Result<DirSizeResult, String> {
+    fast_ops::dir_size(std::path::Path::new(&path)).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn fast_list_dir(path: String) -> Result<Vec<FileEntry>, String> {
+    fast_ops::list_dir(std::path::Path::new(&path)).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn fast_format_bytes(bytes: u64) -> String {
+    fast_ops::format_bytes(bytes)
+}
+
 pub fn register<R: Runtime, T: tauri::Builder<R>>(
     builder: T,
 ) -> T {
@@ -76,5 +117,11 @@ pub fn register<R: Runtime, T: tauri::Builder<R>>(
         server_start,
         server_stop,
         open_devtools,
+        fast_probe_port,
+        fast_find_available_port,
+        fast_tail_log,
+        fast_dir_size,
+        fast_list_dir,
+        fast_format_bytes,
     ])
 }
