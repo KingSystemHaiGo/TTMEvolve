@@ -18,6 +18,7 @@ mod commands;
 mod fast_ops;
 mod fast_ops_http;
 mod server_manager;
+mod updater;
 
 use fast_ops_http::{start_background as start_bridge, BridgeConfig, BridgeHandle};
 use server_manager::{ServerLaunchInfo, ServerManager, ServerStatus};
