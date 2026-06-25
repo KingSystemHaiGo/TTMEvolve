@@ -2,11 +2,10 @@
 REM =============================================================================
 REM TTMEvolve 启动脚本 (Windows) — 优先内嵌环境
 REM
-REM 启动顺序：
-REM   1. 检测内嵌 Python (./portable/python/python.exe)
-REM   2. 退回 .venv/Scripts/python.exe
-REM   3. 退回系统 PATH 上的 python
-REM   4. 启动 Tauri 主程序 (TTMEvolve.exe)
+REM v0.9.0 增强：
+REM   - 优先 portable 内嵌环境
+REM   - GUI / CLI / Headless 模式选择
+REM   - 友好的错误信息
 REM =============================================================================
 
 setlocal EnableExtensions EnableDelayedExpansion
@@ -39,12 +38,12 @@ if %errorlevel%==0 (
 )
 
 echo [start-tauri] ERROR: no python found (portable, venv, or system)
-echo [start-tauri] please install Python or run scripts\build-portable\build-all.bat
+echo [start-tauri] please install Python or run scripts\build-portable\build_all.bat
 exit /b 1
 
 :start_app
 
-REM 内嵌 Node (供前端 dev server 使用)
+REM 内嵌 Node
 set "NODE_EXE="
 if exist "portable\node\node.exe" (
     set "NODE_EXE=%CD%\portable\node\node.exe"
@@ -58,18 +57,35 @@ if exist "portable\node\node.exe" (
     )
 )
 
+REM 模式选择
+set "MODE=gui"
+if "%1"=="--cli" (
+    set "MODE=cli"
+    shift
+)
+if "%1"=="--headless" (
+    set "MODE=headless"
+    shift
+)
+echo [start-tauri] mode: !MODE!
+
 :run_app
 
-REM 启动 Tauri 主程序（开发模式使用 cargo-tauri；生产模式直接运行 exe）
-if exist "src-tauri\target\release\ttmevolve.exe" (
-    echo [start-tauri] starting production build
-    "src-tauri\target\release\ttmevolve.exe" --python-exe "%PYTHON_EXE%"
-) else if exist "src-tauri\target\debug\ttmevolve.exe" (
-    echo [start-tauri] starting debug build
-    "src-tauri\target\debug\ttmevolve.exe" --python-exe "%PYTHON_EXE%"
+if "!MODE!"=="gui" (
+    REM 启动 Tauri 主程序
+    if exist "src-tauri\target\release\ttmevolve.exe" (
+        echo [start-tauri] starting production build
+        "src-tauri\target\release\ttmevolve.exe" --python-exe "!PYTHON_EXE!"
+    ) else if exist "src-tauri\target\debug\ttmevolve.exe" (
+        echo [start-tauri] starting debug build
+        "src-tauri\target\debug\ttmevolve.exe" --python-exe "!PYTHON_EXE!"
+    ) else (
+        echo [start-tauri] no built binary; falling back to python main.py
+        "!PYTHON_EXE!" main.py --embedded %*
+    )
 ) else (
-    echo [start-tauri] no built binary found; falling back to python main.py
-    "%PYTHON_EXE%" main.py --embedded %*
+    REM CLI / headless 模式：直接调用 Python
+    "!PYTHON_EXE!" main.py --embedded %*
 )
 
 endlocal
