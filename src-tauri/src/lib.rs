@@ -15,6 +15,7 @@ use tauri::{Manager, RunEvent, WindowEvent};
 
 mod commands;
 mod fast_ops;
+mod fast_ops_http;
 mod server_manager;
 
 use server_manager::{ServerLaunchInfo, ServerManager, ServerStatus};

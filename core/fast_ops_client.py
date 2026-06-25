@@ -40,9 +40,6 @@ def _runtime_available() -> bool:
     global _RUNTIME_AVAILABLE
     if _RUNTIME_AVAILABLE is not None:
         return _RUNTIME_AVAILABLE
-    # We probe a port that the Rust shell may expose; if it's reachable we
-    # assume the fast_ops bridge is live. In production this is wired up by
-    # server_manager::start (future v0.7.2 work).
     try:
         import socket
         with socket.create_connection((_TAURI_HOST, _TAURI_PORT), timeout=0.1):
@@ -51,6 +48,33 @@ def _runtime_available() -> bool:
     except OSError:
         _RUNTIME_AVAILABLE = False
         return False
+
+
+def _invoke_rust(command: str, args: Dict[str, Any]) -> Any:
+    """HTTP bridge to the Tauri Rust fast_ops server.
+
+    Sends a POST /fast_ops/{command} with JSON body and returns the parsed
+    JSON response. Raises RuntimeError on any non-2xx response so callers
+    can fall back to the Python implementation.
+    """
+    import json as _json
+    import urllib.error as _urlerr
+    import urllib.request as _urlreq
+
+    url = f"http://{_TAURI_HOST}:{_TAURI_PORT}/fast_ops/{command}"
+    body = _json.dumps(args).encode("utf-8")
+    req = _urlreq.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with _urlreq.urlopen(req, timeout=5) as resp:
+            payload = resp.read().decode("utf-8")
+            return _json.loads(payload)
+    except (_urlerr.URLError, _urlerr.HTTPError, TimeoutError) as exc:
+        raise RuntimeError(f"bridge call to {command} failed: {exc}") from exc
 
 
 def _python_probe_port(host: str, port: int, timeout_ms: int = 200) -> Dict[str, Any]:
@@ -220,22 +244,12 @@ def fast_list_dir(path: str) -> List[Dict[str, Any]]:
 def fast_format_bytes(n: int) -> str:
     if _runtime_available():
         try:
-            return _invoke_rust("fast_format_bytes", {"bytes": n})
+            response = _invoke_rust("fast_format_bytes", {"bytes": n})
+            if isinstance(response, dict) and "formatted" in response:
+                return response["formatted"]
         except Exception:
             pass
     return _python_format_bytes(n)
-
-
-def _invoke_rust(command: str, args: Dict[str, Any]) -> Any:
-    """Place-holder for the future HTTP bridge to the Tauri Rust runtime.
-
-    Today the Rust runtime is not yet wired into Python; the function raises
-    NotImplementedError so callers fall through to the Python fallback.
-    """
-    raise NotImplementedError(
-        f"Rust runtime bridge not yet active (command={command}). "
-        "Falling back to Python implementation."
-    )
 
 
 def runtime_status() -> Dict[str, Any]:
