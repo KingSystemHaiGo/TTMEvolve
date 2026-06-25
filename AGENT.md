@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 版本：v0.4.0-phase10 ✅ 结构优化 + 本地模型性能优化 + 全运行环境内嵌已落地
+- 版本：v0.5.0 ✅ Maker MCP 自愈 + 知识种子扩展
 - 最新进展：
   - 后端新增 `server/browser_service.py`：Playwright 单例 Chromium、持久化 `storage/browser_profile`、导航/刷新/点击/JS 执行/截图/日志收集
   - App Server 新增 `/browser/*` 端点（info / screenshot / logs / navigate / refresh / evaluate / click）

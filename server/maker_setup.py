@@ -11,6 +11,9 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 from urllib import request
 
+from core.portable_env import portable_diagnostics
+from server.maker_faults import build_maker_fault_analysis
+
 
 MAKER_PACKAGE = "@taptap/maker"
 MAKER_URL = "https://maker.taptap.cn/"
@@ -43,6 +46,11 @@ def build_maker_setup_status(
     project = _project_state(project_root=project_root, app_root=app_root)
     agent_root_mcp = agent_root_mcp_state(app_root)
     auth = _auth_state(maker_cfg)
+    runtime_cfg = config.data.get("runtime", {}) if isinstance(getattr(config, "data", None), dict) else {}
+    portable_status = portable_diagnostics(
+        app_root,
+        configured_portable_root=Path(runtime_cfg.get("portable_root")) if runtime_cfg.get("portable_root") else None,
+    )
     version = {
         "package": MAKER_PACKAGE,
         "configured": configured_version,
@@ -95,7 +103,7 @@ def build_maker_setup_status(
     elif warnings:
         readiness = "degraded"
 
-    return {
+    status = {
         "version": "maker-setup.v1",
         "readiness": readiness,
         "blockers": blockers,
@@ -105,6 +113,8 @@ def build_maker_setup_status(
         "agent_root_mcp": agent_root_mcp,
         "maker_package": version,
         "maker_mcp_config": _maker_mcp_config_diagnostics(maker_cfg),
+        "maker_mcp_raw_env": maker_cfg.get("env", {}) if isinstance(maker_cfg, dict) else {},
+        "portable_runtime": portable_status,
         "auth": auth,
         "tool_audit": tool_audit or {},
         "pending_auth": pending_auth or {},
@@ -125,6 +135,12 @@ def build_maker_setup_status(
             "maker_page": MAKER_URL,
         },
     }
+    status["fault_analysis"] = build_maker_fault_analysis(
+        setup_status=status,
+        tool_audit=tool_audit or {},
+        portable_status=portable_status,
+    )
+    return status
 
 
 def build_maker_tool_audit(*, agent: Any) -> Dict[str, Any]:
@@ -273,6 +289,11 @@ def render_maker_setup_markdown(status: Dict[str, Any]) -> str:
     else:
         rows.append("- no audit data")
     rows.extend([
+        "",
+        "## Fault Analysis",
+        f"- readiness: `{(status.get('fault_analysis') or {}).get('readiness') or '-'}`",
+        f"- automatic: `{', '.join(((status.get('fault_analysis') or {}).get('one_click_repair') or {}).get('automatic_faults') or []) or '-'}`",
+        f"- manual: `{', '.join(((status.get('fault_analysis') or {}).get('one_click_repair') or {}).get('manual_faults') or []) or '-'}`",
         "",
         "## Commands",
         f"- install: `{(status.get('commands') or {}).get('install_maker_mcp')}`",

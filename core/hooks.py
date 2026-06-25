@@ -1,4 +1,4 @@
-"""
+﻿"""
 core/hooks.py — 声明式 Hook 系统
 
 配置示例：
@@ -25,17 +25,13 @@ Hook = Callable[[str, Dict[str, Any]], tuple[str, Dict[str, Any]]]
 
 
 class HookSystem:
-    """管理 user_prompt / pre_action / post_action 三类 hook。"""
+    """管理五类 hook：pre_session / user_prompt / pre_action / post_action / post_session。"""
 
-    VALID_PHASES = {"user_prompt", "pre_action", "post_action"}
+    VALID_PHASES = {"pre_session", "user_prompt", "pre_action", "post_action", "post_session"}
 
     def __init__(self, config_hooks: Optional[Dict[str, List[Dict[str, Any]]]] = None):
         self._config = config_hooks or {}
-        self._builtins: Dict[str, List[Hook]] = {
-            "user_prompt": [],
-            "pre_action": [],
-            "post_action": [],
-        }
+        self._builtins: Dict[str, List[Hook]] = {p: [] for p in self.VALID_PHASES}
         self._load_config_hooks()
 
     def register(self, phase: str, hook: Hook) -> None:
@@ -46,19 +42,20 @@ class HookSystem:
     def apply(
         self,
         phase: str,
-        text: str,
-        context: Dict[str, Any],
+        text: str = "",
+        context: Optional[Dict[str, Any]] = None,
     ) -> tuple[str, Dict[str, Any]]:
+        ctx = context if context is not None else {}
         if phase not in self.VALID_PHASES:
-            return text, context
+            return text, ctx
 
         hooks = self._builtins.get(phase, []) + self._config_hooks.get(phase, [])
         for hook in hooks:
             try:
-                text, context = hook(text, context)
+                text, ctx = hook(text, ctx)
             except Exception as e:
-                context.setdefault("hook_errors", []).append(str(e))
-        return text, context
+                ctx.setdefault("hook_errors", []).append(str(e))
+        return text, ctx
 
     def _load_config_hooks(self) -> None:
         self._config_hooks: Dict[str, List[Hook]] = {p: [] for p in self.VALID_PHASES}
