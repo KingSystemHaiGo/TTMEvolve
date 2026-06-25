@@ -17,6 +17,14 @@ pub struct ServerStatusDto {
     pub pid: Option<u32>,
 }
 
+#[derive(Serialize)]
+pub struct BridgeStatusDto {
+    pub version: &'static str,
+    pub host: String,
+    pub port: u16,
+    pub running: bool,
+}
+
 impl From<&ServerStatus> for ServerStatusDto {
     fn from(status: &ServerStatus) -> Self {
         match status {
@@ -109,6 +117,22 @@ pub fn fast_format_bytes(bytes: u64) -> String {
     fast_ops::format_bytes(bytes)
 }
 
+#[tauri::command]
+pub fn bridge_status<R: Runtime>(
+    app: AppHandle<R>,
+) -> BridgeStatusDto {
+    let bridge_running = app
+        .try_state::<crate::fast_ops_http::BridgeHandle>()
+        .map(|handle| !handle.stop.load(std::sync::atomic::Ordering::SeqCst))
+        .unwrap_or(false);
+    BridgeStatusDto {
+        version: crate::fast_ops_http::BRIDGE_VERSION,
+        host: crate::fast_ops_http::DEFAULT_HOST.to_string(),
+        port: crate::fast_ops_http::DEFAULT_PORT,
+        running: bridge_running,
+    }
+}
+
 pub fn register<R: Runtime, T: tauri::Builder<R>>(
     builder: T,
 ) -> T {
@@ -123,5 +147,6 @@ pub fn register<R: Runtime, T: tauri::Builder<R>>(
         fast_dir_size,
         fast_list_dir,
         fast_format_bytes,
+        bridge_status,
     ])
 }

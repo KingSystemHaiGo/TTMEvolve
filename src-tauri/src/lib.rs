@@ -1,11 +1,12 @@
 //! TTMEvolve Tauri 桌面壳 — 应用入口
 //!
-//! 启动顺序：
+//! 启动顺序（v0.8.0）：
 //!   1. 探测 8765 端口（Python 后端）
 //!   2. 启动 Python 后端子进程（portable/.venv/python.exe main.py）
-//!   3. 等待 /health 返回 200
-//!   4. 加载 WebView2 显示 frontend/dist/index.html
-//!   5. frontend 通过 tauri.invoke 调用 Rust commands
+//!   3. 启动 fast_ops HTTP 桥接（8766 端口，让 Python 调用 Rust 热路径）
+//!   4. 等待 /health 返回 200
+//!   5. 加载 WebView2 显示 frontend/dist/index.html
+//!   6. frontend 通过 tauri.invoke 调用 Rust commands
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -18,6 +19,7 @@ mod fast_ops;
 mod fast_ops_http;
 mod server_manager;
 
+use fast_ops_http::{start_background as start_bridge, BridgeConfig, BridgeHandle};
 use server_manager::{ServerLaunchInfo, ServerManager, ServerStatus};
 
 #[derive(Clone, Serialize)]
@@ -31,7 +33,9 @@ struct DesktopDiagnostics {
     project_root: String,
 }
 
-const APP_VERSION: &str = "0.7.0";
+const APP_VERSION: &str = "0.8.0";
+const BRIDGE_DEFAULT_HOST: &str = "127.0.0.1";
+const BRIDGE_DEFAULT_PORT: u16 = 8766;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -47,6 +51,39 @@ pub fn run() {
             &format!("TTMEvolve {APP_VERSION} starting in {}", project_root.display()),
         );
 
+        // 1. Start the fast_ops HTTP bridge so the Python backend can call
+        //    into Rust hot paths (port scanning, log tail, dir size).
+        let bridge_config = BridgeConfig {
+            host: BRIDGE_DEFAULT_HOST.to_string(),
+            port: BRIDGE_DEFAULT_PORT,
+        };
+        let bridge_handle: BridgeHandle = match start_bridge(bridge_config) {
+            Ok(handle) => {
+                let _ = server_manager::append_desktop_log(
+                    &log_path,
+                    &format!(
+                        "fast_ops bridge listening on http://{}:{}",
+                        handle.addr.ip(),
+                        handle.addr.port()
+                    ),
+                );
+                handle
+            }
+            Err(err) => {
+                let _ = server_manager::append_desktop_log(
+                    &log_path,
+                    &format!("fast_ops bridge start failed: {err}"),
+                );
+                eprintln!("[ttmevolve] bridge start failed: {err}");
+                // Continue without the bridge — Python fallback still works.
+                BridgeHandle {
+                    addr: std::net::SocketAddr::from(([0, 0, 0, 0], 0)),
+                    stop: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+                }
+            }
+        };
+
+        // 2. Start the Python backend subprocess.
         let manager = ServerManager::new(project_root.clone(), log_path.clone());
         if let Err(err) = manager.start() {
             eprintln!("[ttmevolve] backend start failed: {err}");
@@ -58,6 +95,7 @@ pub fn run() {
 
         let manager = Arc::new(manager);
         app.manage(manager.clone());
+        app.manage(bridge_handle);
 
         Ok(())
     });
@@ -75,9 +113,12 @@ pub fn run() {
             ..
         } = event
         {
-            // On window close, stop the managed backend child process.
+            // On window close, stop both the Python backend and the bridge.
             if let Some(manager) = app_handle.try_state::<Arc<ServerManager>>() {
                 let _ = manager.stop();
+            }
+            if let Some(bridge) = app_handle.try_state::<BridgeHandle>() {
+                bridge.stop();
             }
             // Suppress unused warning when label is intentionally ignored.
             let _ = label;
