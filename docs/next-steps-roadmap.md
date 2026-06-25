@@ -1,7 +1,16 @@
 # TTMEvolve v0.6.0 路线图
 
 > 当前版本：v0.5.0
-> 目标版本：v0.6.0（四大方向全部完成）
+> 目标版本：v0.6.0（四大方向 + 外部项目学习）
+
+---
+
+## 学习输入
+
+| 来源 | 关键产出 |
+|------|----------|
+| `D:\Claude code (2)\Abidingenuity` | 苏格拉底式提问 / 滚动章节树记忆 / 可玩原型生成 / HTML 持久化 |
+| `D:\CC\Ima导出\` 自进化agent 之一~七 | 四层进化层次 / ReAct+反思 / 控制论 / 权威回溯+隔离 / 终身学习 / Harness |
 
 ---
 
@@ -27,8 +36,9 @@
 | `/loop` 循环模式 | `agent/react_loop.py` |
 | `spawn_subagent()` | `agent/subagent.py` |
 | 条件 hook 触发器 | `core/hooks.py` |
-| 上下文压缩 | `core/context_compression.py` |
+| 上下文压缩（Abidingenuity memory.py 借鉴） | `core/context_compression.py` |
 | 工具版本管理 | `agent/tool_registry.py` |
+| 权威回溯 + 隔离（Ima 之七） | `core/event_log.py` 强化 |
 
 ---
 
@@ -36,11 +46,12 @@
 
 | 任务 | 文件 |
 |------|------|
-| 游戏类型知识库 | `learning/game_knowledge.py` |
+| 游戏类型知识库（Abidingenuity 借鉴） | `learning/game_knowledge.py` |
 | 文案知识库 | `learning/copy_knowledge.py` |
 | 机制设计知识库 | `learning/mechanics_knowledge.py` |
 | Maker 案例库 | `learning/maker_cases.py` |
-| 引导式策划工具 | `agent/builtin_tools.py` |
+| 苏格拉底式策划工具（Abidingenuity socratic.py 借鉴） | `agent/builtin_tools.py` |
+| 引导式策划 + 文案生成 | `agent/builtin_tools.py` |
 
 ---
 
@@ -48,6 +59,10 @@
 
 | 任务 | 来源 |
 |------|------|
+| 滚动章节树记忆（Abidingenuity memory.py 借鉴） | `core/scroll_chapter.py` |
+| embedding 语义排序（Abidingenuity 借鉴） | `learning/knowledge_base.py` |
+| Harness Engineering（Ima 之五） | `core/harness.py` |
+| 控制论 PID 自我校正（Ima 之五） | `core/control_loop.py` |
 | physics-2d / audio / network / graphics | `engine-docs/` |
 | `urhox-libs/` 源码 API | 核心库 |
 | `AGENTS.md` 开发规范 | 45KB |
@@ -63,7 +78,7 @@ python scripts/one_click_fix_maker.py [--fix]
 python scripts/verify_maker_mcp_full_path.py
 ```
 
-**v0.6.0 完成条件：** 四大方向全部交付 + 测试通过 + 推送远程 + tag 创建。
+**v0.6.0 完成条件：** 四大方向 + 外部项目学习全部交付 + 测试通过 + 推送远程 + tag 创建。
 
 ---
 
