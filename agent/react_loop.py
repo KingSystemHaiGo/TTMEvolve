@@ -20,6 +20,16 @@ from core.cancellation import TaskCancelled
 from core.executor import Executor
 from core.event_log import EventLog
 from core.goal_tracking import checklist_context_hint, update_goal_checklist
+from core.plan_format import (
+    PLAN_FORMAT_VERSION,
+    empty_plan,
+    normalize_plan,
+    plan_progress,
+    plan_to_context_block,
+    update_step_status,
+)
+from core.plan_prompt import build_plan_prompt, extract_plan_from_llm_text
+from core.plan_review import review_plan
 from core.plan_validation import summarize_plan_validation, validate_plan_step
 from llm.interface import LLMInterface
 
@@ -43,6 +53,8 @@ class ReActLoop:
         tool_progress_interval_seconds: float = 5.0,
         skill_sync_status: Optional[Callable[[], Dict[str, Any]]] = None,
         runtime_contract_provider: Optional[Callable[[str], Dict[str, Any]]] = None,
+        plan_first_enabled: bool = False,
+        plan_approval_provider: Optional[Callable[[Dict[str, Any]], bool]] = None,
     ):
         self.llm = llm
         self.tools = tools
@@ -55,6 +67,8 @@ class ReActLoop:
         self.tool_progress_interval_seconds = max(0.1, float(tool_progress_interval_seconds or 5.0))
         self.skill_sync_status = skill_sync_status
         self.runtime_contract_provider = runtime_contract_provider
+        self._plan_first_enabled = bool(plan_first_enabled)
+        self._plan_approval_provider = plan_approval_provider
 
         # 专家救援相关状态
         self._expert_context: str = ""
@@ -74,6 +88,11 @@ class ReActLoop:
         self._runtime_contract_snapshot: Dict[str, Any] = {}
         self._maker_briefing_snapshot: Dict[str, Any] = {}
         self._maker_goal_templates: List[Dict[str, Any]] = []
+        # Plan First state (already initialized above from constructor args)
+        self._plan: Dict[str, Any] = empty_plan()
+        self._plan_review: Dict[str, Any] = {}
+        self._plan_approval_event: Optional[Any] = None
+        self._plan_first_completed: bool = False
 
     def _emit(self, session_id: str, event_type: str, payload: Dict[str, Any]) -> None:
         if self.event_sink:
@@ -147,6 +166,10 @@ class ReActLoop:
             self._context_sync_signature = None
             self._context_sync_snapshot = {}
             self._context_sync_revision = 0
+            # Plan First reset
+            self._plan = empty_plan(task=task)
+            self._plan_review = {}
+            self._plan_first_completed = not self._plan_first_enabled
         else:
             self._session_id = session_id or self._session_id or str(uuid.uuid4())[:8]
             self._task = task or self._task
@@ -172,6 +195,17 @@ class ReActLoop:
         self._emit(self._session_id, "goal_checklist", self._goal_checklist)
         self._maybe_emit_skill_sync(iteration=-1, reason="session_start", force=True)
         self._maybe_emit_context_sync(iteration=-1, reason="session_start", force=True)
+
+        # Plan First phase: build a structured plan and wait for user approval
+        # before letting the ReAct loop execute any tool.
+        if self._plan_first_enabled and not self._plan_first_completed:
+            approved_plan = self._run_plan_first_phase(task)
+            if approved_plan is None:
+                # Plan phase aborted — return a minimal result so the UI can show
+                # the draft plan and the rejection reason.
+                return self._build_plan_first_result(reason="not_approved")
+            self._plan_first_completed = True
+            self._context += plan_to_context_block(approved_plan)
 
         for i in range(self.max_iterations):
             iteration_started_at = time.perf_counter()
@@ -1032,13 +1066,104 @@ class ReActLoop:
         templates = maker.get("task_templates") if isinstance(maker.get("task_templates"), list) else []
         return [item for item in templates if isinstance(item, dict)]
 
+    # ------------------------------------------------------------------
+    # Plan First
+    # ------------------------------------------------------------------
+
+    def _run_plan_first_phase(self, task: str) -> Optional[Dict[str, Any]]:
+        """Generate a draft plan, run a deterministic review, then wait for user approval.
+
+        Returns the approved plan dict, or None if the user rejects/aborts.
+        """
+        self._emit(self._session_id, "plan_first_phase", {"phase": "drafting", "task": task})
+        draft = self._draft_plan_from_llm(task)
+        self._plan = draft
+        self._plan_review = review_plan(self._plan, known_tools=self._known_tool_names())
+        self._emit(self._session_id, "plan_draft", {
+            "plan": self._plan,
+            "review": self._plan_review,
+            "progress": plan_progress(self._plan),
+        })
+
+        if self._plan_review.get("verdict") == "fail":
+            self._emit(self._session_id, "plan_first_phase", {
+                "phase": "auto_rejected",
+                "review": self._plan_review,
+            })
+            return None
+
+        if not callable(self._plan_approval_provider):
+            # No approval provider configured: auto-approve when review passes.
+            if self._plan_review.get("verdict") == "pass":
+                self._plan["approved"] = True
+                self._plan["status"] = "approved"
+                return self._plan
+            return None
+
+        try:
+            approved = bool(self._plan_approval_provider(self._plan))
+        except Exception as e:
+            self._emit(self._session_id, "plan_approval_error", {"error": str(e)})
+            approved = False
+        if not approved:
+            return None
+        self._plan["approved"] = True
+        self._plan["status"] = "approved"
+        return self._plan
+
+    def _draft_plan_from_llm(self, task: str) -> Dict[str, Any]:
+        """Ask the LLM for a JSON plan and normalize it into our schema."""
+        prompt = build_plan_prompt(
+            task=task,
+            context=self._context,
+            runtime_hints={
+                "session_id": self._session_id,
+                "tools_available": len(self._known_tool_names()),
+            },
+            tool_list=sorted(self._known_tool_names()),
+        )
+        try:
+            response = self.llm.generate(prompt=prompt, max_tokens=800)
+            text = response.text if hasattr(response, "text") else str(response)
+        except Exception as e:
+            self._emit(self._session_id, "plan_draft_error", {"error": str(e)})
+            return empty_plan(task=task)
+        parsed = extract_plan_from_llm_text(text or "")
+        if parsed is None:
+            self._emit(self._session_id, "plan_draft_parse_failed", {
+                "raw_excerpt": (text or "")[:200],
+            })
+            return empty_plan(task=task)
+        return normalize_plan(parsed, task=task)
+
+    def _known_tool_names(self) -> List[str]:
+        try:
+            names = [tool.name for tool in self.tools.list_tools()]
+        except Exception:
+            names = []
+        return names
+
+    def _build_plan_first_result(self, reason: str = "not_approved") -> Dict[str, Any]:
+        """Return a result dict for the case where the plan phase ends without approval."""
+        return {
+            "session_id": self._session_id,
+            "task": self._task,
+            "trajectory": [],
+            "output": "",
+            "done": False,
+            "plan": self._plan,
+            "plan_review": self._plan_review,
+            "plan_progress": plan_progress(self._plan),
+            "plan_first_phase": reason,
+        }
+
     def _build_result(self) -> Dict[str, Any]:
         output = ""
         for step in reversed(self._trajectory):
             if step.get("done") or "output" in step:
                 output = step.get("output", "")
                 break
-        return {
+        result = {
             "session_id": self._session_id,
             "task": self._task,
             "trajectory": self._trajectory,
@@ -1047,6 +1172,11 @@ class ReActLoop:
             "plan_validation": summarize_plan_validation(self._trajectory),
             "goal_checklist": self._goal_checklist,
         }
+        if self._plan_first_enabled or self._plan.get("steps"):
+            result["plan"] = self._plan
+            result["plan_review"] = self._plan_review
+            result["plan_progress"] = plan_progress(self._plan)
+        return result
 
     def _summarize(self, result: Dict[str, Any]) -> Dict[str, Any]:
         return {

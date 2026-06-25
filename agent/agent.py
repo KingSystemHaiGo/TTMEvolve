@@ -152,6 +152,8 @@ class TapMakerAgent:
             cancel_check=cancel_check,
             skill_sync_status=self.skill_sync_registry.status,
             runtime_contract_provider=self.runtime_contract,
+            plan_first_enabled=self.config.get("agent.plan_first_enabled", False),
+            plan_approval_provider=self._plan_approval_provider,
         )
 
         # 学习转化层
@@ -277,6 +279,26 @@ class TapMakerAgent:
             "tool": "runtime_contract",
             "contract": self.runtime_contract(session_id=session_id or "{session_id}"),
         }
+
+    def _plan_approval_provider(self, plan: Dict[str, Any]) -> bool:
+        """Default plan approval provider.
+
+        When plan_first_enabled is on but no human-in-the-loop provider is wired
+        in (no session_store, no approval callback), fall back to auto-approving
+        plans that pass the deterministic review. Real human approval is provided
+        by the server-side handler via the runtime plan_approval callable.
+        """
+        try:
+            provider = getattr(self, "_plan_approval_callable", None)
+            if callable(provider):
+                return bool(provider(plan))
+        except Exception:
+            pass
+        return True
+
+    def set_plan_approval_callable(self, provider: Optional[Callable[[Dict[str, Any]], bool]]) -> None:
+        """Install a human-in-the-loop plan approval callable (server sets this)."""
+        self._plan_approval_callable = provider
 
     def maker_briefing(self, session_id: str = "{session_id}", task: str = "") -> Dict[str, Any]:
         contract = self.runtime_contract(session_id=session_id or "{session_id}")
