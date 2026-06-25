@@ -1,0 +1,12 @@
+{
+  "task": "在万世宗族项目中实现季度祭典（Seasonal Festival）的最小可运行配置与系统存根。要求：\n1. 读取 scripts/config/ClanEvents.lua，在 Values 表中新增 SEASONAL_FESTIVALS 配置，包含 2~3 个祭典定义（如丰收祭、武道会、宗族宴），每个祭典有 id、title、narrative、options（选项带 label/icon/effect，效果把 buff 添加到 gameState.data.activeBuffs 列表）。\n2. 新建 scripts/systems/SeasonalFestivalSystem.lua，提供 SeasonalFestivalSystem.New(gameState, eventLog) 和 TryTriggerFestival(data, month, season) 方法：每年第一季度首月且没有 pending 事件时从 SEASONAL_FESTIVALS 随机选一个祭典，把事件写入 data.clanEvents.pendingEvent。\n3. 使用 modify_file 工具修改 ClanEvents.lua，使用 modify_file 工具创建 SeasonalFestivalSystem.lua。不要在 output 中只返回代码，必须真正写入文件。",
+  "project_root": "D:/CC/taptap-maker-project",
+  "expected_files": [
+    "scripts/systems/SeasonalFestivalSystem.lua"
+  ],
+  "expected_patterns": [
+    "SeasonalFestivalSystem",
+    "SEASONAL_FESTIVALS",
+    "activeBuffs"
+  ]
+}

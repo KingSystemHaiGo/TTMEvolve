@@ -1,0 +1,20 @@
+{
+  "name": "ttmevolve-electron",
+  "version": "0.4.5-one-click-practice-entry",
+  "description": "TTMEvolve desktop Agent — Electron + Python backend",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"wait-on http://127.0.0.1:5173 && npm run dev:electron\"",
+    "dev:frontend": "cd frontend && vite",
+    "dev:electron": "cd electron && cross-env NODE_ENV=development electron .",
+    "build": "npm run build:frontend && npm run build:electron",
+    "build:frontend": "cd frontend && vite build",
+    "build:electron": "cd electron && npm run build && electron-builder",
+    "dist": "npm run build && cd electron && electron-builder"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "wait-on": "^7.2.0"
+  }
+}

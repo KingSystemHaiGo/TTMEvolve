@@ -1,0 +1,33 @@
+# TTMEvolve 运行时数据
+storage/
+portable/
+workspace/
+test_project/
+.venv/
+vendor/
+models/
+*.log
+__pycache__/
+*.pyc
+.env
+.env.*
+config.json
+!.gitkeep
+
+# Local agent/editor/runtime configuration
+.agents/
+.claude/
+.codex/
+.cursor/
+.mcp.json
+.ttmevolve/
+.pytest_cache/
+
+# Windows local launchers
+*.lnk
+*.vbs
+
+# Node.js / Electron
+**/node_modules/
+**/dist/
+.tmp/

@@ -1,0 +1,11 @@
+{
+  "ok": false,
+  "mode": "light",
+  "provider": "mock",
+  "timeout_seconds": 3.0,
+  "max_tokens": 200,
+  "elapsed_ms": 0.1,
+  "feedback": null,
+  "raw": "[{\"domain\": \"mock\", \"rule\": \"当用户要求列出文件时，先调用 list_directory 工具获取目录内容再总结\", \"context\": \"你是 TTMEvolve 里真正执行任务的 Agent LLM。\\n\\n请只从“我作为 Agent 是否顺手”回答。系统现状：\\n- ReAct: think -> tool_selection -> ch\", \"tags\": [\"mock\", \"skill\"], \"confidence\": 0.85}]",
+  "call_stats": {}
+}

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TTMEvolve — Desktop Agent</title>
+  <link rel="stylesheet" href="/web/style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">◈</span>
+        <span>TTMEvolve</span>
+        <span class="tagline">GUI 为表 · CLI 为里</span>
+      </div>
+      <div class="status" id="status-indicator">
+        <span class="dot" id="status-dot"></span>
+        <span id="status-text">就绪</span>
+      </div>
+    </header>
+
+    <div class="main">
+      <aside class="command-log" id="command-log">
+        <div class="panel-header">
+          <span>Command Log</span>
+          <button id="toggle-cmd" title="折叠">‹</button>
+        </div>
+        <div class="panel-body" id="command-body">
+          <div class="hint">GUI 操作对应的 CLI 命令会显示在这里。</div>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <div class="timeline" id="timeline">
+          <div class="empty-state" id="empty-state">
+            <div class="empty-icon">🤖</div>
+            <div class="empty-title">TTMEvolve 桌面级 Agent</div>
+            <div class="empty-desc">在下方输入任务，观察 Agent 思考、行动、获取反馈的完整过程。</div>
+          </div>
+        </div>
+
+        <div class="composer" id="composer">
+          <input type="text" id="task-input" placeholder="输入任务，例如：列出项目文件" autocomplete="off">
+          <button id="run-btn" class="primary">运行</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="approval-modal">
+    <div class="modal">
+      <div class="modal-title">⚠️ 需要你的确认</div>
+      <div class="modal-body" id="approval-message"></div>
+      <div class="modal-actions">
+        <button id="approval-deny" class="danger">拒绝</button>
+        <button id="approval-allow" class="primary">允许</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/web/app.js"></script>
+</body>
+</html>

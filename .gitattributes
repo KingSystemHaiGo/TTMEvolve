@@ -1,0 +1,12 @@
+# 强制 Windows 脚本使用 CRLF 换行，避免 cmd 解析失败
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 其他文本文件自动处理
+*.py text=auto
+*.md text=auto
+*.json text=auto
+*.txt text=auto
+*.yml text=auto
+*.yaml text=auto

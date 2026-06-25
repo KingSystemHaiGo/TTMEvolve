@@ -1,0 +1,16 @@
+{
+  "name": "ttmevolve-electron-main",
+  "version": "0.4.5-one-click-practice-entry",
+  "private": true,
+  "main": "./dist/main/index.js",
+  "scripts": {
+    "dev": "electron .",
+    "build": "tsc && vite build --config vite.main.config.ts && vite build --config vite.preload.config.ts"
+  },
+  "devDependencies": {
+    "electron": "30.5.1",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.5.3",
+    "vite": "^5.3.3"
+  }
+}

@@ -1,0 +1,252 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+@source "../";
+@layer base {
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --color-brand: #00D9C5;
+    --color-brand-strong: #00CDBA;
+    --color-text: #060A26;
+    --color-text-muted: rgba(6, 10, 38, 0.6);
+    --color-text-subtle: rgba(6, 10, 38, 0.4);
+    --color-border: rgba(6, 10, 38, 0.12);
+    --color-border-soft: rgba(6, 10, 38, 0.06);
+    --surface-app: #F7F9FA;
+    --surface-panel: #FFFFFF;
+    --surface-raised: #FFFFFF;
+    --surface-muted: rgba(6, 10, 38, 0.06);
+    --radius-control: 6px;
+    --radius-card: 8px;
+    --radius-panel: 10px;
+    --radius-large: 16px;
+    --radius-pill: 999px;
+    --shadow-panel: 0 18px 40px rgba(6, 10, 38, 0.08);
+    --shadow-popover: 0 12px 32px -6px rgba(6, 10, 38, 0.16);
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --color-brand: #00D9C5;
+    --color-brand-strong: #00CDBA;
+    --color-text: #ECECF1;
+    --color-text-muted: #B4B4BC;
+    --color-text-subtle: #878A92;
+    --color-border: rgba(255, 255, 255, 0.11);
+    --color-border-soft: rgba(255, 255, 255, 0.07);
+    --surface-app: #18191B;
+    --surface-panel: #202123;
+    --surface-raised: #2B2C2F;
+    --surface-muted: rgba(255, 255, 255, 0.08);
+    --radius-control: 6px;
+    --radius-card: 8px;
+    --radius-panel: 10px;
+    --radius-large: 16px;
+    --radius-pill: 999px;
+    --shadow-panel: 0 18px 40px rgba(0, 0, 0, 0.32);
+    --shadow-popover: 0 12px 32px -6px rgba(0, 0, 0, 0.46);
+  }
+
+  * { 
+    box-sizing: border-box; 
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+  }
+  
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-subtle);
+  }
+
+  html, body, #root { height: 100%; margin: 0; }
+  body { 
+    background: var(--surface-app); 
+    color: var(--color-text); 
+    font-family: Inter, "Segoe UI", system-ui, sans-serif; 
+    overflow: hidden; 
+  }
+}
+
+@layer components {
+  .flow-step-connector {
+    position: absolute;
+    inset-inline-end: 8px;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    border-block-start: 1.5px solid var(--color-text-subtle);
+    border-inline-end: 1.5px solid var(--color-text-subtle);
+    transform: translateY(-50%) rotate(45deg);
+    opacity: 0.62;
+    pointer-events: none;
+  }
+
+  @media (max-height: 720px), (max-width: 980px) {
+    .image-studio-main {
+      flex-direction: column;
+    }
+
+    .image-studio-form {
+      width: 100%;
+      min-height: 0;
+    }
+
+    .image-studio-history {
+      min-height: 360px;
+    }
+  }
+
+  .schema-form-host form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .schema-form-host fieldset {
+    border: 1px solid var(--color-border-soft);
+    border-radius: var(--radius-panel);
+    padding: 12px;
+    background: var(--surface-raised);
+  }
+
+  .schema-form-host legend {
+    padding: 0 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--color-text);
+  }
+
+  .schema-form-host .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-block-end: 12px;
+  }
+
+  .schema-form-host label.control-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--color-text-muted);
+  }
+
+  .schema-form-host input,
+  .schema-form-host select,
+  .schema-form-host textarea {
+    min-height: 34px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--surface-panel);
+    color: var(--color-text);
+    padding: 7px 10px;
+    font-size: 13px;
+    outline: none;
+  }
+
+  .schema-form-host textarea {
+    min-height: 96px;
+    resize: vertical;
+  }
+
+  .schema-form-host input:focus,
+  .schema-form-host select:focus,
+  .schema-form-host textarea:focus {
+    border-color: var(--color-brand);
+    box-shadow: 0 0 0 2px rgba(0, 217, 197, 0.16);
+  }
+
+  .schema-form-host .field-description,
+  .schema-form-host .help-block,
+  .schema-form-host p {
+    margin: 0;
+    color: var(--color-text-subtle);
+    font-size: 11px;
+    line-height: 1.55;
+  }
+
+  .schema-form-host .checkbox {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .schema-form-host button[type="submit"] {
+    display: none;
+  }
+
+  .workflow-flow {
+    background: var(--surface-panel);
+    color: var(--color-text);
+  }
+
+  .workflow-flow .react-flow__node {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-panel);
+    padding: 10px;
+  }
+
+  .workflow-flow .react-flow__node.selected {
+    border-color: var(--color-brand);
+    box-shadow: 0 0 0 2px rgba(0, 217, 197, 0.16);
+  }
+
+  .workflow-flow .react-flow__controls,
+  .workflow-flow .react-flow__minimap {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    box-shadow: var(--shadow-panel);
+  }
+
+  .react-flow__controls {
+    border: 1px solid var(--color-border-soft) !important;
+    border-radius: var(--radius-card) !important;
+    overflow: hidden;
+    background: var(--surface-panel) !important;
+    box-shadow: var(--shadow-panel) !important;
+  }
+
+  .react-flow__controls-button {
+    width: 28px !important;
+    height: 28px !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--color-border-soft) !important;
+    background: var(--surface-panel) !important;
+    color: var(--color-text-muted) !important;
+  }
+
+  .react-flow__controls-button:hover {
+    background: var(--surface-muted) !important;
+    color: var(--color-text) !important;
+  }
+
+  .react-flow__controls-button svg {
+    fill: currentColor !important;
+  }
+
+  .react-flow__controls-button:disabled {
+    color: var(--color-text-subtle) !important;
+    opacity: 0.45;
+  }
+
+  .react-flow__minimap {
+    border: 1px solid var(--color-border-soft) !important;
+    border-radius: var(--radius-card) !important;
+    overflow: hidden;
+    background: var(--surface-panel) !important;
+    box-shadow: var(--shadow-panel) !important;
+  }
+
+  .react-flow__minimap svg {
+    background: var(--surface-panel) !important;
+  }
+}

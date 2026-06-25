@@ -1,0 +1,61 @@
+appId: com.ttmevolve.desktop
+productName: TTMEvolve
+copyright: Copyright © 2026 TTMEvolve
+asar: true
+asarUnpack:
+  - "**/node_modules/playwright-core/**/*"
+  - "**/python.exe"
+  - "**/*.dll"
+files:
+  - "dist/**/*"
+  - "package.json"
+directories:
+  output: "../dist-electron"
+extraResources:
+  - from: "../server"
+    to: "server"
+  - from: "../scripts"
+    to: "scripts"
+  - from: "../core"
+    to: "core"
+  - from: "../agent"
+    to: "agent"
+  - from: "../llm"
+    to: "llm"
+  - from: "../memory"
+    to: "memory"
+  - from: "../learning"
+    to: "learning"
+  - from: "../ecosystem"
+    to: "ecosystem"
+  - from: "../cli"
+    to: "cli"
+  - from: "../main.py"
+    to: "main.py"
+  - from: "../requirements.txt"
+    to: "requirements.txt"
+  - from: "../config.json"
+    to: "config.json"
+  - from: "../config.example.json"
+    to: "config.example.json"
+  - from: "../vendor"
+    to: "vendor"
+    filter:
+      - "**/*"
+  - from: "../models"
+    to: "models"
+    filter:
+      - "**/*.gguf"
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+portable:
+  artifactName: "${productName}-${version}-portable.exe"

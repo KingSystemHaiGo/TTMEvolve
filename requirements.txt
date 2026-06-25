@@ -1,0 +1,26 @@
+# 核心依赖（保持最小）
+anthropic>=0.45.0
+requests>=2.32.0
+
+# 本地模型推理（GGUF via llama.cpp）
+# Windows GPU 加速安装：
+#   $env:CMAKE_ARGS="-DLLAMA_CUDA=on"; pip install llama-cpp-python --no-cache-dir --force-reinstall
+# CPU 安装：
+#   pip install llama-cpp-python
+llama-cpp-python>=0.3.0
+
+# 模型下载
+huggingface-hub>=0.20.0
+
+# 本地嵌入模型 + 向量检索（M2 向量记忆）
+sentence-transformers>=3.0.0
+faiss-cpu>=1.8.0
+
+# 数值计算
+numpy>=1.26.0
+
+# 浏览器自动化（Phase 7 内嵌 Chromium）
+playwright>=1.40.0
+
+# 桌面 GUI（把 web 前端包成原生窗口）
+pywebview>=5.0

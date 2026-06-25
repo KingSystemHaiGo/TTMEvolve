@@ -1,0 +1,173 @@
+{
+  "llm": {
+    "provider": "deepseek",
+    "model_path": "./models/MiniCPM5-1B-Q4_K_M.gguf",
+    "local_model_repo": "openbmb/MiniCPM5-1B-GGUF",
+    "local_model_file": "MiniCPM5-1B-Q4_K_M.gguf",
+    "n_ctx": 8192,
+    "n_gpu_layers": "auto",
+    "n_batch": 1024,
+    "n_ubatch": 512,
+    "n_threads": 6,
+    "n_threads_batch": 12,
+    "offload_kqv": "auto",
+    "use_mmap": true,
+    "use_mlock": false,
+    "flash_attn": false,
+    "cache_type_k": "f16",
+    "cache_type_v": "f16",
+    "turn_cache_max_entries": 2,
+    "temperature": 0.7,
+    "top_p": 0.95,
+    "timeout": 45,
+    "interview_timeout": 30,
+    "feedback": {
+      "provider": "",
+      "model": "",
+      "base_url": "",
+      "timeout": 12,
+      "fallback_timeout": 8,
+      "fallback_max_tokens": 140,
+      "repair_max_tokens": 640,
+      "fallbacks": [
+        {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "base_url": "https://api.deepseek.com",
+          "timeout": 8
+        },
+        {
+          "provider": "qwen",
+          "model": "qwen-turbo",
+          "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          "timeout": 8
+        }
+      ]
+    },
+    "max_history_steps": 6,
+    "reserve_tokens": 256,
+    "verbose": false,
+    "enable_thinking_for_reasoning": true,
+    "kv_cache_max_entries": 8,
+    "compression": {
+      "strategy": "truncate_oldest",
+      "max_tokens": 6144,
+      "summarize_threshold": 8,
+      "enable_kv_cache": false
+    },
+    "hot_memory_max_turns": 6,
+    "warm_memory_budget_tokens": 1500,
+    "model": "deepseek-v4-pro",
+    "api_key": "sk-...",
+    "api_keys": {},
+    "base_url": "https://api.deepseek.com"
+  },
+  "sandbox": {
+    "mode": "workspace-write"
+  },
+  "approval": {
+    "policy": "on-request"
+  },
+  "profiles": {
+    "default": {
+      "sandbox": {
+        "mode": "workspace-write"
+      },
+      "approval": {
+        "policy": "on-request"
+      }
+    },
+    "safe": {
+      "sandbox": {
+        "mode": "read-only"
+      },
+      "approval": {
+        "policy": "always"
+      }
+    },
+    "autonomous": {
+      "sandbox": {
+        "mode": "workspace-write"
+      },
+      "approval": {
+        "policy": "never"
+      }
+    }
+  },
+  "maker_mcp": {
+    "command": "cmd.exe",
+    "args": [
+      "/d",
+      "/s",
+      "/c",
+      "npx.cmd",
+      "-y",
+      "-p",
+      "@taptap/maker",
+      "taptap-maker"
+    ],
+    "cwd": "./workspace/default-maker-project",
+    "env": {
+      "TAPTAP_MCP_ENV": "production"
+    },
+    "request_timeout_seconds": 30
+  },
+  "project_root": "./workspace/default-maker-project",
+  "storage_root": "./storage",
+  "memory": {
+    "vector_index": {
+      "enabled": true,
+      "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "embedding_dim": 384,
+      "top_k": 5,
+      "fallback_to_keyword": true
+    }
+  },
+  "agents_md": {
+    "enabled": true,
+    "files": [
+      "AGENTS.md",
+      ".codex/AGENTS.md",
+      ".codex/instructions.md"
+    ],
+    "chunk_size": 800,
+    "chunk_overlap": 100,
+    "top_k": 3,
+    "dynamic_tools_enabled": true,
+    "dynamic_tools_risk_level_default": "medium",
+    "allow_python_handlers": false
+  },
+  "runtime": {
+    "portable_root": "./portable",
+    "heartbeat_interval_seconds": 5,
+    "tool_timeout_seconds": 45,
+    "shell_timeout_seconds": 45,
+    "max_repair_attempts": 3,
+    "auto_rollback_on_error": true,
+    "human_confirm_for_core_changes": true
+  },
+  "learning": {
+    "skill_generation_enabled": true,
+    "expert_skill_confidence_floor": 0.75
+  },
+  "expert": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-pro",
+    "api_key": "sk-...",
+    "base_url": "https://api.deepseek.com",
+    "timeout": 120,
+    "enabled": false,
+    "mode": "tiered"
+  },
+  "rescue": {
+    "max_consecutive_errors": 3,
+    "max_iterations_ratio": 0.75,
+    "detect_repeated_actions": true,
+    "health_degraded": true,
+    "max_rescue_per_session": 1,
+    "cooldown_seconds": 60,
+    "max_takeover_steps": 5,
+    "distill_after_rescue": true,
+    "skip_if_no_expert_key": true
+  }
+}
