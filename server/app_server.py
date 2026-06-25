@@ -39,6 +39,11 @@ from llm.unconfigured_llm import UnconfiguredLLM
 from server.approval_bridge import ApprovalBridge
 from server.browser_service import BrowserService
 from server.ide_service import IdeService
+from server.settings_api import (
+    build_provider_summary,
+    build_settings_devtools_clear,
+    build_settings_runtime_info,
+)
 from server.maker_setup import (
     MAKER_URL,
     agent_root_mcp_state,
@@ -2534,6 +2539,14 @@ class AppServer:
                     self._json_response(200, {"providers": PROVIDER_PRESETS})
                     return
 
+                if path == "/api/settings/runtime-info":
+                    self._json_response(200, build_settings_runtime_info(server))
+                    return
+
+                if path == "/api/settings/llm-providers":
+                    self._json_response(200, build_provider_summary(server))
+                    return
+
                 if path == "/llm/feedback-summary":
                     self._json_response(200, build_llm_feedback_summary())
                     return
@@ -3126,6 +3139,10 @@ class AppServer:
                     data = json.loads(body) if body else {}
                 except json.JSONDecodeError:
                     self._json_response(400, {"error": "Invalid JSON"})
+                    return
+
+                if path == "/api/settings/devtools":
+                    self._json_response(200, build_settings_devtools_clear())
                     return
 
                 if path == "/sessions":
