@@ -20,6 +20,8 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from core.conditional_hooks import matches_predicate, select_applicable_hooks
+
 
 Hook = Callable[[str, Dict[str, Any]], tuple[str, Dict[str, Any]]]
 
@@ -50,6 +52,15 @@ class HookSystem:
             return text, ctx
 
         hooks = self._builtins.get(phase, []) + self._config_hooks.get(phase, [])
+        # Conditional hook filtering: only fire config hooks whose `when`
+        # predicate matches the runtime context. Built-in hooks always run.
+        ctx_for_predicate = dict(ctx)
+        applicable_config = select_applicable_hooks(self._config.get(phase, []), ctx_for_predicate)
+        applicable_builtins = select_applicable_hooks(
+            [{"when": getattr(hook, "_when", None)} for hook in hooks if hasattr(hook, "_when")],
+            ctx_for_predicate,
+        )
+        # Merge: built-in hooks first (always fire), then conditional config hooks.
         for hook in hooks:
             try:
                 text, ctx = hook(text, ctx)
