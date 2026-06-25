@@ -1,31 +1,35 @@
 # TTMEvolve
 
+> **v0.7.0**：完整 Windows 桌面应用（Tauri 2.x + Rust + 云端 LLM）
+> **不装任何环境依赖，双击即可运行**
+
 TTMEvolve 是一个面向 TapTap Maker 游戏开发的自进化 Agent 工作台。
 
-它的目标不是只做一个聊天框，而是把「理解项目、调用 Maker MCP、修改代码、构建验证、沉淀经验、下次复用」串成一个可持续迭代的本地开发系统。你可以把它理解为一个专门服务 TapTap Maker 的桌面级 AI IDE：前端是 Electron + React，后端是 Python App Server，Agent 通过工具系统、沙箱、审批、记忆和学习模块完成真实开发任务。
+它的目标不是只做一个聊天框，而是把「理解项目、调用 Maker MCP、修改代码、构建验证、沉淀经验、下次复用」串成一个可持续迭代的本地开发系统。你可以把它理解为一个专门服务 TapTap Maker 的桌面级 AI IDE：前端是 Tauri + WebView2 + React，后端是 Python App Server，Agent 通过工具系统、沙箱、审批、记忆和学习模块完成真实开发任务。
 
-## 项目亮点
+## 项目亮点（v0.7.0）
 
-- **面向 TapTap Maker**：内置 Maker MCP 接入、项目选择、初始化、诊断和练习流程。
-- **桌面工作台**：提供 Electron 桌面 GUI，包含聊天、文件树、预览、工具反馈和运行状态。
-- **本地 App Server**：CLI、GUI、未来 TUI 都复用同一个 HTTP + SSE 协议。
-- **多模型支持**：支持本地模型、DeepSeek、OpenAI 兼容接口、Claude、Mock 测试模式。
-- **可控执行**：通过 sandbox、approval profile 和工具校验控制 Agent 行为边界。
-- **自进化机制**：运行时记录任务轨迹、错误模式、修复经验和技能沉淀。
-- **便携运行环境**：优先使用 `portable/`、`vendor/`、`.venv/` 等本地目录隔离缓存和运行依赖。
+- **Tauri 桌面壳**：Rust 内核 + WebView2，启动 < 2s，内存 < 80MB
+- **云端 LLM 多 Provider**：OpenAI / Anthropic / DeepSeek / Qwen / Zhipu / Moonshot / SiliconFlow / MiniMax，**自动故障转移**
+- **内嵌便携环境**：Python + Node 全部打包到 `portable/`，**零安装**
+- **完整 Settings 页面**：5 面板（项目 / MCP / Schema / 工作台 / 开发者模式）+ 主题切换
+- **面向 TapTap Maker**：内置 Maker MCP 接入、项目选择、初始化、诊断和一键修复
+- **可控执行**：通过 sandbox、approval profile 和工具校验控制 Agent 行为边界
+- **自进化机制**：运行时记录任务轨迹、错误模式、修复经验和技能沉淀
 
 ## 一句话启动
 
 Windows 推荐直接双击或运行：
 
-```powershell
-.\start-gui.bat
+```cmd
+.\start-tauri.bat
 ```
 
-如果你要做 TapTap Maker 实战项目，推荐使用：
+或者开发者模式：
 
-```powershell
-.\start-practice.bat
+```cmd
+cd src-tauri
+cargo tauri dev
 ```
 
 如果你只想在终端里跑 Agent：
