@@ -192,6 +192,26 @@ def test_maker_tool_audit_reports_remote_capability_gap():
     assert set(audit["missing_required_proxy_tools"]) == set(REQUIRED_PROXY_TOOLS)
 
 
+def test_maker_setup_fault_analysis_tracks_remote_capability_gap():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        cfg = _config(tmp_path)
+        audit = build_maker_tool_audit(agent=_PartialAgent())
+
+        status = build_maker_setup_status(
+            config=cfg,
+            app_root=_PROJECT_ROOT,
+            tool_audit=audit,
+        )
+
+        analysis = status["fault_analysis"]
+        fault_codes = [fault["code"] for fault in analysis["faults"]]
+        assert analysis["version"] == "maker-fault-rules.v1"
+        assert "maker_remote_capability_missing" in fault_codes
+        assert analysis["one_click_repair"]["can_run_now"] is True
+        assert "maker_remote_capability_missing" in analysis["one_click_repair"]["manual_faults"]
+
+
 def test_internal_maker_mcp_config_normalizes_pinned_version_to_latest():
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)

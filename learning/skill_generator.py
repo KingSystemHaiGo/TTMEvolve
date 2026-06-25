@@ -14,7 +14,7 @@ from llm.interface import LLMInterface
 
 
 class SkillGenerator:
-    """根据反思结果自动生成技能文件。"""
+    """根据反思结果自动生成技能文件，并触发跨生态导出。"""
 
     def __init__(
         self,
@@ -22,6 +22,7 @@ class SkillGenerator:
         skills_dir: Path,
         validator: Optional[Any] = None,
         registry: Optional[Any] = None,
+        skill_sync_registry: Optional[Any] = None,
     ):
         self.llm = llm
         self.skills_dir = Path(skills_dir)
@@ -30,6 +31,7 @@ class SkillGenerator:
         self.generated_dir.mkdir(parents=True, exist_ok=True)
         self.validator = validator
         self.registry = registry
+        self.skill_sync_registry = skill_sync_registry
 
     def generate(
         self,
@@ -63,8 +65,27 @@ class SkillGenerator:
                     source=f"{source}:{session_id}",
                     metadata={"spec": spec},
                 )
+            # 触发跨生态导出（Codex / Claude Code / Hermes / OpenClaw）
+            if self.skill_sync_registry is not None:
+                self._trigger_cross_ecosystem_sync(skill_name)
             generated.append(skill_name)
         return generated
+
+    def _trigger_cross_ecosystem_sync(self, skill_id: str) -> None:
+        """技能生成成功后自动触发跨生态导出。"""
+        try:
+            # 刷新同步注册表以发现新技能
+            self.skill_sync_registry.refresh(force=True)
+            # 构建导出计划并执行（静默模式，不阻塞主流程）
+            from ecosystem.skill_sync import build_skill_export_plan, apply_skill_export_plan
+            plan = build_skill_export_plan(
+                extra_skills_dirs=[str(self.generated_dir)],
+                require_review=False,
+            )
+            if plan.get("actions"):
+                apply_skill_export_plan(plan, dry_run=False, require_review=False)
+        except Exception:
+            pass  # 导出失败不阻塞主流程
 
     def _skill_name(self, domain: str) -> str:
         import re, time

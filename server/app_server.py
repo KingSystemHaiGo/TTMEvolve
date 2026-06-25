@@ -54,6 +54,7 @@ from server.maker_setup import (
 from server.maker_practice import MakerPracticeRunner
 from server.protocol import ApprovalResponse, SessionRequest, TurnEvent
 from server.session_store import SessionStore
+from server.maker_faults import build_maker_fault_analysis
 
 
 APP_ROOT = Path(__file__).resolve().parent.parent
@@ -1701,6 +1702,8 @@ class AppServer:
         return build_maker_tool_audit(agent=self.agent)
 
     def reconnect_maker_mcp(self) -> Dict[str, Any]:
+        before_setup = self.maker_setup_status(check_latest=False)
+        before_faults = before_setup.get("fault_analysis") if isinstance(before_setup.get("fault_analysis"), dict) else {}
         if self._has_active_sessions():
             return {
                 "ok": False,
@@ -1753,14 +1756,17 @@ class AppServer:
         Maker MCP subprocess plus Agent tool registrations when no session is
         currently running.
         """
+        before_setup = self.maker_setup_status(check_latest=False)
+        before_faults = before_setup.get("fault_analysis") if isinstance(before_setup.get("fault_analysis"), dict) else {}
         if self._has_active_sessions():
             return {
                 "ok": False,
                 "hot_repair": False,
                 "restart_required": False,
                 "error": "当前 Agent 正在执行任务，无法同时重连 Maker MCP。请等待本轮结束后再修复。",
-                "setup_status": self.maker_setup_status(check_latest=False),
+                "setup_status": before_setup,
                 "tool_audit": self.maker_tool_audit(),
+                "fault_analysis": before_faults,
             }
         reconnect = self.reconnect_maker_mcp()
         agent_root_sync = ensure_agent_root_maker_mcp_registration(APP_ROOT)
@@ -1768,6 +1774,10 @@ class AppServer:
         setup = reconnect.get("setup_status") if isinstance(reconnect.get("setup_status"), dict) else self.maker_setup_status(check_latest=False)
         if isinstance(setup, dict):
             setup["agent_root_mcp"] = agent_root_mcp_state(APP_ROOT)
+            setup["fault_analysis"] = build_maker_fault_analysis(
+                setup_status=setup,
+                tool_audit=audit,
+            )
         repair_ok = bool(audit.get("repair_ok") or audit.get("ok"))
         return {
             **reconnect,
@@ -1778,6 +1788,8 @@ class AppServer:
             "agent_root_mcp_sync": agent_root_sync,
             "tool_audit": audit,
             "setup_status": setup,
+            "fault_analysis_before": before_faults,
+            "fault_analysis": setup.get("fault_analysis", {}) if isinstance(setup, dict) else {},
         }
 
     def maker_setup_status(self, *, check_latest: bool = False) -> Dict[str, Any]:

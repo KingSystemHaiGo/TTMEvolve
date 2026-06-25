@@ -41,6 +41,7 @@ from learning.trajectory_collector import TrajectoryCollector
 from learning.reflection import ReflectionEngine
 from learning.skill_generator import SkillGenerator
 from learning.knowledge_base import KnowledgeBase
+from learning.knowledge_seeds import seed_knowledge_base
 from learning.validator import SkillValidator
 
 from llm.expert_rescuer import ExpertRescuer
@@ -161,6 +162,7 @@ class TapMakerAgent:
             storage_path=self.storage_root / "knowledge",
             vector_index_config=self.config.vector_index_config(),
         )
+        self.knowledge_seed_status = seed_knowledge_base(self.knowledge_base)
         self.reflection = ReflectionEngine(
             llm=self.llm,
             knowledge_base=self.knowledge_base,
@@ -170,6 +172,7 @@ class TapMakerAgent:
             skills_dir=self.project_root / "skills",
             validator=SkillValidator(),
             registry=self.resource_registry,
+            skill_sync_registry=self.skill_sync_registry,
         )
         # 专家救援与教学闭环（可选）
         self.expert_rescuer: Optional[ExpertRescuer] = None
