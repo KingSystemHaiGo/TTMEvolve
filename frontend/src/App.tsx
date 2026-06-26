@@ -7,7 +7,7 @@ import FileTree from './components/FileTree'
 import IdeLayout from './components/IdeLayout'
 import ProviderSelector from './components/ProviderSelector'
 import { useFs } from './hooks/useFs'
-import { openExternalUrl } from './lib/tauri'
+import { isTauri, makerPreviewNavigate, openExternalUrl } from './lib/tauri'
 import './styles/index.css'
 
 export type MessageRole = 'user' | 'assistant' | 'system' | 'event'
@@ -59,6 +59,7 @@ interface LiveUsage {
 const API_BASE = 'http://127.0.0.1:7345'
 const MAKER_HOME_URL = 'https://maker.taptap.cn/'
 const MAKER_FORUM_URL = 'https://www.taptap.cn/app/810249/topic'
+const PREVIEW_URL_KEY = 'ttmevolve.preview.url'
 const CHAT_LAYOUT_KEY = 'ttmevolve.chat.width'
 const CHAT_COLLAPSED_KEY = 'ttmevolve.chat.collapsed'
 const WORKSPACE_PAGE_WIDTH_KEY = 'ttmevolve.workspace.page.width'
@@ -354,6 +355,27 @@ export default function App() {
 
   const { readFile, writeFile } = useFs()
 
+  const navigateMakerPreview = useCallback(async (url: string) => {
+    const targetUrl = String(url || '').trim()
+    if (!targetUrl) return
+    localStorage.setItem(PREVIEW_URL_KEY, targetUrl)
+
+    const makerBrowser = (window as any).electronAPI?.makerBrowser
+    if (makerBrowser?.navigate) {
+      await makerBrowser.navigate(targetUrl)
+      return
+    }
+
+    if (isTauri()) {
+      await makerPreviewNavigate(targetUrl).catch((err) => {
+        console.warn('Maker preview is not ready yet; saved URL for next mount.', err)
+      })
+      return
+    }
+
+    await openExternalUrl(targetUrl)
+  }, [])
+
   useEffect(() => {
     const timer = window.setInterval(() => setBootNow(Date.now()), 500)
     return () => window.clearInterval(timer)
@@ -436,26 +458,14 @@ export default function App() {
   }, [loadMakerPractice])
 
   const openMakerHome = useCallback(async () => {
-    const makerBrowser = (window as any).electronAPI?.makerBrowser
-    if (makerBrowser?.navigate) {
-      await makerBrowser.navigate(MAKER_HOME_URL)
-      setMakerDestination('maker')
-      return
-    }
-    await openExternalUrl(MAKER_HOME_URL)
+    await navigateMakerPreview(MAKER_HOME_URL)
     setMakerDestination('maker')
-  }, [])
+  }, [navigateMakerPreview])
 
   const openMakerForum = useCallback(async () => {
-    const makerBrowser = (window as any).electronAPI?.makerBrowser
-    if (makerBrowser?.navigate) {
-      await makerBrowser.navigate(MAKER_FORUM_URL)
-      setMakerDestination('forum')
-      return
-    }
-    await openExternalUrl(MAKER_FORUM_URL)
+    await navigateMakerPreview(MAKER_FORUM_URL)
     setMakerDestination('forum')
-  }, [])
+  }, [navigateMakerPreview])
 
   const toggleMakerDestination = useCallback(() => {
     if (makerDestination === 'forum') {
@@ -552,13 +562,8 @@ export default function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ auth_url: authUrl }),
     }).catch(() => undefined)
-    const makerBrowser = (window as any).electronAPI?.makerBrowser
-    if (makerBrowser?.navigate) {
-      await makerBrowser.navigate(authUrl)
-      return
-    }
-    await openExternalUrl(authUrl)
-  }, [])
+    await navigateMakerPreview(authUrl)
+  }, [navigateMakerPreview])
 
   useEffect(() => {
     fetch(`${API_BASE}/llm/providers`)
