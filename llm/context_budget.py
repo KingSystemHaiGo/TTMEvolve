@@ -30,6 +30,7 @@ class BudgetStats:
     agents_md_ms: float = 0.0
     cold_recall_ms: float = 0.0
     context_build_ms: float = 0.0
+    workspace_profile: str = "general"
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -48,6 +49,7 @@ class BudgetStats:
             "agents_md_ms": self.agents_md_ms,
             "cold_recall_ms": self.cold_recall_ms,
             "context_build_ms": self.context_build_ms,
+            "workspace_profile": self.workspace_profile,
         }
 
 

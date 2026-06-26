@@ -66,6 +66,23 @@ def test_prepare_think_payload_prioritizes_task():
     print("[PASS] test_prepare_think_payload_prioritizes_task")
 
 
+def test_prepare_think_payload_includes_workspace_profile():
+    mgr = _make_manager(n_ctx=1024)
+    text, stats = mgr.prepare_think_payload(
+        task="写 README",
+        context="context info",
+        trajectory=[],
+        tools_description="create_document",
+        max_tokens=64,
+        workspace_profile="docs",
+    )
+
+    assert "【Workspace Profile】docs" in text
+    assert stats.workspace_profile == "docs"
+    assert stats.to_dict()["workspace_profile"] == "docs"
+    print("[PASS] test_prepare_think_payload_includes_workspace_profile")
+
+
 def test_prepare_think_payload_keeps_trajectory():
     mgr = _make_manager(n_ctx=1024)
     mgr.set_system_prompt("system")
@@ -110,6 +127,7 @@ def test_prepare_think_payload_drops_trajectory_when_tight():
 if __name__ == "__main__":
     test_prepare_task_context()
     test_prepare_think_payload_prioritizes_task()
+    test_prepare_think_payload_includes_workspace_profile()
     test_prepare_think_payload_keeps_trajectory()
     test_prepare_think_payload_drops_trajectory_when_tight()
     print("\nAll memory_manager tests passed.")

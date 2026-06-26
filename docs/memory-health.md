@@ -125,3 +125,5 @@
 2026-06-26: Reviewed Zleap-Agent for Agent-core improvement ideas. Important lesson: the most useful pattern is workspace-first context control, not exposing every tool/memory/history item every turn; TTMEvolve now records a `workspace_profile` in tool-ranking stats as the first step toward profile-scoped tools and memory.
 
 2026-06-26: Turned workspace profile from telemetry into ranking behavior. Important lesson: workspace-first should change the prompt surface, not only label it; docs tasks should see document/read tools first, Maker tasks should see Maker/browser tools first, and coding tasks should see project/read/write/shell/git tools first.
+
+2026-06-26: Passed workspace profile into MemoryManager context budgeting. Important lesson: RAG/vector-memory optimization needs a routing signal before retrieval can be safely narrowed; emit `workspace_profile` through context text and `context_budget` stats first, then use it to filter vector memory in later work.

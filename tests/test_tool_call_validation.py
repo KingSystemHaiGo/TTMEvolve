@@ -23,6 +23,8 @@ from core.sandbox import SandboxMode
 from core.approval import ApprovalPolicy
 from core.version_manager import VersionManager
 from llm.mock_llm import MockLLM
+from llm.context_budget import ContextBudgetManager
+from memory.manager import MemoryManager
 
 
 class _SlowToolMockLLM(MockLLM):
@@ -962,6 +964,51 @@ def test_react_loop_emits_context_sync_snapshot():
         assert "trajectory_steps" in last["diff_keys"]
 
 
+def test_react_loop_passes_workspace_profile_to_memory_context():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tools = ToolRegistry(root / "skills")
+        executor = _make_executor(root)
+        tools.register(
+            name="create_document",
+            description="新建项目内文档或说明文件",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "content": {"type": "string"},
+                },
+                "required": ["path", "content"],
+            },
+            handler=executor.propose_action,
+        )
+        memory = MemoryManager(
+            project_root=root,
+            storage_root=root / "storage",
+            skills_dir=root / "skills",
+            budget_manager=ContextBudgetManager(n_ctx=1024, reserve_tokens=64, tokenizer=len),
+        )
+        events = []
+        llm = MockLLM([
+            {"tool": "create_document", "params": {"path": "README.md", "content": "hello"}},
+        ])
+        loop = ReActLoop(
+            llm=llm,
+            tools=tools,
+            executor=executor,
+            event_log=EventLog(root / "events.jsonl"),
+            max_iterations=2,
+            event_sink=events.append,
+            memory_manager=memory,
+        )
+
+        loop.run("新建文档 README markdown", session_id="profile-memory")
+        context_events = [event for event in events if event.get("type") == "context_budget"]
+
+        assert context_events
+        assert context_events[0]["payload"]["workspace_profile"] == "docs"
+
+
 def test_react_loop_context_sync_deduplicates_unchanged_snapshot():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -1072,6 +1119,7 @@ if __name__ == "__main__":
     test_react_loop_emits_skill_sync_change_event()
     test_react_loop_emits_skill_compatibility_warning_after_plan_validation()
     test_react_loop_emits_context_sync_snapshot()
+    test_react_loop_passes_workspace_profile_to_memory_context()
     test_react_loop_context_sync_deduplicates_unchanged_snapshot()
     test_react_loop_reconciles_uncertain_commit_state()
     print("[PASS] tool call validation tests")

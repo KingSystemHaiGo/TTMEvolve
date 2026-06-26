@@ -89,6 +89,7 @@ class MemoryManager:
         trajectory: List[Dict[str, Any]],
         tools_description: str,
         max_tokens: int = 512,
+        workspace_profile: str = "general",
     ) -> Tuple[str, "BudgetStats"]:
         """为 ReAct 循环的 think() 调用准备上下文字符串和预算统计。
 
@@ -99,6 +100,8 @@ class MemoryManager:
 
         started_at = time.perf_counter()
         system = self.hot._system_prompt or DEFAULT_SYSTEM_PROMPT
+        profile = _normalize_workspace_profile(workspace_profile)
+        profile_context = f"【Workspace Profile】{profile}"
         trajectory_str = self.budget_manager.slice_trajectory(
             trajectory,
             max_steps=self.config.get("llm.max_history_steps", 6),
@@ -147,6 +150,7 @@ class MemoryManager:
 
         parts: List[Tuple[str, int]] = [
             (task, 6),
+            (profile_context, 6),
             (agents_context, 5),
             (cold_context, 4),
             (context, 4),
@@ -164,6 +168,7 @@ class MemoryManager:
             agents_md_ms=agents_md_ms,
             cold_recall_ms=cold_recall_ms,
             context_build_ms=round((time.perf_counter() - started_at) * 1000, 2),
+            workspace_profile=profile,
         )
         return text, stats
 
@@ -198,3 +203,8 @@ class MemoryManager:
         if not snippets:
             return "（无内容）"
         return " | ".join(snippets)
+
+
+def _normalize_workspace_profile(value: str) -> str:
+    profile = str(value or "general").strip().lower()
+    return profile if profile in {"coding", "docs", "maker", "browser", "general"} else "general"

@@ -868,6 +868,7 @@ class ReActLoop:
                 trajectory=self._trajectory,
                 tools_description=think_tools_description,
                 max_tokens=512,
+                workspace_profile=str(think_rank_stats.get("workspace_profile") or "general"),
             )
             step["budget_stats"] = budget_stats.to_dict() if budget_stats else None
             if budget_stats:

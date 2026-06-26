@@ -63,6 +63,7 @@ The launcher prefers embedded runtimes under `portable/`, then `.venv/`, then sy
 | Document creation | `create_document` lets the Agent create Markdown/text/JSON documents through the same sandbox, approval, and event pipeline as code edits. | `create_document` 让 Agent 可以通过和代码编辑相同的沙箱、审批、事件链路新建 Markdown/text/JSON 文档。 |
 | Search performance | `search_files` skips heavy/runtime directories and large/binary files, then returns scan metrics. | `search_files` 默认跳过重目录、运行时目录、大文件和二进制文件，并返回扫描指标。 |
 | Workspace profile | Tool ranking infers `coding/docs/maker/browser/general` and uses it to narrow candidate tools. | 工具排序会推断 `coding/docs/maker/browser/general` 工作面，并用它收敛候选工具。 |
+| Memory context | Workspace profile is passed into memory/context budgeting so RAG can become profile-aware. | 工作面信号已进入记忆/上下文预算，为 RAG 按 profile 加速打基础。 |
 
 ## Architecture / 架构
 
@@ -166,6 +167,7 @@ The latest full sync validated these paths:
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_coding_agent_can_create_user_document -q` -> `1 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_executor_search_files_skips_heavy_dirs_and_large_files -q` -> `1 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_sandbox.py tests\test_tool_timeouts.py tests\test_plan_first.py tests\test_plan_first_integration.py tests\test_plan_validation.py tests\test_coding_agent_v060.py tests\test_runtime_events.py tests\test_runtime_contract.py -q` -> `89 passed`
+- `.venv\Scripts\python.exe -m pytest tests\test_memory_manager.py tests\test_tool_call_validation.py tests\test_sandbox.py tests\test_tool_timeouts.py tests\test_plan_first.py tests\test_plan_first_integration.py tests\test_plan_validation.py tests\test_coding_agent_v060.py tests\test_runtime_events.py tests\test_runtime_contract.py -q` -> `95 passed`
 - `.venv\Scripts\python.exe -m pytest -q` -> `598 passed, 14 skipped`
 - `npm.cmd --prefix frontend run build` -> passed
 - `npm.cmd --prefix electron run build` -> passed
