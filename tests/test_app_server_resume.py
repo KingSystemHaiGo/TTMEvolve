@@ -18,12 +18,14 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from core.config import Config
+from core.runtime_events import RuntimeEventBus
 from llm.llm_factory import LLMFactory
 from llm.api_errors import LLMTimeoutError
 from llm.mock_llm import MockLLM
-from server.app_server import AppServer
+from server.app_server import AppServer, Session
 from server.approval_bridge import ApprovalBridge
 from agent.agent import TapMakerAgent
+from server.protocol import SessionRequest
 from server.session_store import SessionStore
 
 
@@ -78,6 +80,44 @@ class _TimeoutMockLLM(MockLLM):
             "generate_ms": 123.4,
             "total_tokens": 0,
         }
+
+
+def test_session_emit_publishes_to_runtime_event_bus_and_store():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        store = SessionStore(root / "sessions.db")
+        store.create_session("s-bus", "bus task")
+        bus = RuntimeEventBus()
+        seen = []
+        bus.subscribe(seen.append, session_id="s-bus")
+        session = Session("s-bus", "bus task", store=store, event_bus=bus)
+
+        session.emit({"type": "status", "session_id": "s-bus", "payload": {"message": "started"}})
+        queued = next(session.iter_events(timeout=0.01))
+        stored = store.get_events("s-bus")
+
+        assert queued["type"] == "status"
+        assert queued["meta"]["channel"] == "session"
+        assert seen == [queued]
+        assert stored[0]["type"] == "status"
+        assert stored[0]["meta"]["event_id"] == queued["meta"]["event_id"]
+        assert bus.replay(session_id="s-bus") == [queued]
+
+
+def test_app_server_sessions_share_runtime_event_bus():
+    with tempfile.TemporaryDirectory() as tmp:
+        server = _make_server(Path(tmp), port=0)
+        seen = []
+        server.event_bus.subscribe(seen.append, session_id="shared-bus")
+
+        sid = server.create_session(SessionRequest(task="bus task", session_id="shared-bus"))
+        session = server.get_session(sid)
+        assert session is not None
+        session.emit({"type": "status", "session_id": sid, "payload": {"message": "ready"}})
+
+        assert len(seen) == 1
+        assert seen[0]["session_id"] == "shared-bus"
+        assert server.event_bus.replay(session_id="shared-bus") == seen
 
 
 def _make_slow_server(tmp_path: Path, port: int) -> AppServer:

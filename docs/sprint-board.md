@@ -170,3 +170,11 @@
 - Updated: Workbench normal labels use Chinese product language and no longer expose candidate-count wording in user-facing summaries.
 - Updated: chat status/event filtering maps tool-selection/candidate/ranking internals to "正在判断下一步".
 - Added: regression coverage that project_status and execute_shell stay ahead of Maker tools for project-state/cmd requests.
+
+## 2026-06-26 Runtime Event Bus Foundation
+
+- Status: verifying.
+- Added a shared in-process RuntimeEventBus with typed envelopes, filtered subscriptions, bounded replay, unsubscribe, stats, and observer error isolation.
+- Wired AppServer sessions through the shared server event bus while preserving existing SQLite/SSE event shape.
+- Verified focused runtime-event and AppServer session bus tests.
+- Next: migrate more Agent/Core/Learning producers and project-management observers onto the bus instead of direct event queues.

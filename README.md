@@ -82,6 +82,10 @@ flowchart TB
     Agent --> Tools["Tool Registry<br/>Files / Shell / Git / Browser / Maker MCP"]
     Agent --> Runtime["Runtime Controls<br/>Sandbox / Approval / Health"]
     Agent --> Memory["Memory + Learning<br/>Sessions / Evidence / Vector Index"]
+    Server --> Bus["Runtime Event Bus<br/>Session / Feedback / Layer channels"]
+    Agent --> Bus
+    Runtime --> Bus
+    Memory --> Bus
 
     Tools --> Maker["TapTap Maker MCP"]
     Tools --> Project["Maker project workspace"]
@@ -95,6 +99,8 @@ Agent 核心审计：
 
 - [Agent Core Health Audit 2026-06-26](docs/architecture/agent-core-health-audit-2026-06-26.md) documents the verified coding-agent loop, layered runtime evidence, safety boundaries, and the remaining gap before any Claude Code/Codex parity claim.
 - [Agent Core Health Audit 2026-06-26](docs/architecture/agent-core-health-audit-2026-06-26.md) 记录已验证的编程 Agent 闭环、分层运行证据、安全边界，以及距离 Claude Code/Codex 级别仍需补齐的差距。
+- `core/runtime_events.py` now contains a lightweight in-process Runtime Event Bus for typed envelopes, filtered subscribers, bounded replay, and non-breaking observers. It is wired into AppServer sessions while keeping the existing SSE/SQLite event shape compatible.
+- `core/runtime_events.py` 现在提供轻量级进程内 Runtime Event Bus，支持统一事件 envelope、过滤订阅、有界回放和观察者异常隔离；它已接入 AppServer 会话，同时保持现有 SSE/SQLite 事件形状兼容。
 
 ## Repository Map / 目录结构
 
@@ -166,6 +172,7 @@ The latest full sync validated these paths:
 - `npm.cmd --prefix frontend run build` -> passed after history close affordance and Workbench label polish
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_tool_registry_prioritizes_project_status_for_project_questions tests\test_tool_call_validation.py::test_tool_registry_keeps_project_and_shell_tools_for_basic_project_work tests\test_tool_call_validation.py::test_tool_registry_keeps_shell_tool_for_cmd_and_terminal_requests tests\test_tool_call_validation.py::test_tool_registry_does_not_let_maker_tools_crowd_out_basic_project_work -q` -> `4 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_shared_memory_policy.py tests\test_app_server_resume.py::test_app_server_evidence_bundle_endpoint -q` -> `37 passed`
+- `.venv\Scripts\python.exe -m pytest tests\test_runtime_events.py tests\test_app_server_resume.py::test_session_emit_publishes_to_runtime_event_bus_and_store tests\test_app_server_resume.py::test_app_server_sessions_share_runtime_event_bus -q` -> `7 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_sandbox.py -q` -> `25 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_coding_agent_minimal_programming_smoke -q` -> `1 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_coding_agent_can_create_user_document -q` -> `1 passed`

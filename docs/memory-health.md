@@ -179,3 +179,10 @@ pm.cmd --prefix frontend run build passed; focused tool-routing pytest for proje
 - Replaced visible Workbench English/status labels with Chinese product-facing labels and removed candidate-count wording from normal runtime summaries.
 - Expanded chat event filtering so candidate/tool-selection/ranking wording is translated to user intent instead of leaking internal tool names or ranking internals.
 - Added a regression test proving basic project/cmd work keeps project_status and execute_shell ahead of Maker tools even when many Maker remote tools are registered.
+## 2026-06-26 Runtime Event Bus Foundation POST
+
+- Added RuntimeEventBus in core/runtime_events.py as a shared in-process communication primitive for session/feedback/layer event channels.
+- The bus preserves the existing event dictionary shape, adds the shared RuntimeEvent envelope, supports filtered subscriptions by event type/channel/session, bounded replay, unsubscribe, stats, and observer exception isolation.
+- AppServer sessions now publish through a shared AppServer.event_bus before writing SQLite/SSE queues, so future runtime metrics, learning, and project-management components can subscribe without direct coupling to Session internals.
+- Added focused tests for bus filtering/replay/history bounds/error isolation and for Session/AppServer bus integration.
+- This is a decoupling foundation, not a claim that every producer/consumer has been migrated to the bus yet.

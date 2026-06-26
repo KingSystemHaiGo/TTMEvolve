@@ -31,7 +31,7 @@ from agent.mcp_integration import MCPIntegration
 from core.cancellation import TaskCancelled
 from core.config import Config
 from core.portable_env import apply_portable_env, portable_diagnostics
-from core.runtime_events import envelope_event
+from core.runtime_events import RuntimeEventBus
 from ecosystem.skill_sync import SkillSyncRegistry
 from llm.llm_factory import LLMFactory
 from llm.provider_presets import OPENAI_COMPATIBLE_ALIASES, PROVIDER_PRESETS, model_hints, provider_preset
@@ -1778,6 +1778,7 @@ class Session:
         session_id: str,
         task: str,
         store: Optional[SessionStore] = None,
+        event_bus: Optional[RuntimeEventBus] = None,
     ):
         self.session_id = session_id
         self.task = task
@@ -1788,13 +1789,14 @@ class Session:
         self.pending_action_id: Optional[str] = None
         self._event_queue: queue.Queue[Dict[str, Any]] = queue.Queue()
         self._store = store
+        self.event_bus = event_bus or RuntimeEventBus()
         self._history: List[Dict[str, Any]] = []
         self._history_consumed = 0
         if store is not None:
             self._history = store.get_events(session_id)
 
     def emit(self, event: Dict[str, Any]) -> None:
-        event = envelope_event(
+        event = self.event_bus.publish(
             event,
             default_source=str(event.get("source") or "runtime"),
             correlation_id=self.session_id,
@@ -1854,6 +1856,7 @@ class AppServer:
         self._approval_bridge = approval_bridge or ApprovalBridge()
         self._sessions: Dict[str, Session] = {}
         self._session_llm_overrides: Dict[str, Dict[str, Optional[str]]] = {}
+        self.event_bus = RuntimeEventBus()
         self._lock = threading.Lock()
         self.ide_service = IdeService(agent)
         storage_root = Path(agent.config.storage_root())
@@ -2354,7 +2357,12 @@ class AppServer:
             profile=req.profile,
         )
         with self._lock:
-            self._sessions[sid] = Session(sid, req.task, store=self.session_store)
+            self._sessions[sid] = Session(
+                sid,
+                req.task,
+                store=self.session_store,
+                event_bus=self.event_bus,
+            )
             self._session_llm_overrides[sid] = {
                 "provider": req.provider,
                 "model": req.model,
