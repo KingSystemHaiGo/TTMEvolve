@@ -193,3 +193,11 @@ pm.cmd --prefix frontend run build passed; focused tool-routing pytest for proje
 - Existing get_events() and AppServer event_sink behavior remain compatible, but future observers can subscribe to the bus instead of coupling to _event_queues.
 - Added tests proving ReAct status/output and layer events appear on the Agent bus, preserving event order and envelope metadata.
 - This continues the event-bus migration; AppServer still receives session events through event_sink to avoid double-publishing during this incremental step.
+
+## 2026-06-26 Runtime Event Bus Evidence Surface POST
+
+- Exposed compact Runtime Event Bus status in Runtime Readiness, Session Evidence JSON/Markdown, and LLM Onboarding JSON/Markdown.
+- Evidence includes server bus stats, Agent bus stats, session-scoped event counts, layer-event counts, and the compatibility flag `sse_sqlite_shape_preserved`.
+- Added release/closure gate checks so external agents can verify the bus surface before depending on decoupled observers.
+- Cleaned the main chat/history/input surfaces to use Chinese/English visible labels and keep candidate-tool ranking out of the user conversation; internal routing still remains available in Workbench/debug evidence.
+- Verified focused readiness/evidence endpoint tests and the frontend production build.

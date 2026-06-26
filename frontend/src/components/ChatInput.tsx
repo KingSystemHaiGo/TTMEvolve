@@ -59,8 +59,8 @@ export default function ChatInput({
         className="chat-add-button"
         type="button"
         disabled={disabled}
-        aria-label="添加上下文文件"
-        title="添加上下文文件"
+        aria-label="添加上下文文件 / Add context files"
+        title="添加上下文文件 / Add context files"
         onClick={handleAttach}
       >
         +
@@ -79,27 +79,27 @@ export default function ChatInput({
         onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => event.key === 'Enter' && handleSend()}
         disabled={disabled}
-        placeholder={isLoading ? '继续输入，会自动排队...' : '提出目标、问题，或直接开始做游戏...'}
+        placeholder={isLoading ? '继续输入，会自动排队... / Keep typing, it will queue...' : '提出目标、问题，或直接开始做游戏... / Ask or start building...'}
       />
       <select
         className="chat-permission-select"
         value={permissionProfile}
         onChange={(event) => onPermissionProfileChange?.(event.target.value)}
-        title="选择 Agent 本次会话可使用的最大权限"
-        aria-label="权限模式"
+        title="选择 Agent 本次会话可使用的最大权限 / Select max permission for this session"
+        aria-label="权限模式 / Permission mode"
         disabled={disabled || isLoading}
       >
-        <option value="safe">只读</option>
-        <option value="default">默认</option>
-        <option value="autonomous">自动</option>
+        <option value="safe">只读 / Read-only</option>
+        <option value="default">默认 / Default</option>
+        <option value="autonomous">自动 / Autonomous</option>
       </select>
       {isLoading && onCancel && (
         <button className="chat-stop-button" type="button" onClick={onCancel}>
-          停止
+          停止 / Stop
         </button>
       )}
       <button className="chat-send-button" onClick={handleSend} disabled={disabled || !text.trim()}>
-        {isLoading ? '排队' : '发送'}{queueCount > 0 ? ` ${queueCount}` : ''}
+        {isLoading ? '排队 / Queue' : '发送 / Send'}{queueCount > 0 ? ` ${queueCount}` : ''}
       </button>
     </div>
   )

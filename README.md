@@ -103,6 +103,10 @@ Agent 核心审计：
 - `core/runtime_events.py` 现在提供轻量级进程内 Runtime Event Bus，支持统一事件 envelope、过滤订阅、有界回放和观察者异常隔离；它已接入 AppServer 会话，同时保持现有 SSE/SQLite 事件形状兼容。
 - `TapMakerAgent` now publishes ReAct and layer events into its own Runtime Event Bus while preserving `get_events()` and AppServer `event_sink` compatibility, so future observers can attach without reading private queues.
 - `TapMakerAgent` 现在会把 ReAct 与 layer 事件发布到自身 Runtime Event Bus，同时保持 `get_events()` 和 AppServer `event_sink` 兼容，后续观察者不必读取私有队列。
+- Runtime Event Bus evidence is now exposed through `/runtime/readiness`, `/sessions/{id}/evidence`, and `/agent/onboarding`, including bus stats, session event counts, and the compatibility flag `sse_sqlite_shape_preserved`.
+- Runtime Event Bus 证据现在已经暴露到 `/runtime/readiness`、`/sessions/{id}/evidence` 和 `/agent/onboarding`，包含总线统计、会话事件计数，以及兼容性标记 `sse_sqlite_shape_preserved`。
+- The normal-user chat surface keeps history dismissible, uses Chinese/English visible labels, and keeps candidate-tool ranking in Workbench instead of the main conversation.
+- 普通用户聊天界面现在提供明确的历史关闭入口，用户可见标签采用中英双语，并把候选工具排序留在 Workbench，而不是显示在主对话里。
 
 ## Repository Map / 目录结构
 
@@ -172,6 +176,8 @@ The latest full sync validated these paths:
 最近一次完整同步已验证：
 
 - `npm.cmd --prefix frontend run build` -> passed after history close affordance and Workbench label polish
+- `npm run build` from `frontend/` -> passed after bilingual chat/history/input cleanup
+- `.venv\Scripts\python.exe -m pytest tests\test_app_server_resume.py::test_app_server_runtime_readiness_endpoint tests\test_app_server_resume.py::test_app_server_evidence_bundle_endpoint -q` -> `2 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_tool_registry_prioritizes_project_status_for_project_questions tests\test_tool_call_validation.py::test_tool_registry_keeps_project_and_shell_tools_for_basic_project_work tests\test_tool_call_validation.py::test_tool_registry_keeps_shell_tool_for_cmd_and_terminal_requests tests\test_tool_call_validation.py::test_tool_registry_does_not_let_maker_tools_crowd_out_basic_project_work -q` -> `4 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_shared_memory_policy.py tests\test_app_server_resume.py::test_app_server_evidence_bundle_endpoint -q` -> `37 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_runtime_events.py tests\test_app_server_resume.py::test_session_emit_publishes_to_runtime_event_bus_and_store tests\test_app_server_resume.py::test_app_server_sessions_share_runtime_event_bus -q` -> `7 passed`

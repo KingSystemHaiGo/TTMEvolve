@@ -186,3 +186,12 @@
 - Agent event replay no longer requires direct _event_queues access for consumers that can subscribe to the bus.
 - Verified layer-event tests plus runtime/AppServer bus focused tests.
 - Next: expose bus stats/evidence in runtime readiness and move project-management observers onto subscriptions.
+
+## 2026-06-26 Runtime Event Bus Evidence Surface
+
+- Status: verified.
+- Runtime Readiness now reports `runtime_event_bus` plus a release-gate check for the server/Agent bus surface.
+- Session Evidence JSON/Markdown and LLM Onboarding JSON/Markdown now expose bus stats, session event counts, layer-event counts, and compatibility evidence.
+- Chat/history/input surfaces were cleaned for normal users: explicit history close, Chinese/English visible labels, and no candidate-tool ranking in the main conversation.
+- Verified: focused readiness/evidence endpoint pytest and `frontend` production build.
+- Next: wire project-management observers onto bus subscriptions and continue replacing direct queue reads.

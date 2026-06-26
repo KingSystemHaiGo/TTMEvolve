@@ -581,6 +581,7 @@ def build_runtime_readiness(
     llm_feedback_summary = build_llm_feedback_summary()
     layer_summary = summarize_layer_events(layer_history)
     runtime_summary = summarize_runtime_metrics(runtime_metrics)
+    event_bus_summary = build_runtime_event_bus_summary(server=server, session_id=session_id)
     issues: List[Dict[str, str]] = []
     next_actions: List[str] = []
 
@@ -657,6 +658,7 @@ def build_runtime_readiness(
             {"id": "maker_mcp_evidence", "ok": maker.get("readiness") == "ready"},
             {"id": "layer_evidence", "ok": session_id == "{session_id}" or bool(layer_history)},
             {"id": "context_sync", "ok": session_id == "{session_id}" or bool(context_history)},
+            {"id": "runtime_event_bus", "ok": event_bus_summary.get("status") in {"ready", "partial"}},
         ],
     }
 
@@ -679,6 +681,7 @@ def build_runtime_readiness(
             "probe_endpoint": llm_probe.get("endpoint") or llm_probe.get("base_url"),
             "last_call_endpoint": last_call_stats.get("endpoint"),
             "call_proof": llm_call_proof.get("conclusion"),
+            "event_bus": event_bus_summary.get("status"),
         },
         "issues": issues,
         "next_actions": next_actions,
@@ -700,6 +703,7 @@ def build_runtime_readiness(
             "last_call": maker.get("last_call") if isinstance(maker.get("last_call"), dict) else maker.get("last_call"),
         },
         "layer_summary": layer_summary,
+        "runtime_event_bus": event_bus_summary,
         "runtime_metrics_summary": runtime_summary,
         "latest_context_sync": context_history[-1] if context_history else None,
         "learning_latest": learning_history[-1] if learning_history else None,
@@ -795,6 +799,44 @@ def build_shared_memory_policy_summary(*, server: Any, agent_id: str = "default"
         }
 
 
+def build_runtime_event_bus_summary(*, server: Any, session_id: str = "{session_id}") -> Dict[str, Any]:
+    """Return compact observability for the in-process runtime event buses."""
+    def _stats(bus: Any) -> Dict[str, Any]:
+        if bus is None:
+            return {"status": "missing"}
+        try:
+            stats = bus.stats() if hasattr(bus, "stats") else {}
+            return {"status": "ready", **(stats if isinstance(stats, dict) else {})}
+        except Exception as exc:
+            return {"status": "error", "error": str(exc)}
+
+    def _count(bus: Any, **criteria: Any) -> int:
+        if bus is None or not hasattr(bus, "replay"):
+            return 0
+        try:
+            return len(bus.replay(limit=0, **criteria))
+        except Exception:
+            return 0
+
+    server_bus = getattr(server, "event_bus", None)
+    agent_bus = getattr(getattr(server, "agent", None), "event_bus", None)
+    summary = {
+        "status": "ready" if server_bus is not None and agent_bus is not None else "partial",
+        "server_bus": _stats(server_bus),
+        "agent_bus": _stats(agent_bus),
+        "session_id": session_id,
+        "session_events": 0,
+        "session_layer_events": 0,
+        "compatibility": "sse_sqlite_shape_preserved",
+    }
+    if session_id != "{session_id}":
+        summary["session_events"] = _count(server_bus, session_id=session_id)
+        summary["session_layer_events"] = _count(server_bus, session_id=session_id, event_type="layer")
+        summary["agent_session_events"] = _count(agent_bus, session_id=session_id)
+        summary["agent_session_layer_events"] = _count(agent_bus, session_id=session_id, event_type="layer")
+    return summary
+
+
 def build_session_evidence_bundle(
     *,
     server: Any,
@@ -846,6 +888,7 @@ def build_session_evidence_bundle(
     )
     maker_setup = server.maker_setup_status(check_latest=False)
     shared_memory = build_shared_memory_policy_summary(server=server)
+    event_bus_summary = build_runtime_event_bus_summary(server=server, session_id=session_id)
 
     endpoint_keys = [
         "onboarding_bundle",
@@ -905,6 +948,7 @@ def build_session_evidence_bundle(
         "latest_context_sync": latest_context_sync,
         "continuation": continuation,
         "layer_summary": layer_summary,
+        "runtime_event_bus": event_bus_summary,
         "runtime_metrics_summary": runtime_summary,
         "shared_memory": shared_memory,
         "learning_latest": learning_latest,
@@ -960,6 +1004,9 @@ def render_session_evidence_markdown(bundle: Dict[str, Any]) -> str:
         else {}
     )
     layer_summary = bundle.get("layer_summary") if isinstance(bundle.get("layer_summary"), dict) else {}
+    event_bus = bundle.get("runtime_event_bus") if isinstance(bundle.get("runtime_event_bus"), dict) else {}
+    server_bus = event_bus.get("server_bus") if isinstance(event_bus.get("server_bus"), dict) else {}
+    agent_bus = event_bus.get("agent_bus") if isinstance(event_bus.get("agent_bus"), dict) else {}
     latest_by_layer = (
         layer_summary.get("latest_by_layer")
         if isinstance(layer_summary.get("latest_by_layer"), dict)
@@ -1063,6 +1110,14 @@ def render_session_evidence_markdown(bundle: Dict[str, Any]) -> str:
             f"route=`{latest.get('source_layer') or '-'}->{latest.get('target_layer') or '-'}`"
         )
     lines.append(f"- layer_events: `{layer_summary.get('event_count') or 0}`")
+    lines.extend([
+        "",
+        "## Runtime Event Bus",
+        f"- status: `{event_bus.get('status') or '-'}` compatibility=`{event_bus.get('compatibility') or '-'}`",
+        f"- server_bus: history=`{server_bus.get('history_size') if server_bus else '-'}` subscribers=`{server_bus.get('subscriber_count') if server_bus else '-'}` limit=`{server_bus.get('history_limit') if server_bus else '-'}`",
+        f"- agent_bus: history=`{agent_bus.get('history_size') if agent_bus else '-'}` subscribers=`{agent_bus.get('subscriber_count') if agent_bus else '-'}` limit=`{agent_bus.get('history_limit') if agent_bus else '-'}`",
+        f"- session_events: server=`{event_bus.get('session_events')}` agent=`{event_bus.get('agent_session_events')}` layer_server=`{event_bus.get('session_layer_events')}` layer_agent=`{event_bus.get('agent_session_layer_events')}`",
+    ])
 
     lines.extend([
         "",
@@ -1174,6 +1229,11 @@ def build_llm_onboarding_bundle(
         if isinstance(evidence.get("shared_memory"), dict)
         else {}
     )
+    event_bus_summary = (
+        evidence.get("runtime_event_bus")
+        if isinstance(evidence.get("runtime_event_bus"), dict)
+        else {}
+    )
     continuation = (
         evidence.get("continuation")
         if isinstance(evidence.get("continuation"), dict)
@@ -1260,6 +1320,16 @@ def build_llm_onboarding_bundle(
             ),
         },
         {
+            "id": "runtime_event_bus",
+            "status": "ready" if event_bus_summary.get("status") in {"ready", "partial"} else "instrumented",
+            "evidence": [endpoints.get("runtime_readiness"), endpoints.get("evidence_bundle")],
+            "summary": (
+                "Runtime event bus is "
+                f"{event_bus_summary.get('status') or 'unknown'} with "
+                f"{(event_bus_summary.get('server_bus') or {}).get('history_size', 0)} server events retained."
+            ),
+        },
+        {
             "id": "frontend_backend_loop",
             "status": "ready" if endpoints.get("onboarding_bundle") and endpoints.get("evidence_bundle") else "warn",
             "evidence": ["AgentWorkbench", endpoints.get("onboarding_bundle")],
@@ -1320,6 +1390,7 @@ def build_llm_onboarding_bundle(
             "api_call_proof": call_proof.get("conclusion"),
             "layer_events": layer_summary.get("event_count", 0),
             "runtime_events": runtime_summary.get("event_count", 0),
+            "event_bus": event_bus_summary.get("status") or "missing",
             "learning": learning_latest.get("event") or learning_latest.get("state") or "not_observed",
             "maker_setup": maker_setup.get("readiness"),
             "maker_tool_audit": "ok" if maker_tool_audit.get("ok") else "needs_review",
@@ -1345,6 +1416,7 @@ def build_llm_onboarding_bundle(
         "runtime_advice": advice,
         "continuation": continuation,
         "shared_memory": shared_memory,
+        "runtime_event_bus": event_bus_summary,
         "layer_summary": layer_summary,
         "runtime_metrics_summary": runtime_summary,
         "learning_latest": learning_latest or None,
@@ -1363,6 +1435,7 @@ def build_llm_onboarding_bundle(
                 "Token strategy prefers readiness/evidence/context summaries over raw histories.",
                 "Long tasks expose continuation checkpoints before raw transcript replay.",
                 "Shared-memory policy is explicit before multi-agent memory reuse.",
+                "Runtime Event Bus status is exposed before observers rely on decoupled event streams.",
                 "Workbench and backend expose the same compact evidence path.",
             ],
         },
@@ -1410,6 +1483,8 @@ def render_llm_onboarding_markdown(bundle: Dict[str, Any]) -> str:
         if isinstance(bundle.get("runtime_metrics_summary"), dict)
         else {}
     )
+    event_bus = bundle.get("runtime_event_bus") if isinstance(bundle.get("runtime_event_bus"), dict) else {}
+    server_bus = event_bus.get("server_bus") if isinstance(event_bus.get("server_bus"), dict) else {}
     call_proof = bundle.get("llm_call_proof") if isinstance(bundle.get("llm_call_proof"), dict) else {}
     surface = bundle.get("surface") if isinstance(bundle.get("surface"), dict) else {}
     endpoints = bundle.get("endpoints") if isinstance(bundle.get("endpoints"), dict) else {}
@@ -1443,6 +1518,7 @@ def render_llm_onboarding_markdown(bundle: Dict[str, Any]) -> str:
         f"- advice_priority: `{advice.get('priority') or '-'}`",
         f"- layer_events: `{summary.get('layer_events') or layer_summary.get('event_count') or 0}`",
         f"- runtime_events: `{summary.get('runtime_events') or runtime_summary.get('event_count') or 0}`",
+        f"- event_bus: `{summary.get('event_bus') or event_bus.get('status') or '-'}` server_history=`{server_bus.get('history_size', '-')}`",
         f"- learning: `{summary.get('learning') or '-'}`",
         f"- continuation: `{summary.get('continuation') or continuation.get('status') or '-'}` resume_ready=`{continuation.get('resume_ready')}`",
         "",
