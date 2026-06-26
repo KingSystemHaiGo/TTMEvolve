@@ -22,7 +22,7 @@ export default function ChatMessage({ message }: Props) {
         <span className="event-time">{time}</span>
         {message.isFail && (
           <details className="event-details">
-            <summary>查看详情 / Details</summary>
+            <summary>查看详情</summary>
             <pre>{message.content}</pre>
           </details>
         )}
@@ -70,9 +70,9 @@ export default function ChatMessage({ message }: Props) {
 
 function MessageUsageBar({ usage }: { usage: NonNullable<Message['usage']> }) {
   const items = [
-    usage.total_tokens !== undefined ? `Tokens ${usage.total_tokens}` : '',
-    usage.token_count !== undefined ? `Context ${usage.token_count}` : '',
-    usage.generate_ms !== undefined ? `Time ${formatDuration(usage.generate_ms)}` : '',
+    usage.total_tokens !== undefined ? `Token ${usage.total_tokens}` : '',
+    usage.token_count !== undefined ? `上下文 ${usage.token_count}` : '',
+    usage.generate_ms !== undefined ? `耗时 ${formatDuration(usage.generate_ms)}` : '',
     usage.tokens_per_sec !== undefined ? `${usage.tokens_per_sec} tok/s` : '',
     usage.endpoint || '',
   ].filter(Boolean)
@@ -96,13 +96,13 @@ function formatDuration(value: number): string {
 function roleLabel(role: Message['role']): string {
   switch (role) {
     case 'user':
-      return '你 / You'
+      return '你'
     case 'assistant':
       return 'Agent'
     case 'system':
-      return '系统 / System'
+      return '系统'
     case 'event':
-      return '事件 / Event'
+      return '事件'
     default:
       return role
   }
@@ -110,31 +110,31 @@ function roleLabel(role: Message['role']): string {
 
 function eventLabel(type: string): string {
   const map: Record<string, string> = {
-    status: '正在处理 / Processing',
-    thinking: '正在思考 / Thinking',
-    decision: '下一步 / Next step',
-    action: '准备动作 / Preparing',
-    tool_call: '正在调用工具 / Running tool',
-    observation: '工具返回 / Tool result',
-    error: '出错 / Error',
-    approval_request: '等待确认 / Approval needed',
-    rescue_triggered: '触发修复 / Recovery started',
-    rescue_action: '正在修复 / Recovering',
-    rescue_applied: '修复完成 / Recovery applied',
-    rescue_distilled: '经验沉淀 / Learning saved',
-    unknown: '事件 / Event',
+    status: '正在处理',
+    thinking: '正在思考',
+    decision: '下一步',
+    action: '准备动作',
+    tool_call: '正在执行操作',
+    observation: '操作完成',
+    error: '出错',
+    approval_request: '等待确认',
+    rescue_triggered: '触发修复',
+    rescue_action: '正在修复',
+    rescue_applied: '修复完成',
+    rescue_distilled: '经验沉淀',
+    unknown: '事件',
   }
   return map[type] || type
 }
 
 function eventSummary(type: string, content: string, isFail?: boolean): string {
-  if (isFail) return `${eventLabel(type)} failed`
+  if (isFail) return `${eventLabel(type)}失败`
   if (type === 'tool_call') {
     const firstLine = content.split('\n').map((line) => line.trim()).find(Boolean)
-    return firstLine ? `正在执行 / Running: ${userFacingToolName(firstLine)}` : '正在执行工具 / Running tool'
+    return firstLine ? `正在执行：${userFacingToolName(firstLine)}` : '正在执行操作'
   }
-  if (type === 'observation') return '工具调用完成 / Tool finished'
-  if (type === 'action') return userFacingAction(content) || '准备下一步 / Preparing next step'
+  if (type === 'observation') return '操作完成'
+  if (type === 'action') return userFacingAction(content) || '准备下一步'
   if (type === 'status') return userFacingStatus(content) || eventLabel(type)
   return compactLine(content) || eventLabel(type)
 }
@@ -153,17 +153,17 @@ function isInternalToolSelection(text: string): boolean {
 function userFacingAction(content: string): string {
   const text = compactLine(content)
   if (!text) return ''
-  if (isInternalToolSelection(text)) return '正在判断下一步 / Choosing next action'
+  if (isInternalToolSelection(text)) return '正在判断下一步'
   return text
 }
 
 function userFacingStatus(content: string): string {
   const text = compactLine(content)
   if (!text) return ''
-  if (isInternalToolSelection(text)) return '正在判断下一步 / Choosing next action'
-  if (text === 'Session created') return '会话已创建 / Session created'
-  if (text === 'Task finished') return '任务已完成 / Task finished'
-  if (text === 'Canceling task') return '正在取消任务 / Canceling task'
+  if (isInternalToolSelection(text)) return '正在判断下一步'
+  if (text === 'Session created') return '会话已创建'
+  if (text === 'Task finished') return '任务已完成'
+  if (text === 'Canceling task') return '正在取消任务'
   return text
 }
 
@@ -171,14 +171,16 @@ function userFacingToolName(value: string): string {
   const text = value.replace(/^\s*(tool|工具)\s*[:：]\s*/i, '').trim()
   const tool = text.split(/\s|\(|{|:/)[0]
   const labels: Record<string, string> = {
-    project_status: '查看项目状态 / Project status',
-    execute_shell: '执行系统命令 / Shell command',
-    read_file: '读取文件 / Read file',
-    list_directory: '查看目录 / List directory',
-    search_files: '搜索文件 / Search files',
-    modify_file: '修改文件 / Edit file',
-    create_document: '创建文档 / Create document',
-    git_commit: '提交版本 / Git commit',
+    project_status: '查看项目状态',
+    execute_shell: '执行系统命令',
+    read_file: '读取文件',
+    list_directory: '查看目录',
+    search_files: '搜索文件',
+    modify_file: '修改文件',
+    create_document: '创建文档',
+    git_commit: '提交版本',
+    maker_status_lite: '检查 Maker 状态',
+    maker_build_current_directory: '构建 Maker 项目',
   }
   return labels[tool] || text
 }

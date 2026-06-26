@@ -581,6 +581,7 @@ export function useBackend(
           content: string,
           extra?: Partial<Omit<Message, 'id' | 'timestamp' | 'role' | 'content' | 'eventType'>>
         ) => {
+          if (isInternalEventForMainChat(eventType, content)) return
           addMessage({
             role: 'event',
             eventType,
@@ -657,9 +658,7 @@ export function useBackend(
                     runtime: {
                       ...prev.layers.runtime,
                       status: 'active',
-                      detail: payload.phase === 'action'
-                        ? '动作工具已排序'
-                        : '正在选择合适能力',
+                      detail: '正在判断下一步',
                       event: 'tool_selection',
                       metrics: {
                         ...(prev.layers.runtime.metrics || {}),
@@ -672,7 +671,7 @@ export function useBackend(
                       },
                     },
                   },
-                  currentStatus: prev.currentStatus || '正在选择合适能力',
+                  currentStatus: prev.currentStatus || '正在判断下一步',
                 }))
                 break
               }
@@ -684,8 +683,8 @@ export function useBackend(
                 setWorkbench((prev) => ({
                   ...prev,
                   currentStatus: ok
-                    ? `工具预检通过：${payload.tool || 'unknown'}`
-                    : `工具预检失败：${payload.tool || 'unknown'}`,
+                    ? `操作预检通过：${payload.tool || 'unknown'}`
+                    : `操作预检失败：${payload.tool || 'unknown'}`,
                   toolPreflight: {
                     tool: payload.tool,
                     ok,
@@ -997,7 +996,7 @@ export function useBackend(
                 } else if (action?.tool) {
                   appendEvent(
                     'decision',
-                    `准备调用 ${action.tool}`,
+                    `准备执行 ${action.tool}`,
                     { source }
                   )
                   setWorkbench((prev) => ({
@@ -1008,7 +1007,7 @@ export function useBackend(
                     layers: {
                       ...prev.layers,
                       agent: { status: 'done', detail: '已选择动作' },
-                      runtime: { status: 'active', detail: '准备调用工具' },
+                      runtime: { status: 'active', detail: '准备执行操作' },
                     },
                   }))
                 }
@@ -1444,6 +1443,7 @@ export function useBackend(
                 break
               }
               default: {
+                if (isInternalEventForMainChat(type, JSON.stringify(payload))) break
                 appendEvent(type, JSON.stringify(payload, null, 2), { source })
               }
             }
@@ -1564,4 +1564,9 @@ export function useBackend(
     workbench,
     queueCount,
   }
+}
+
+function isInternalEventForMainChat(eventType: string, content = ''): boolean {
+  const text = `${eventType}\n${content}`
+  return /tool[_\s-]?selection|candidate|候选工具|可选工具|工具筛选|Tool context ranked/i.test(text)
 }

@@ -213,3 +213,12 @@
 - Runtime Contract now advertises project-state in communication endpoints and external-agent attach sequence.
 - Verified: runtime event observer tests, AppServer project-state endpoint, Evidence bundle, and Runtime Contract focused tests.
 - Next: wire this project-state snapshot into the Workbench UI and use it to drive proactive next-step recommendations.
+
+## 2026-06-26 22:29 Chinese-First Desktop UI Polish
+
+- Status: verified.
+- Fixed: main chat no longer shows candidate-tool/ranking internals; it maps those events to user-facing progress and filters raw tool-selection events.
+- Fixed: history is a compact popover with an explicit close button, outside-click and Esc dismissal, and no instructional clutter.
+- Fixed: primary chat/input/topbar labels are Chinese-first; GitHub README remains bilingual.
+- Fixed: topbar/chat context/history surfaces share the same control heights, radii, shadows, and theme tokens.
+- Verified: `npm.cmd --prefix frontend run build`, focused project-status/cmd ToolRegistry pytest (`4 passed`), and `git diff --check`.

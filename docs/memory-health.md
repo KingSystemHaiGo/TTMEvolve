@@ -217,3 +217,12 @@ pm.cmd --prefix frontend run build passed; focused tool-routing pytest for proje
 - Added `/sessions/{id}/project-state` and exposed `project_state` in Runtime Readiness, Session Evidence JSON/Markdown, and LLM Onboarding JSON/Markdown.
 - Runtime Contract now includes the project-state endpoint in both communication surfaces and external-agent attach sequence.
 - Verified unit and AppServer tests for bus-derived project state plus Evidence/Runtime Contract assertions.
+
+## 2026-06-26 Chinese-First Desktop UI Polish POST
+
+- User reported five concrete desktop UX issues: history close was not obvious enough, visible English remained, candidate tools leaked into normal chat, project/cmd ability looked unavailable, and the UI still lacked cohesive product polish.
+- Applied the product rule learned from current UI references: normal workflow uses progressive disclosure; debug/ranking evidence remains in Workbench, while the main chat shows only user-facing task progress.
+- Updated ChatPanel, ChatInput, ChatMessage, CockpitHeader, App Maker version detail, and the final CSS polish layer so primary desktop surfaces are Chinese-first, history is a compact dismissible popover, topbar height/radius is consistent, and candidate/tool-selection events are filtered out of the main conversation.
+- Confirmed `project_status` and `execute_shell` routing remains available for "查看项目状态 / 了解项目 / cmd / git status" requests through focused ToolRegistry regression tests.
+- README remains bilingual for GitHub, but the app's normal user-facing surface is now Chinese-first with Workbench retaining technical diagnostics.
+- Verification: `npm.cmd --prefix frontend run build` passed; focused project-status/cmd ToolRegistry pytest passed (`4 passed`); `git diff --check` passed.

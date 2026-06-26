@@ -1605,6 +1605,7 @@ function makerVersionDetail(setup: MakerSetupStatus | null): string {
   if (check === 'unavailable') return `当前 ${current}，暂时无法检查最新版本`
   if (check === 'cached' && latest) return `当前 ${current}，最新 ${latest}，已自动检查`
   if (latest) return `当前 ${current}，最新 ${latest}`
+  if (check === 'latest') return `当前 ${current}，已是最新版本`
   return `当前 ${current}，正在自动检查最新版本`
 }
 

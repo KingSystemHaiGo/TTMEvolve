@@ -59,7 +59,7 @@ The launcher prefers embedded runtimes under `portable/`, then `.venv/`, then sy
 | Permission mode | Each session can choose `safe`, `default`, or `autonomous` in the chat send area. | 每次会话都可以在聊天发送区选择 `safe`、`default` 或 `autonomous` 权限模式。 |
 | Chat shape | User messages are right-side bubbles; assistant answers are full-width Markdown pages; tool events are compact status rows. | 用户消息是右侧气泡；助手回复是全宽 Markdown 页面；工具事件是紧凑状态行。 |
 | Product polish | History is a dismissible popover; normal users see action progress, not internal tool candidate lists. | 历史记录是可关闭浮层；普通用户只看到动作进度，不看到内部候选工具列表。 |
-| Advanced evidence | The Workbench keeps diagnostics available, but visible labels avoid leaking raw candidate-tool wording into the normal product flow. | Workbench 仍保留诊断证据，但可见标签避免把原始候选工具等内部措辞暴露到普通产品流程。 |
+| Advanced evidence | The Workbench keeps diagnostics available, while the normal chat hides raw candidate-tool wording and stays Chinese-first. | Workbench 仍保留诊断证据；普通聊天隐藏原始候选工具措辞，并保持中文优先。 |
 | Project status | `project_status` gives the Agent a first-class read-only way to inspect the current project, Git state, and top-level files. | `project_status` 让 Agent 可以用一等只读工具查看当前项目、Git 状态和顶层文件。 |
 | Shell commands | `execute_shell` remains selectable for `cmd`, PowerShell, terminal, build, test, and Git-status requests. | `execute_shell` 会稳定覆盖 `cmd`、PowerShell、终端、构建、测试和 Git 状态类请求。 |
 | Document creation | `create_document` lets the Agent create Markdown/text/JSON documents through the same sandbox, approval, and event pipeline as code edits. | `create_document` 让 Agent 可以通过和代码编辑相同的沙箱、审批、事件链路新建 Markdown/text/JSON 文档。 |
@@ -109,8 +109,8 @@ Agent 核心审计：
 - `server/runtime_observer.py` 新增了订阅 Runtime Event Bus 的运行指标观察者；实时 runtime-metrics 界面可以从总线快照读取会话指标，同时 SQLite 继续作为持久化回放兜底。
 - `server/project_observer.py` adds a bus-subscribed Project Management Observer for next action, goal state, plan verdict, continuation readiness, latest tool, artifacts, and risk flags.
 - `server/project_observer.py` 新增了订阅 Runtime Event Bus 的项目管理观察者，用于生成下一步动作、目标状态、计划校验、连续性准备度、最近工具、产物和风险标记。
-- The normal-user chat surface keeps history dismissible, uses Chinese/English visible labels, and keeps candidate-tool ranking in Workbench instead of the main conversation.
-- 普通用户聊天界面现在提供明确的历史关闭入口，用户可见标签采用中英双语，并把候选工具排序留在 Workbench，而不是显示在主对话里。
+- The normal-user chat surface keeps history dismissible, uses Chinese-first product labels, and keeps candidate-tool ranking in Workbench instead of the main conversation.
+- 普通用户聊天界面现在提供明确的历史关闭入口，用户可见标签采用中文优先，并把候选工具排序留在 Workbench，而不是显示在主对话里。
 
 ## Repository Map / 目录结构
 
@@ -180,6 +180,8 @@ The latest full sync validated these paths:
 最近一次完整同步已验证：
 
 - `npm.cmd --prefix frontend run build` -> passed after history close affordance and Workbench label polish
+- `npm.cmd --prefix frontend run build` -> passed after Chinese-first desktop UI polish and hidden candidate-tool chat filtering
+- `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_tool_registry_prioritizes_project_status_for_project_questions tests\test_tool_call_validation.py::test_tool_registry_keeps_project_and_shell_tools_for_basic_project_work tests\test_tool_call_validation.py::test_tool_registry_keeps_shell_tool_for_cmd_and_terminal_requests tests\test_tool_call_validation.py::test_tool_registry_does_not_let_maker_tools_crowd_out_basic_project_work -q` -> `4 passed`
 - `npm run build` from `frontend/` -> passed after bilingual chat/history/input cleanup
 - `.venv\Scripts\python.exe -m pytest tests\test_app_server_resume.py::test_app_server_runtime_readiness_endpoint tests\test_app_server_resume.py::test_app_server_evidence_bundle_endpoint -q` -> `2 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_runtime_events.py tests\test_app_server_resume.py::test_app_server_runtime_metrics_endpoint_uses_bus_observer tests\test_app_server_resume.py::test_app_server_runtime_readiness_endpoint tests\test_app_server_resume.py::test_app_server_evidence_bundle_endpoint -q` -> `9 passed`
