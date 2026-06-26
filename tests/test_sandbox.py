@@ -20,6 +20,13 @@ def test_read_only_blocks_write():
     print("[PASS] read-only blocks write")
 
 
+def test_read_only_blocks_create_document():
+    sb = Sandbox(_PROJECT_ROOT, SandboxMode.READ_ONLY)
+    result = sb.validate("create_document", {"path": "docs/note.md", "content": "x"})
+    assert not result["allowed"], result
+    print("[PASS] read-only blocks create_document")
+
+
 def test_workspace_allows_git():
     sb = Sandbox(_PROJECT_ROOT, SandboxMode.WORKSPACE_WRITE)
     result = sb.validate("execute_shell", {"command": "git status"})
@@ -50,6 +57,7 @@ def test_dangerous_command_blocked():
 
 if __name__ == "__main__":
     test_read_only_blocks_write()
+    test_read_only_blocks_create_document()
     test_read_only_allows_project_status()
     test_workspace_allows_git()
     test_path_escape_blocked()

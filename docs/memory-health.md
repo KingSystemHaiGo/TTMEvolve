@@ -117,3 +117,5 @@
 2026-06-26: Hid internal tool-candidate chatter and made history/project status user-grade after screenshot feedback. Important lesson: normal users should see dismissible surfaces and task progress, not ranking/debug internals; "查看项目状态/了解项目" needs a first-class read-only `project_status` tool instead of hoping generic shell access is selected.
 
 2026-06-26: Audited the Agent core against the user's "can it really program?" question. Important lesson: prove coding-agent claims with an end-to-end smoke that inspects project state, writes a file, runs a command, records events, and validates layered evidence; do not claim Claude Code/Codex parity until real large-repo benchmarks, GUI task loops, terminal depth, patch review gates, and performance baselines prove it.
+
+2026-06-26: Promoted user document creation to a first-class Agent tool. Important lesson: user-facing OS/document abilities should not be hidden behind generic `modify_file`; expose `create_document` through the same ToolRegistry, Sandbox, Executor, approval, snapshot, and commit-state pipeline so "新建文档" is selectable, testable, and safe.

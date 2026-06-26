@@ -304,6 +304,8 @@ class ToolRegistry:
                 score += 10
             if name in ("read_file", "list_directory", "search_files", "project_status") and any(k in query_l for k in ("文件", "目录", "读取", "查找", "搜索", "代码", "项目", "状态", "了解")):
                 score += 6
+            if name == "create_document" and any(k in query_l for k in ("新建文档", "创建文档", "写文档", "新建说明", "创建说明", "readme", "markdown", "笔记", "文档")):
+                score += 10
             if name in ("modify_file", "delete_file") and any(k in query_l for k in ("修改", "写入", "创建", "删除", "修复", "实现")):
                 score += 6
             if name == "execute_shell" and any(k in query_l for k in ("测试", "运行", "构建", "npm", "python", "命令", "git status", "状态", "检查")):

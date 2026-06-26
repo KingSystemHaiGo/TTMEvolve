@@ -29,6 +29,7 @@ class Sandbox:
         "list_directory": "read",
         "search_files": "read",
         "query_skills": "read",
+        "create_document": "write",
         "modify_file": "write",
         "delete_file": "write",
         "execute_shell": "execute",

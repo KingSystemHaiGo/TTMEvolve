@@ -18,6 +18,7 @@ def register_builtin_tools(tools: "ToolRegistry", executor: "Executor") -> None:
     _register_read_file(tools, executor)
     _register_list_directory(tools, executor)
     _register_search_files(tools, executor)
+    _register_create_document(tools, executor)
     _register_modify_file(tools, executor)
     _register_execute_shell(tools, executor)
     _register_delete_file(tools, executor)
@@ -83,6 +84,30 @@ def _register_search_files(tools: "ToolRegistry", executor: "Executor") -> None:
                 "path": {"type": "string"},
             },
             "required": ["pattern"],
+        },
+        handler=executor.propose_action,
+        source="builtin",
+    )
+
+
+def _register_create_document(tools: "ToolRegistry", executor: "Executor") -> None:
+    tools.register(
+        name="create_document",
+        description="新建项目内文档或说明文件，可用于创建 Markdown、文本、JSON 等用户可见文档。",
+        parameters={
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "相对项目根的文档路径，例如 docs/notes.md"},
+                "title": {"type": "string", "description": "可选文档标题"},
+                "content": {"type": "string", "description": "文档正文内容"},
+                "kind": {
+                    "type": "string",
+                    "enum": ["markdown", "text", "json"],
+                    "description": "文档类型，默认 markdown",
+                },
+                "overwrite": {"type": "boolean", "description": "是否覆盖已有文件，默认 false"},
+            },
+            "required": ["path", "content"],
         },
         handler=executor.propose_action,
         source="builtin",

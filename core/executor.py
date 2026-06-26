@@ -40,6 +40,7 @@ class Executor:
         "list_directory",
         "search_files",
         "query_skills",
+        "create_document",
         "execute_shell",
         "modify_file",
         "delete_file",
@@ -63,6 +64,7 @@ class Executor:
     }
 
     WRITE_LIKE_TOOLS = {
+        "create_document",
         "modify_file",
         "delete_file",
         "git_commit",
@@ -184,7 +186,7 @@ class Executor:
         if tool_name == "execute_shell":
             side_effecting = self._looks_like_write_command(str(params.get("command", "")))
         # 修改文件前自动快照
-        if tool_name in {"modify_file", "delete_file"}:
+        if tool_name in {"create_document", "modify_file", "delete_file"}:
             self.version_manager.snapshot(
                 description=f"Before {tool_name} in session {session_id}",
                 paths=[params.get("path", "")],
@@ -254,6 +256,7 @@ class Executor:
         self._tool_handlers["read_file"] = self._read_file
         self._tool_handlers["list_directory"] = self._list_directory
         self._tool_handlers["search_files"] = self._search_files
+        self._tool_handlers["create_document"] = self._create_document
         self._tool_handlers["execute_shell"] = self._execute_shell
         self._tool_handlers["modify_file"] = self._modify_file
         self._tool_handlers["delete_file"] = self._delete_file
@@ -400,6 +403,51 @@ class Executor:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
         return {"ok": True, "path": str(target.relative_to(self.project_root))}
+
+    def _create_document(
+        self,
+        path: str,
+        content: str,
+        title: str = "",
+        kind: str = "markdown",
+        overwrite: bool = False,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        target = self.project_root / path
+        existed = target.exists()
+        if existed and not overwrite:
+            return {
+                "ok": False,
+                "error": "文件已存在，默认不会覆盖；如需覆盖请设置 overwrite=true",
+                "path": str(target.relative_to(self.project_root)),
+            }
+
+        doc_kind = (kind or "markdown").strip().lower()
+        if doc_kind not in {"markdown", "text", "json"}:
+            return {"ok": False, "error": f"不支持的文档类型：{kind}"}
+
+        text = str(content)
+        if doc_kind == "markdown" and title:
+            stripped = text.lstrip()
+            if not stripped.startswith("#"):
+                text = f"# {title.strip()}\n\n{text}"
+        elif doc_kind == "json":
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError as e:
+                return {"ok": False, "error": f"JSON 文档内容无效：{e.msg}"}
+            text = json.dumps(parsed, ensure_ascii=False, indent=2) + "\n"
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        return {
+            "ok": True,
+            "path": str(target.relative_to(self.project_root)),
+            "kind": doc_kind,
+            "bytes": len(text.encode("utf-8")),
+            "created": not existed,
+            "overwritten": existed,
+        }
 
     def _delete_file(self, path: str, **kwargs) -> Dict[str, Any]:
         target = self.project_root / path

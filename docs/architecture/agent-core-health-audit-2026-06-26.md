@@ -4,9 +4,9 @@
 
 ## 结论 / Conclusion
 
-TTMEvolve 当前已经具备一个可验证的本地编程 Agent 核心：它可以读取项目状态、创建/修改文件、运行受控系统命令、记录执行事件、输出运行证据，并通过 Agent/Runtime/Learning 三层事件暴露内部状态。
+TTMEvolve 当前已经具备一个可验证的本地编程 Agent 核心：它可以读取项目状态、新建用户文档、创建/修改文件、运行受控系统命令、记录执行事件、输出运行证据，并通过 Agent/Runtime/Learning 三层事件暴露内部状态。
 
-TTMEvolve now has a verifiable local coding-agent core: it can inspect project state, create/modify files, run controlled shell commands, record execution events, produce runtime evidence, and expose Agent/Runtime/Learning state through layer events.
+TTMEvolve now has a verifiable local coding-agent core: it can inspect project state, create user documents, create/modify files, run controlled shell commands, record execution events, produce runtime evidence, and expose Agent/Runtime/Learning state through layer events.
 
 但它还不能诚实宣称已经达到 Claude Code 或 Codex 的完整水平。差距主要在大型真实仓库任务 benchmark、长期自主规划质量、交互式终端深度、补丁质量自动评估、跨会话工程记忆质量、真实 GUI 编程任务闭环，以及更强的代码审查/回滚/分支工作流。
 
@@ -18,6 +18,7 @@ It should not yet claim full Claude Code or Codex parity. The remaining gaps are
 | --- | --- | --- |
 | Agent execution chain | `TapMakerAgent -> ReActLoop -> ToolRegistry -> Executor -> Sandbox/Approval -> EventLog` | Agent 动作不是直接乱跑命令，而是经过注册、校验、沙箱、审批、事件日志。 |
 | Project inspection | `project_status` tool, `tests/test_tool_call_validation.py::test_executor_project_status_reports_git_and_top_level` | 能查看项目根、顶层目录、常见项目标记和 Git 摘要。 |
+| User document creation | `create_document` tool, `tests/test_tool_call_validation.py::test_coding_agent_can_create_user_document` | 能新建 Markdown/text/JSON 文档，默认不覆盖已有文件。 |
 | File creation/editing | `modify_file`, `VersionManager` snapshot before write, commit-state recording | 能新建/修改项目内文件，并对副作用工具记录提交状态。 |
 | Shell execution | `execute_shell`, sandbox prefix checks, timeout handling | 能运行受控命令，超时会杀进程树并返回机器可读观察。 |
 | Minimal coding loop | `tests/test_tool_call_validation.py::test_coding_agent_minimal_programming_smoke` | ReAct 可在临时项目里看状态、新建 Python 文件、运行文件并总结结果。 |
@@ -34,18 +35,21 @@ Commands run on 2026-06-26:
 .venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_coding_agent_minimal_programming_smoke -q
 # 1 passed
 
+.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_coding_agent_can_create_user_document -q
+# 1 passed
+
 .venv\Scripts\python.exe -m pytest tests\test_e2e_runtime.py tests\test_runtime_contract.py tests\test_app_server_resume.py::test_app_server_persists_layer_and_learning_events -q
 # 28 passed
 
 .venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_sandbox.py tests\test_tool_timeouts.py tests\test_plan_first.py tests\test_plan_first_integration.py tests\test_plan_validation.py tests\test_coding_agent_v060.py tests\test_runtime_events.py tests\test_runtime_contract.py -q
-# 82 passed
+# 86 passed
 ```
 
 ## 健康度判断 / Health Assessment
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Core coding actions | Ready for controlled local use | 读文件、写文件、命令执行、项目状态已经可测。 |
+| Core coding actions | Ready for controlled local use | 读文件、写文件、新建文档、命令执行、项目状态已经可测。 |
 | Architecture layering | Healthy but still young | 三层事件已存在；需要更多用户任务级可视化诊断。 |
 | Safety | Baseline ready | 沙箱、审批、超时、提交状态存在；还需要更细的命令策略和用户可理解解释。 |
 | Performance | Instrumented, not fully optimized | 已有 latency/runtime metrics；缺少持续性能基准和大仓库压力测试。 |
@@ -57,8 +61,8 @@ Commands run on 2026-06-26:
 1. Build a real coding benchmark suite.
    建立真实编程 benchmark：修 bug、加功能、跑测试、解释 diff、失败恢复，覆盖小/中/大仓库。
 
-2. Add OS/document operations as first-class tools.
-   把新建文档、读取常见文件类型、打开目录/文件、终端会话等做成明确工具，而不是都塞进 `execute_shell`。
+2. Expand OS/document operations as first-class tools.
+   `create_document` 已补齐；下一步把读取常见文件类型、打开目录/文件、终端会话等做成明确工具，而不是都塞进 `execute_shell`。
 
 3. Improve shell capability without losing safety.
    增强终端能力：支持长任务、流式输出、交互式进程、后台服务管理，同时保持沙箱和审批。
@@ -79,11 +83,11 @@ Commands run on 2026-06-26:
 
 Acceptable claim:
 
-> TTMEvolve has a verified local coding-agent core with controlled file edits, shell execution, project inspection, runtime evidence, and layered observability.
+> TTMEvolve has a verified local coding-agent core with controlled document creation, file edits, shell execution, project inspection, runtime evidence, and layered observability.
 
 可接受表述：
 
-> TTMEvolve 已有可验证的本地编程 Agent 核心，支持受控文件编辑、命令执行、项目状态检查、运行证据和分层可观测性。
+> TTMEvolve 已有可验证的本地编程 Agent 核心，支持受控文档创建、文件编辑、命令执行、项目状态检查、运行证据和分层可观测性。
 
 Not acceptable yet:
 
@@ -92,4 +96,3 @@ Not acceptable yet:
 暂时不应宣称：
 
 > TTMEvolve 已经达到 Claude Code/Codex 完整水平。
-

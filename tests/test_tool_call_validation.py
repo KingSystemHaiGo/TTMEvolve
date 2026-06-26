@@ -208,6 +208,29 @@ def test_tool_registry_prioritizes_project_status_for_project_questions():
         assert [tool["name"] for tool in ranked] == ["project_status", "execute_shell"]
 
 
+def test_tool_registry_prioritizes_create_document_for_document_tasks():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tools = ToolRegistry(root / "skills")
+        executor = _make_executor(root)
+        for name, description in [
+            ("create_document", "新建项目内文档或说明文件"),
+            ("modify_file", "写入或覆盖项目内的文本文件"),
+            ("execute_shell", "执行允许的 shell 命令"),
+        ]:
+            tools.register(
+                name=name,
+                description=description,
+                parameters={"type": "object", "properties": {}},
+                handler=executor.propose_action,
+                source="builtin",
+            )
+
+        ranked = tools.rank_tools("新建文档，写一份 README markdown 说明", limit=2)
+
+        assert [tool["name"] for tool in ranked] == ["create_document", "modify_file"]
+
+
 def test_executor_project_status_reports_git_and_top_level():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -219,6 +242,36 @@ def test_executor_project_status_reports_git_and_top_level():
         assert result["ok"] is True
         assert result["markers"]["package_json"] is True
         assert any(item["name"] == "package.json" for item in result["top_level"])
+
+
+def test_executor_create_document_formats_markdown_and_json():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        executor = _make_executor(root)
+
+        md = executor.propose_action(
+            "doc1",
+            "create_document",
+            {"path": "docs/guide.md", "title": "指南", "content": "正文"},
+        )
+        duplicate = executor.propose_action(
+            "doc1",
+            "create_document",
+            {"path": "docs/guide.md", "title": "指南", "content": "覆盖尝试"},
+        )
+        js = executor.propose_action(
+            "doc1",
+            "create_document",
+            {"path": "docs/config.json", "kind": "json", "content": "{\"ok\":true}"},
+        )
+
+        assert md["ok"] is True
+        assert md["created"] is True
+        assert (root / "docs" / "guide.md").read_text(encoding="utf-8") == "# 指南\n\n正文"
+        assert duplicate["ok"] is False
+        assert "不会覆盖" in duplicate["error"]
+        assert js["ok"] is True
+        assert (root / "docs" / "config.json").read_text(encoding="utf-8") == "{\n  \"ok\": true\n}\n"
 
 
 def test_coding_agent_minimal_programming_smoke():
@@ -305,6 +358,61 @@ def test_coding_agent_minimal_programming_smoke():
         assert "context_sync" in event_types
         assert result["plan_validation"]["counts"]["pass"] >= 3
         assert result["goal_checklist"]["overall"] in {"active", "done"}
+
+
+def test_coding_agent_can_create_user_document():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tools = ToolRegistry(root / "skills")
+        executor = _make_executor(root)
+        tools.register(
+            name="create_document",
+            description="新建项目内文档或说明文件",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "title": {"type": "string"},
+                    "content": {"type": "string"},
+                    "kind": {"type": "string", "enum": ["markdown", "text", "json"]},
+                    "overwrite": {"type": "boolean"},
+                },
+                "required": ["path", "content"],
+            },
+            handler=executor.propose_action,
+        )
+        events = []
+        llm = MockLLM([
+            {
+                "tool": "create_document",
+                "params": {
+                    "path": "docs/user-note.md",
+                    "title": "用户说明",
+                    "content": "这是一份由 Agent 新建的文档。",
+                    "kind": "markdown",
+                },
+            },
+            {"done": True, "output": "已新建 docs/user-note.md。"},
+        ])
+        loop = ReActLoop(
+            llm=llm,
+            tools=tools,
+            executor=executor,
+            event_log=EventLog(root / "events.jsonl"),
+            max_iterations=4,
+            event_sink=events.append,
+        )
+
+        result = loop.run("新建一份用户说明文档", session_id="doc-smoke")
+        observation = result["trajectory"][0]["observation"]
+
+        assert result["output"] == "已新建 docs/user-note.md。"
+        assert observation["ok"] is True
+        assert observation["tool"] == "create_document"
+        assert observation["committed"] is True
+        assert (root / "docs" / "user-note.md").read_text(encoding="utf-8") == (
+            "# 用户说明\n\n这是一份由 Agent 新建的文档。"
+        )
 
 
 def test_tool_registry_preflight_returns_alternatives():
@@ -864,8 +972,11 @@ if __name__ == "__main__":
     test_tool_registry_validate_builtin_tool()
     test_tool_registry_ranks_and_limits_relevant_tools()
     test_tool_registry_prioritizes_project_status_for_project_questions()
+    test_tool_registry_prioritizes_create_document_for_document_tasks()
     test_executor_project_status_reports_git_and_top_level()
+    test_executor_create_document_formats_markdown_and_json()
     test_coding_agent_minimal_programming_smoke()
+    test_coding_agent_can_create_user_document()
     test_tool_registry_preflight_returns_alternatives()
     test_react_loop_repairs_invalid_tool_call()
     test_react_loop_rejects_unknown_tool()
