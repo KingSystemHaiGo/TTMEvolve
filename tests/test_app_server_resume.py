@@ -120,6 +120,57 @@ def test_app_server_sessions_share_runtime_event_bus():
         assert server.event_bus.replay(session_id="shared-bus") == seen
 
 
+def test_app_server_runtime_metrics_endpoint_uses_bus_observer():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        port = 17374
+        server = _make_server(tmp_path, port)
+        sid = server.create_session(SessionRequest(task="observe runtime", session_id="observer1"))
+        session = server.get_session(sid)
+        assert session is not None
+        session.emit({
+            "type": "context_budget",
+            "session_id": sid,
+            "payload": {
+                "phase": "think",
+                "iteration": 0,
+                "token_cache_hits": 7,
+                "token_cache_misses": 2,
+                "context_build_ms": 6.5,
+            },
+        })
+        session.emit({
+            "type": "tool_selection",
+            "session_id": sid,
+            "payload": {
+                "phase": "action",
+                "iteration": 0,
+                "stats": {
+                    "candidate_count": 9,
+                    "selected_count": 2,
+                    "ranking_ms": 1.5,
+                    "cache_hit": True,
+                    "cache_size": 3,
+                },
+            },
+        })
+        thread = threading.Thread(target=server.start, daemon=True)
+        thread.start()
+        time.sleep(1)
+
+        try:
+            data = _get_json(f"http://127.0.0.1:{port}/sessions/observer1/runtime-metrics?steps=10")
+
+            assert data["source"] == "runtime_event_bus_observer"
+            assert data["observer"]["status"] == "ready"
+            assert data["observer_count"] == 2
+            assert data["store_count"] == 2
+            assert data["summary"]["token_cache"]["hits"] == 7
+            assert data["summary"]["tool_ranking"]["selected_count"] == 2
+        finally:
+            server.stop()
+
+
 def _make_slow_server(tmp_path: Path, port: int) -> AppServer:
     config_path = tmp_path / "config.json"
     config_path.write_text(
@@ -830,6 +881,7 @@ def test_app_server_runtime_readiness_endpoint():
             assert data["summary"]["event_bus"] in {"ready", "partial"}
             assert data["runtime_event_bus"]["status"] in {"ready", "partial"}
             assert data["runtime_event_bus"]["server_bus"]["status"] == "ready"
+            assert data["runtime_event_bus"]["runtime_metrics_observer"]["status"] == "ready"
             assert data["llm_call_proof"]["provider"] == "minimax"
             assert data["llm_call_proof"]["expected_endpoint"].endswith("/text/chatcompletion_v2")
             assert data["llm_call_proof"]["observed_endpoint"].endswith("/text/chatcompletion_v2")
@@ -1278,6 +1330,9 @@ def test_app_server_evidence_bundle_endpoint():
             assert data["runtime_event_bus"]["status"] in {"ready", "partial"}
             assert data["runtime_event_bus"]["server_bus"]["status"] == "ready"
             assert data["runtime_event_bus"]["compatibility"] == "sse_sqlite_shape_preserved"
+            assert data["runtime_event_bus"]["runtime_metrics_observer"]["status"] == "ready"
+            assert data["runtime_metrics_source"] == "session_store"
+            assert data["runtime_metrics_observer"]["status"] == "ready"
             assert data["runtime_advice"]["status"] == "needs_action"
             assert data["runtime_advice"]["priority"] == "maker_mcp_connection"
             assert data["counts"]["context_sync"] == 1

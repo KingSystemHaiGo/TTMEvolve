@@ -59,6 +59,7 @@ from server.maker_setup import (
 )
 from server.maker_practice import MakerPracticeRunner
 from server.protocol import ApprovalResponse, SessionRequest, TurnEvent
+from server.runtime_observer import RuntimeMetricsObserver
 from server.session_store import SessionStore
 from server.maker_faults import build_maker_fault_analysis
 
@@ -107,6 +108,35 @@ def summarize_runtime_metrics(metrics: List[Dict[str, Any]]) -> Dict[str, Any]:
             "cache_hit": latest_tool_selection.get("cache_hit"),
             "cache_size": latest_tool_selection.get("cache_size"),
         },
+    }
+
+
+def runtime_metrics_from_server(server: Any, session_id: str, *, limit: int = 100) -> Dict[str, Any]:
+    """Return durable runtime metrics plus live bus-observer evidence."""
+    store_metrics: List[Dict[str, Any]] = []
+    observer_metrics: List[Dict[str, Any]] = []
+    observer_summary: Dict[str, Any] = {"status": "missing"}
+    try:
+        store_metrics = server.session_store.get_runtime_metrics_history(session_id, limit=limit)
+    except Exception:
+        store_metrics = []
+    observer = getattr(server, "runtime_metrics_observer", None)
+    if observer is not None:
+        try:
+            observer_metrics = observer.history(session_id, limit=limit)
+            observer_summary = observer.summary(session_id, limit=limit)
+            observer_summary["status"] = "ready"
+        except Exception as exc:
+            observer_metrics = []
+            observer_summary = {"status": "error", "error": str(exc)}
+    return {
+        "source": "runtime_event_bus_observer" if observer_metrics else "session_store",
+        "history": observer_metrics or store_metrics,
+        "observer_history": observer_metrics,
+        "store_history": store_metrics,
+        "observer": observer_summary,
+        "store_count": len(store_metrics),
+        "observer_count": len(observer_metrics),
     }
 
 
@@ -562,12 +592,14 @@ def build_runtime_readiness(
     layer_history: List[Dict[str, Any]] = []
     context_history: List[Dict[str, Any]] = []
     runtime_metrics: List[Dict[str, Any]] = []
+    runtime_metrics_evidence: Dict[str, Any] = {}
     learning_history: List[Dict[str, Any]] = []
     maker_guard_history: List[Dict[str, Any]] = []
     if session_id != "{session_id}":
         layer_history = server.session_store.get_layer_history(session_id, limit=20)
         context_history = server.session_store.get_context_sync_history(session_id, limit=3)
-        runtime_metrics = server.session_store.get_runtime_metrics_history(session_id, limit=20)
+        runtime_metrics_evidence = runtime_metrics_from_server(server, session_id, limit=20)
+        runtime_metrics = runtime_metrics_evidence.get("history", [])
         learning_history = server.session_store.get_learning_history(session_id, limit=20)
         maker_guard_history = server.session_store.get_maker_guard_history(session_id, limit=20)
 
@@ -704,6 +736,8 @@ def build_runtime_readiness(
         },
         "layer_summary": layer_summary,
         "runtime_event_bus": event_bus_summary,
+        "runtime_metrics_source": runtime_metrics_evidence.get("source") if runtime_metrics_evidence else "session_store",
+        "runtime_metrics_observer": runtime_metrics_evidence.get("observer") if runtime_metrics_evidence else {"status": "not_requested"},
         "runtime_metrics_summary": runtime_summary,
         "latest_context_sync": context_history[-1] if context_history else None,
         "learning_latest": learning_history[-1] if learning_history else None,
@@ -824,6 +858,11 @@ def build_runtime_event_bus_summary(*, server: Any, session_id: str = "{session_
         "status": "ready" if server_bus is not None and agent_bus is not None else "partial",
         "server_bus": _stats(server_bus),
         "agent_bus": _stats(agent_bus),
+        "runtime_metrics_observer": (
+            getattr(server.runtime_metrics_observer, "stats", lambda: {"status": "missing"})()
+            if getattr(server, "runtime_metrics_observer", None) is not None
+            else {"status": "missing"}
+        ),
         "session_id": session_id,
         "session_events": 0,
         "session_layer_events": 0,
@@ -853,13 +892,15 @@ def build_session_evidence_bundle(
 
     context_history: List[Dict[str, Any]] = []
     runtime_metrics: List[Dict[str, Any]] = []
+    runtime_metrics_evidence: Dict[str, Any] = {}
     learning_history: List[Dict[str, Any]] = []
     layer_history: List[Dict[str, Any]] = []
     maker_guard_history: List[Dict[str, Any]] = []
     llm_probe_history: List[Dict[str, Any]] = []
     if session_id != "{session_id}":
         context_history = server.session_store.get_context_sync_history(session_id, limit=min(steps, 20))
-        runtime_metrics = server.session_store.get_runtime_metrics_history(session_id, limit=steps)
+        runtime_metrics_evidence = runtime_metrics_from_server(server, session_id, limit=steps)
+        runtime_metrics = runtime_metrics_evidence.get("history", [])
         learning_history = server.session_store.get_learning_history(session_id, limit=steps)
         layer_history = server.session_store.get_layer_history(session_id, limit=steps)
         maker_guard_history = server.session_store.get_maker_guard_history(session_id, limit=steps)
@@ -949,6 +990,8 @@ def build_session_evidence_bundle(
         "continuation": continuation,
         "layer_summary": layer_summary,
         "runtime_event_bus": event_bus_summary,
+        "runtime_metrics_source": runtime_metrics_evidence.get("source") if runtime_metrics_evidence else "session_store",
+        "runtime_metrics_observer": runtime_metrics_evidence.get("observer") if runtime_metrics_evidence else {"status": "not_requested"},
         "runtime_metrics_summary": runtime_summary,
         "shared_memory": shared_memory,
         "learning_latest": learning_latest,
@@ -1933,6 +1976,7 @@ class AppServer:
         self._sessions: Dict[str, Session] = {}
         self._session_llm_overrides: Dict[str, Dict[str, Optional[str]]] = {}
         self.event_bus = RuntimeEventBus()
+        self.runtime_metrics_observer = RuntimeMetricsObserver(self.event_bus)
         self._lock = threading.Lock()
         self.ide_service = IdeService(agent)
         storage_root = Path(agent.config.storage_root())
@@ -2939,12 +2983,17 @@ class AppServer:
                         except (TypeError, ValueError):
                             steps = 100
                         steps = max(1, min(steps, 500))
-                        metrics = server.session_store.get_runtime_metrics_history(sid, limit=steps)
+                        metrics_evidence = runtime_metrics_from_server(server, sid, limit=steps)
+                        metrics = metrics_evidence.get("history", [])
                         self._json_response(200, {
                             "session_id": sid,
                             "runtime_metrics": metrics,
                             "latest": metrics[-1] if metrics else None,
                             "summary": summarize_runtime_metrics(metrics),
+                            "source": metrics_evidence.get("source"),
+                            "observer": metrics_evidence.get("observer"),
+                            "observer_count": metrics_evidence.get("observer_count"),
+                            "store_count": metrics_evidence.get("store_count"),
                             "count": len(metrics),
                         })
                         return
@@ -3736,6 +3785,9 @@ class AppServer:
         self._httpd.serve_forever()
 
     def stop(self) -> None:
+        observer = getattr(self, "runtime_metrics_observer", None)
+        if observer is not None:
+            observer.close()
         self.browser_service.stop()
         if hasattr(self, "_httpd"):
             self._httpd.shutdown()

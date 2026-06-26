@@ -13,6 +13,7 @@ from core.runtime_events import (
     envelope_event,
     feedback_event,
 )
+from server.runtime_observer import RuntimeMetricsObserver
 
 
 def test_envelope_event_adds_shared_metadata():
@@ -90,3 +91,48 @@ def test_runtime_event_bus_observer_errors_do_not_break_publish():
     event = bus.publish({"type": "status", "session_id": "s1", "payload": {"ok": True}})
 
     assert seen == [event]
+
+
+def test_runtime_metrics_observer_subscribes_to_bus_without_store():
+    bus = RuntimeEventBus()
+    observer = RuntimeMetricsObserver(bus, history_limit=5)
+
+    bus.publish({
+        "type": "context_budget",
+        "session_id": "metrics-bus",
+        "payload": {
+            "phase": "think",
+            "iteration": 0,
+            "token_cache_hits": 4,
+            "token_cache_misses": 1,
+            "context_build_ms": 8.5,
+        },
+    })
+    bus.publish({
+        "type": "tool_selection",
+        "session_id": "metrics-bus",
+        "payload": {
+            "phase": "action",
+            "iteration": 0,
+            "stats": {
+                "candidate_count": 12,
+                "selected_count": 3,
+                "ranking_ms": 2.5,
+                "cache_hit": True,
+            },
+            "tools": [{"name": "project_status", "source": "builtin"}],
+        },
+    })
+
+    history = observer.history("metrics-bus", limit=0)
+    summary = observer.summary("metrics-bus", limit=0)
+
+    assert [item["kind"] for item in history] == ["context_budget", "tool_selection"]
+    assert history[0]["token_cache_hits"] == 4
+    assert history[1]["selected_count"] == 3
+    assert summary["source"] == "runtime_event_bus_observer"
+    assert summary["event_count"] == 2
+    assert summary["latest_by_kind"]["tool_selection"]["candidate_count"] == 12
+    assert observer.stats()["observed_session_count"] == 1
+
+    observer.close()

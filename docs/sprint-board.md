@@ -195,3 +195,12 @@
 - Chat/history/input surfaces were cleaned for normal users: explicit history close, Chinese/English visible labels, and no candidate-tool ranking in the main conversation.
 - Verified: focused readiness/evidence endpoint pytest and `frontend` production build.
 - Next: wire project-management observers onto bus subscriptions and continue replacing direct queue reads.
+
+## 2026-06-26 Runtime Metrics Observer
+
+- Status: verified.
+- Added a live RuntimeMetricsObserver that subscribes to Runtime Event Bus session events and derives compact metrics without coupling to Session internals.
+- `/sessions/{id}/runtime-metrics` now reports observer/store counts and uses observer history when available, preserving SQLite as durable fallback.
+- Runtime Readiness/Evidence expose observer status so attached agents can tell whether metrics came from bus snapshots or persisted replay.
+- Verified: bus observer unit test plus AppServer runtime-metrics/readiness/evidence focused tests.
+- Next: add project-management task state observers on the same bus path.

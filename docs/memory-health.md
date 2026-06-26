@@ -201,3 +201,11 @@ pm.cmd --prefix frontend run build passed; focused tool-routing pytest for proje
 - Added release/closure gate checks so external agents can verify the bus surface before depending on decoupled observers.
 - Cleaned the main chat/history/input surfaces to use Chinese/English visible labels and keep candidate-tool ranking out of the user conversation; internal routing still remains available in Workbench/debug evidence.
 - Verified focused readiness/evidence endpoint tests and the frontend production build.
+
+## 2026-06-26 Runtime Metrics Observer POST
+
+- Added `server/runtime_observer.py` as the first real Runtime Event Bus subscriber for project/runtime observability.
+- RuntimeMetricsObserver subscribes to session-channel events, derives compact `context_budget`, `tool_selection`, `latency`, and `llm_usage` metrics, and keeps session-scoped live histories without reading private queues.
+- `/sessions/{id}/runtime-metrics` now prefers the bus observer when live metrics exist, while returning store counts and observer counts so fallback behavior is explicit.
+- Runtime Readiness and Evidence now expose `runtime_metrics_source`, `runtime_metrics_observer`, and observer stats under `runtime_event_bus`.
+- Verified focused bus observer and AppServer endpoint tests; this moves the bus from passive evidence to an actual consumer path.
