@@ -302,16 +302,16 @@ class ToolRegistry:
                 score += 8
             if name.startswith("browser_") and any(k in query_l for k in ("网页", "预览", "浏览器", "打开", "url", "maker.taptap")):
                 score += 7
-            if name == "project_status" and any(k in query_l for k in ("项目状态", "了解项目", "当前项目", "项目概况", "当前进度", "git状态", "git status", "状态检查", "查看状态")):
+            if name == "project_status" and any(k in query_l for k in ("项目状态", "了解项目", "当前项目", "项目概况", "当前进度", "仓库状态", "代码仓库", "git状态", "git status", "status", "状态检查", "查看状态")):
                 score += 10
-            if name in ("read_file", "list_directory", "search_files", "project_status") and any(k in query_l for k in ("文件", "目录", "读取", "查找", "搜索", "代码", "项目", "状态", "了解")):
+            if name in ("read_file", "list_directory", "search_files", "project_status") and any(k in query_l for k in ("文件", "目录", "读取", "查找", "搜索", "代码", "项目", "仓库", "状态", "了解")):
                 score += 6
             if name == "create_document" and any(k in query_l for k in ("新建文档", "创建文档", "写文档", "新建说明", "创建说明", "readme", "markdown", "笔记", "文档")):
                 score += 10
             if name in ("modify_file", "delete_file") and any(k in query_l for k in ("修改", "写入", "创建", "删除", "修复", "实现")):
                 score += 6
-            if name == "execute_shell" and any(k in query_l for k in ("测试", "运行", "构建", "npm", "python", "命令", "git status", "状态", "检查")):
-                score += 5
+            if name == "execute_shell" and any(k in query_l for k in ("测试", "运行", "构建", "npm", "python", "node", "cargo", "命令", "cmd", "powershell", "终端", "shell", "控制台", "git status", "git log", "status", "状态", "检查")):
+                score += 8
 
             score += _workspace_profile_score(workspace_profile, name, source)
 

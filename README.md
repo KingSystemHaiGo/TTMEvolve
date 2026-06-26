@@ -59,7 +59,9 @@ The launcher prefers embedded runtimes under `portable/`, then `.venv/`, then sy
 | Permission mode | Each session can choose `safe`, `default`, or `autonomous` in the chat send area. | 每次会话都可以在聊天发送区选择 `safe`、`default` 或 `autonomous` 权限模式。 |
 | Chat shape | User messages are right-side bubbles; assistant answers are full-width Markdown pages; tool events are compact status rows. | 用户消息是右侧气泡；助手回复是全宽 Markdown 页面；工具事件是紧凑状态行。 |
 | Product polish | History is a dismissible popover; normal users see action progress, not internal tool candidate lists. | 历史记录是可关闭浮层；普通用户只看到动作进度，不看到内部候选工具列表。 |
+| Advanced evidence | The Workbench keeps diagnostics available, but visible labels avoid leaking raw candidate-tool wording into the normal product flow. | Workbench 仍保留诊断证据，但可见标签避免把原始候选工具等内部措辞暴露到普通产品流程。 |
 | Project status | `project_status` gives the Agent a first-class read-only way to inspect the current project, Git state, and top-level files. | `project_status` 让 Agent 可以用一等只读工具查看当前项目、Git 状态和顶层文件。 |
+| Shell commands | `execute_shell` remains selectable for `cmd`, PowerShell, terminal, build, test, and Git-status requests. | `execute_shell` 会稳定覆盖 `cmd`、PowerShell、终端、构建、测试和 Git 状态类请求。 |
 | Document creation | `create_document` lets the Agent create Markdown/text/JSON documents through the same sandbox, approval, and event pipeline as code edits. | `create_document` 让 Agent 可以通过和代码编辑相同的沙箱、审批、事件链路新建 Markdown/text/JSON 文档。 |
 | Search performance | `search_files` skips heavy/runtime directories and large/binary files, then returns scan metrics. | `search_files` 默认跳过重目录、运行时目录、大文件和二进制文件，并返回扫描指标。 |
 | Workspace profile | Tool ranking infers `coding/docs/maker/browser/general` and uses it to narrow candidate tools. | 工具排序会推断 `coding/docs/maker/browser/general` 工作面，并用它收敛候选工具。 |
@@ -162,6 +164,8 @@ The latest full sync validated these paths:
 最近一次完整同步已验证：
 
 - `npm.cmd --prefix frontend run build` -> passed after history/tool-status UI fixes
+- `npm.cmd --prefix frontend run build` -> passed after Workbench label/internal-tool wording polish
+- `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_tool_registry_prioritizes_project_status_for_project_questions tests\test_tool_call_validation.py::test_tool_registry_keeps_project_and_shell_tools_for_basic_project_work tests\test_tool_call_validation.py::test_tool_registry_keeps_shell_tool_for_cmd_and_terminal_requests -q` -> `3 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_sandbox.py -q` -> `25 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_coding_agent_minimal_programming_smoke -q` -> `1 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_coding_agent_can_create_user_document -q` -> `1 passed`

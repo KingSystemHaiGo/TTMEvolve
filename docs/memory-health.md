@@ -133,3 +133,12 @@
 2026-06-26: Added long-task continuation checkpoints to context_sync. Important lesson: do not claim full hot resume unless process resurrection is proven; instead expose a durable handoff checkpoint with workspace profile, open plan steps, goal focus, last tool/result, artifact refs, deterministic compression summary, and explicit resume limits through the existing context-sync pull API.
 
 2026-06-26: Promoted continuation checkpoints into Evidence and Onboarding bundles. Important lesson: a handoff feature is not operational until the default external-agent entry points expose it directly; Evidence JSON/Markdown and Onboarding JSON/Markdown now include `continuation`, and `TrajectoryCollector.append()` recreates its storage directory so the Learning layer does not strand running sessions when temp/storage directories drift.
+## 2026-06-26 UI/Internal Tool Wording + Shell Route POST
+
+- User complained that history close behavior, English/internal labels, visible candidate tools, and basic project/cmd capabilities still felt wrong.
+- Confirmed history popover already supports explicit close, Esc, and outside click; tightened the adjacent Workbench diagnostics so visible labels use Chinese product language instead of raw candidate(s) / Runtime / Retry / Loading wording where normal users can see it.
+- Main chat already maps candidate/tool-selection events to action language such as 正在判断下一步; added Workbench-side userFacingWorkbenchStatus() for the same boundary.
+- Strengthened ToolRegistry.rank_tools() so project/cmd/terminal/Git-status wording keeps project_status and execute_shell selected ahead of Maker-only tools.
+- README remains bilingual and now documents advanced evidence hiding plus shell-command routing.
+- Verification:
+pm.cmd --prefix frontend run build passed; focused tool-routing pytest for project status and cmd requests passed (3 passed).

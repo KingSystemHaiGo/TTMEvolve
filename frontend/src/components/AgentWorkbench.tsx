@@ -355,34 +355,34 @@ export default function AgentWorkbench({ state }: Props) {
     <section className={`agent-workbench stage-${state.stage}`}>
       <div className="workbench-layers">
         <LayerPill label="Agent" layer={state.layers.agent} />
-        <LayerPill label="Runtime" layer={state.layers.runtime} />
-        <LayerPill label="Learning" layer={state.layers.learning} />
+        <LayerPill label="运行" layer={state.layers.runtime} />
+        <LayerPill label="学习" layer={state.layers.learning} />
       </div>
 
       <div className="workbench-topline">
         <div>
-          <span className="workbench-label">Status</span>
+          <span className="workbench-label">状态</span>
           <strong>{stageLabel(state.stage)}</strong>
         </div>
         <div>
-          <span className="workbench-label">Turn</span>
+          <span className="workbench-label">轮次</span>
           <strong>{state.iteration === null ? '-' : state.iteration + 1}</strong>
         </div>
         <div>
-          <span className="workbench-label">Tools</span>
+          <span className="workbench-label">工具</span>
           <strong>{activeTools}/{completedTools + failedTools}</strong>
         </div>
       </div>
 
       <div className="workbench-latency">
-        <Metric label="First" value={formatMs(state.latency.firstResponseMs)} />
-        <Metric label="LLM" value={formatMs(state.latency.lastLlmMs)} />
-        <Metric label="Tool" value={formatMs(state.latency.lastToolMs)} />
-        <Metric label="Total" value={formatMs(state.latency.totalMs)} />
+        <Metric label="首响" value={formatMs(state.latency.firstResponseMs)} />
+        <Metric label="模型" value={formatMs(state.latency.lastLlmMs)} />
+        <Metric label="工具" value={formatMs(state.latency.lastToolMs)} />
+        <Metric label="总耗时" value={formatMs(state.latency.totalMs)} />
       </div>
 
       <div className="workbench-current">
-        <span>{state.currentStatus || 'Waiting for task'}</span>
+        <span>{userFacingWorkbenchStatus(state.currentStatus) || '等待任务'}</span>
         {state.currentTool && <strong>{state.currentTool}</strong>}
       </div>
 
@@ -1044,35 +1044,35 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
   return (
     <div className={`workbench-runtime-contract contract-${status}`}>
       <div className="workbench-contract-head">
-        <span>Runtime Contract</span>
+        <span>运行契约</span>
         <strong>{runtimeContractLabel(readiness)}</strong>
         {contract.version && <small>{contract.version}</small>}
       </div>
       <div className="workbench-contract-grid">
         <Metric label="MakerMCP" value={String(readiness)} />
-        <Metric label="Tools" value={String(maker.tool_count || 0)} />
-        <Metric label="Identity" value={String(remote.status || '-')} />
-        <Metric label="Rules" value={String(tokenRules.length)} />
+        <Metric label="工具" value={String(maker.tool_count || 0)} />
+        <Metric label="身份" value={String(remote.status || '-')} />
+        <Metric label="规则" value={String(tokenRules.length)} />
       </div>
       {topTools.length > 0 && (
         <div className="workbench-contract-line">
-          <span>Maker tools</span>
+          <span>Maker 工具</span>
           <strong>{topTools.map((tool) => tool.name).filter(Boolean).slice(0, 4).join(' / ')}</strong>
         </div>
       )}
       {(onboardingUrl || readinessUrl || quickstartUrl || handoffUrl || adviceUrl) && (
         <div className="workbench-external-agent">
           <div className="workbench-external-agent-head">
-            <span>External Agent Boot</span>
+            <span>外部 Agent 启动包</span>
             <strong>{externalAgentBootSummary({ onboardingUrl, readinessUrl, quickstartUrl, evidenceUrl, handoffUrl, adviceUrl, metricsUrl, learningUrl })}</strong>
             <div className="workbench-external-agent-actions">
               {onboardingMarkdownUrl && (
                 <button type="button" onClick={copyOnboardingMarkdown}>
                   {onboardingCopyState === 'copied'
-                    ? 'Copied'
+                    ? '已复制'
                     : onboardingCopyState === 'error'
-                      ? 'Copy failed'
-                      : 'Copy Onboarding'}
+                      ? '复制失败'
+                      : '复制启动包'}
                 </button>
               )}
               {evidenceUrl && (
@@ -1237,28 +1237,28 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
       )}
       {communication.runtime_metrics && (
         <div className="workbench-contract-line">
-          <span>Runtime</span>
+          <span>运行</span>
           <strong>{communication.runtime_metrics}</strong>
         </div>
       )}
       {metricsUrl && (
         <div className="workbench-runtime-metrics">
           <div className="workbench-runtime-metrics-head">
-            <span>Runtime Metrics</span>
+            <span>运行指标</span>
             <strong>{runtimeMetricsSummary(runtimeMetricsPreview?.summary)}</strong>
             <button type="button" onClick={() => loadRuntimeMetrics('manual')}>
               {runtimeMetricsState === 'loading'
-                ? 'Loading'
+                ? '读取中'
                 : runtimeMetricsState === 'error'
-                  ? 'Retry'
-                  : 'Refresh'}
+                  ? '重试'
+                  : '刷新'}
             </button>
           </div>
           <div className="workbench-runtime-metrics-grid">
-            <Metric label="Events" value={String(runtimeMetricsPreview?.count ?? '-')} />
+            <Metric label="事件" value={String(runtimeMetricsPreview?.count ?? '-')} />
             <Metric label="Tokens" value={String(runtimeMetricsPreview?.summary?.llm_total_tokens ?? '-')} />
             <Metric label="Cache" value={runtimeTokenCacheSummary(runtimeMetricsPreview?.summary)} />
-            <Metric label="Rank" value={runtimeRankingSummary(runtimeMetricsPreview?.summary)} />
+            <Metric label="工具筛选" value={runtimeRankingSummary(runtimeMetricsPreview?.summary)} />
           </div>
           {runtimeMetricsPreview?.latest && (
             <small>{runtimeLatestMetricSummary(runtimeMetricsPreview.latest)}</small>
@@ -1267,33 +1267,33 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
       )}
       {communication.llm_probe && (
         <div className="workbench-contract-line">
-          <span>LLM Probe</span>
+          <span>模型探测</span>
           <strong>{communication.llm_probe}</strong>
         </div>
       )}
       {communication.llm_probe_history && (
         <div className="workbench-contract-line">
-          <span>Probe History</span>
+          <span>探测历史</span>
           <strong>{communication.llm_probe_history}</strong>
         </div>
       )}
       {communication.runtime_advice && (
         <div className="workbench-contract-line">
-          <span>Advice</span>
+          <span>建议</span>
           <strong>{communication.runtime_advice}</strong>
         </div>
       )}
       {adviceUrl && (
         <div className={`workbench-runtime-advice advice-${advicePreview?.priority || advicePreview?.status || 'unknown'}`}>
           <div className="workbench-runtime-advice-head">
-            <span>Runtime Advice</span>
+            <span>运行建议</span>
             <strong>{runtimeAdviceSummary(advicePreview)}</strong>
             <button type="button" onClick={() => loadRuntimeAdvice('manual')}>
               {advicePreviewState === 'loading'
-                ? 'Loading'
+                ? '读取中'
                 : advicePreviewState === 'error'
-                  ? 'Retry'
-                  : 'Refresh'}
+                  ? '重试'
+                  : '刷新'}
             </button>
           </div>
           {advicePreview?.next_action && <small>{advicePreview.next_action}</small>}
@@ -1642,17 +1642,17 @@ function metricLabel(key: string): string {
     case 'trajectory_steps':
       return 'steps'
     case 'health_status':
-      return 'health'
+      return '健康'
     case 'repair_status':
-      return 'repair'
+      return '修复'
     case 'error_count':
-      return 'errors'
+      return '错误'
     case 'token_usage_ratio':
       return 'tokens'
     case 'context_window_ratio':
       return 'ctx'
     case 'context_saturation':
-      return 'ctx_state'
+      return '上下文'
     case 'compression_applied':
       return 'zip'
     case 'dropped_parts':
@@ -1676,17 +1676,17 @@ function metricLabel(key: string): string {
     case 'context_build_ms':
       return 'ctx_ms'
     case 'tool_phase':
-      return 'tool_phase'
+      return '工具阶段'
     case 'tool_candidates':
-      return 'candidates'
+      return '可选能力'
     case 'tool_selected':
-      return 'selected'
+      return '已选能力'
     case 'tool_ranking_ms':
-      return 'rank_ms'
+      return '筛选耗时'
     case 'tool_rank_cache_hit':
-      return 'rank_hit'
+      return '筛选缓存'
     case 'tool_rank_cache_size':
-      return 'rank_cache'
+      return '缓存数'
     case 'eligible':
       return 'learn'
     case 'context_revision':
@@ -1817,11 +1817,11 @@ function runtimeAdviceEvidenceSummary(evidence: Record<string, unknown>): string
 }
 
 function runtimeMetricsSummary(summary?: RuntimeMetricsSummary): string {
-  if (!summary) return 'waiting for metrics'
+  if (!summary) return '等待指标'
   const latency = summary.max_latency || {}
   const retrieval = summary.retrieval || {}
   return [
-    latency.phase ? `${latency.phase}=${formatMs(latency.elapsed_ms)}` : 'latency=-',
+    latency.phase ? `${latency.phase}=${formatMs(latency.elapsed_ms)}` : '延迟=-',
     summary.llm_total_tokens !== undefined ? `tokens=${summary.llm_total_tokens}` : 'tokens=-',
     `ctx=${formatMs(retrieval.context_build_ms)}`,
     runtimeTokenCacheSummary(summary),
@@ -1840,23 +1840,23 @@ function runtimeTokenCacheSummary(summary?: RuntimeMetricsSummary): string {
 function runtimeRankingSummary(summary?: RuntimeMetricsSummary): string {
   const ranking = summary?.tool_ranking || {}
   const selected = ranking.selected_count ?? '-'
-  const candidates = ranking.candidate_count ?? '-'
-  const hit = ranking.cache_hit === undefined ? '-' : ranking.cache_hit ? 'hit' : 'miss'
-  return `${selected}/${candidates}/${hit}`
+  const available = ranking.candidate_count ?? '-'
+  const hit = ranking.cache_hit === undefined ? '-' : ranking.cache_hit ? '命中' : '未命中'
+  return `已选 ${selected} / 可选 ${available} / ${hit}`
 }
 
 function runtimeLatestMetricSummary(metric: RuntimeMetricLatest): string {
   return [
-    `latest=${metric.kind || '-'}`,
-    metric.phase ? `phase=${metric.phase}` : '',
-    typeof metric.iteration === 'number' ? `iter=${metric.iteration + 1}` : '',
-    typeof metric.elapsed_ms === 'number' ? `elapsed=${formatMs(metric.elapsed_ms)}` : '',
+    `最新=${metric.kind || '-'}`,
+    metric.phase ? `阶段=${metric.phase}` : '',
+    typeof metric.iteration === 'number' ? `轮次=${metric.iteration + 1}` : '',
+    typeof metric.elapsed_ms === 'number' ? `耗时=${formatMs(metric.elapsed_ms)}` : '',
     typeof metric.total_tokens === 'number' ? `tokens=${metric.total_tokens}` : '',
     typeof metric.token_count === 'number' ? `ctx_tokens=${metric.token_count}` : '',
     typeof metric.context_build_ms === 'number' ? `ctx=${formatMs(metric.context_build_ms)}` : '',
-    typeof metric.selected_count === 'number' ? `selected=${metric.selected_count}` : '',
-    typeof metric.candidate_count === 'number' ? `candidates=${metric.candidate_count}` : '',
-    metric.cache_hit !== undefined ? `cache=${metric.cache_hit ? 'hit' : 'miss'}` : '',
+    typeof metric.selected_count === 'number' ? `已选=${metric.selected_count}` : '',
+    typeof metric.candidate_count === 'number' ? `可选=${metric.candidate_count}` : '',
+    metric.cache_hit !== undefined ? `缓存=${metric.cache_hit ? '命中' : '未命中'}` : '',
   ].filter(Boolean).join(' | ')
 }
 
@@ -1922,9 +1922,9 @@ function evidenceBundleSummary(
   preview?: EvidenceBundlePreview | null,
   state: 'idle' | 'loading' | 'error' = 'idle',
 ): string {
-  if (state === 'loading') return 'refreshing compact evidence'
-  if (state === 'error') return 'bundle unavailable; use detail refresh'
-  if (!preview) return 'waiting for compact evidence'
+  if (state === 'loading') return '正在刷新证据包'
+  if (state === 'error') return '证据包暂不可用，请刷新详情'
+  if (!preview) return '等待证据包'
   const counts = preview.counts || {}
   const advice = preview.runtime_advice?.priority || preview.runtime_advice?.status || '-'
   const maker = preview.maker_mcp
@@ -1954,6 +1954,19 @@ function evidenceBundleSummary(
     ? `feedback=${preview.llm_feedback_summary.total_runs ?? 0}/${feedbackLatest?.failure_type || (feedbackLatest?.ok ? 'ok' : '-')}`
     : 'feedback=-'
   return [`advice=${advice}`, maker, setup, audit, context, layers, metrics, learning, guard, probe, proof, feedback].filter(Boolean).join(' | ')
+}
+
+function userFacingWorkbenchStatus(value?: string): string {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  if (/tool[_\s-]?selection|candidate|候选工具|Tool context ranked/i.test(text)) {
+    return '正在判断下一步'
+  }
+  if (text === 'Session created') return '会话已创建，正在等待模型响应'
+  if (text === 'Task finished') return '任务已完成'
+  if (text === 'Canceling task') return '正在停止任务'
+  if (text === 'Runtime contract degraded') return '运行契约部分可用，正在继续处理'
+  return text
 }
 
 function externalAgentBootLines({
