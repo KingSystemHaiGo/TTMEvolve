@@ -86,6 +86,25 @@ pub fn open_devtools<R: Runtime>(window: Window<R>) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+pub fn window_minimize<R: Runtime>(window: Window<R>) -> Result<(), String> {
+    window.minimize().map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn window_toggle_maximize<R: Runtime>(window: Window<R>) -> Result<(), String> {
+    if window.is_maximized().map_err(|err| err.to_string())? {
+        window.unmaximize().map_err(|err| err.to_string())
+    } else {
+        window.maximize().map_err(|err| err.to_string())
+    }
+}
+
+#[tauri::command]
+pub fn window_close<R: Runtime>(window: Window<R>) -> Result<(), String> {
+    window.close().map_err(|err| err.to_string())
+}
+
 fn is_allowed_external_url(url: &str) -> bool {
     let trimmed = url.trim();
     if trimmed.chars().any(|ch| ch.is_control()) {
@@ -186,6 +205,9 @@ pub fn register<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
         server_start,
         server_stop,
         open_devtools,
+        window_minimize,
+        window_toggle_maximize,
+        window_close,
         open_external_url,
         fast_probe_port,
         fast_find_available_port,

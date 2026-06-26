@@ -1173,3 +1173,26 @@
   - Real debug Tauri launch showed a TTMEvolve window with native titlebar and a nonblank diagnostic preview notice instead of the refused iframe page.
 
 ## Last updated: 2026-06-26 12:25
+
+## 2026-06-26 Tauri Desktop UX Polish: Single App Window
+
+- User clarified the product standard:
+  - Do not expose Maker iframe limitations when the preview can still show the page through screenshot/diagnostic fallback.
+  - GUI launch should feel like opening one desktop application; cmd/backend windows must not stay visible.
+  - Backend process lifetime should remain tied to the desktop frontend.
+  - Titlebar should blend into the app theme and need not show software name/icon.
+- Fixes:
+  - Tauri preview now defaults to a clean Maker preview surface with no `外部打开`, `拒绝内嵌`, `尝试内嵌`, or diagnostic labels.
+  - Restored frameless Tauri window, but added Rust window commands for minimize/toggle-maximize/close and wired them into the custom React titlebar.
+  - Titlebar now uses theme tokens, a tiny brand accent, no app name/icon, and integrated window controls.
+  - `start-tauri.bat` GUI mode now detaches the desktop app and prefers/builds the no-console release binary; debug GUI startup is opt-in through `TTMEVOLVE_ALLOW_DEBUG_GUI`.
+  - `TTMEvolve.vbs` and `TTMEvolve-Practice.vbs` now target `start-tauri.bat`; `.gitignore` explicitly tracks these two official visible launchers while continuing to ignore other generated `.vbs` files.
+  - Added launcher regression tests to prevent GUI mode from returning to attached `cargo run`/cmd behavior.
+- Verification:
+  - `npm.cmd --prefix frontend run build` passed.
+  - `.venv\Scripts\python.exe -m pytest tests/test_start_scripts.py tests/test_tauri_lifecycle.py -q` -> 28 passed.
+  - `cargo build --manifest-path src-tauri/Cargo.toml` and `cargo test --manifest-path src-tauri/Cargo.toml` passed earlier in this pass -> 33 Rust tests.
+  - `cargo build --release --manifest-path src-tauri/Cargo.toml` passed.
+  - Real `TTMEvolve.vbs` launch produced exactly one new visible window: `ttmevolve / TTMEvolve`; `/health` returned `status=ok`; screenshot showed integrated titlebar and clean Maker preview.
+
+## Last updated: 2026-06-26 12:44

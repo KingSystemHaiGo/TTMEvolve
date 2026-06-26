@@ -51,6 +51,21 @@ export async function openDevtools(): Promise<void> {
   await invoke<void>("open_devtools");
 }
 
+export async function minimizeWindow(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke<void>("window_minimize");
+}
+
+export async function toggleMaximizeWindow(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke<void>("window_toggle_maximize");
+}
+
+export async function closeWindow(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke<void>("window_close");
+}
+
 export async function openExternalUrl(url: string): Promise<void> {
   if (!isTauri()) {
     window.open(url, "_blank", "noopener,noreferrer");

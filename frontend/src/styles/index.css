@@ -104,7 +104,9 @@
 }
 
 :root[data-theme='dark'] .electron-titlebar {
-  background: #111111;
+  background:
+    linear-gradient(90deg, rgba(0, 217, 197, 0.16), transparent 38%),
+    var(--tm-surface-panel-strong);
   color: var(--tm-text);
 }
 
@@ -251,9 +253,12 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 34px;
-  background: #172027;
-  color: #d8e4ea;
+  height: 30px;
+  border-bottom: 1px solid var(--tm-border-muted);
+  background:
+    linear-gradient(90deg, rgba(0, 217, 197, 0.12), transparent 38%),
+    var(--tm-surface-panel-strong);
+  color: var(--tm-text-muted);
   user-select: none;
 }
 
@@ -267,13 +272,16 @@ button {
   height: 100%;
   display: flex;
   align-items: center;
-  padding-left: 12px;
+  padding-left: 10px;
   -webkit-app-region: drag;
 }
 
-.electron-titlebar-mark {
-  font-size: 12px;
-  font-weight: 700;
+.electron-titlebar-accent {
+  width: 24px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--tm-primary);
+  opacity: 0.9;
 }
 
 .electron-window-controls {
@@ -283,16 +291,19 @@ button {
 }
 
 .electron-window-controls button {
-  width: 46px;
+  width: 42px;
+  height: 30px;
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: #d8e4ea;
-  font-size: 14px;
+  color: var(--tm-text-muted);
+  font-size: 13px;
+  line-height: 1;
 }
 
 .electron-window-controls button:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--tm-surface-soft);
+  color: var(--tm-text);
 }
 
 .electron-window-controls button:last-child:hover {
@@ -6160,7 +6171,9 @@ select:disabled {
 }
 
 :root[data-theme='dark'] .electron-titlebar {
-  background: #111111;
+  background:
+    linear-gradient(90deg, rgba(0, 217, 197, 0.16), transparent 38%),
+    var(--tm-surface-panel-strong);
   color: var(--tm-text);
 }
 

@@ -1,6 +1,6 @@
 import { MouseEvent, useEffect, useRef, useState } from 'react'
 import { useBrowser } from '../hooks/useBrowser'
-import { isTauri, openExternalUrl } from '../lib/tauri'
+import { isTauri } from '../lib/tauri'
 
 const PREVIEW_URL_KEY = 'ttmevolve.preview.url'
 const MAKER_DEFAULT_URL = 'https://maker.taptap.cn/'
@@ -26,15 +26,6 @@ function savedPreviewUrl(initialUrl: string): string {
   return localStorage.getItem(PREVIEW_URL_KEY) || initialUrl
 }
 
-function isMakerUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url)
-    return parsed.hostname.endsWith('taptap.cn')
-  } catch {
-    return false
-  }
-}
-
 export default function BrowserPreview({ initialUrl = '' }: BrowserPreviewProps) {
   const nativeBrowser = electronMakerBrowser()
   if (nativeBrowser) {
@@ -47,65 +38,15 @@ export default function BrowserPreview({ initialUrl = '' }: BrowserPreviewProps)
 }
 
 function TauriWebPreview({ initialUrl }: BrowserPreviewProps) {
-  const firstUrl = savedPreviewUrl(initialUrl || MAKER_DEFAULT_URL)
-  const [url, setUrl] = useState(firstUrl)
-  const [mode, setMode] = useState<'diagnostic' | 'iframe'>('diagnostic')
-  const [openError, setOpenError] = useState('')
-  const makerUrl = isMakerUrl(url)
+  const url = savedPreviewUrl(initialUrl || MAKER_DEFAULT_URL)
 
   useEffect(() => {
     localStorage.setItem(PREVIEW_URL_KEY, url)
   }, [url])
 
-  const openExternal = async () => {
-    setOpenError('')
-    try {
-      await openExternalUrl(url)
-    } catch (err) {
-      setOpenError(String(err))
-    }
-  }
-
   return (
     <div className="browser-preview tauri-browser-preview">
-      <div className="tauri-browser-topbar">
-        <span>{mode === 'diagnostic' ? '诊断预览' : '网页预览'}</span>
-        <button type="button" onClick={() => setUrl(MAKER_DEFAULT_URL)}>
-          Maker
-        </button>
-        <button type="button" onClick={openExternal}>
-          外部打开
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode((current) => (current === 'diagnostic' ? 'iframe' : 'diagnostic'))}
-        >
-          {mode === 'diagnostic' ? '尝试内嵌' : '诊断预览'}
-        </button>
-      </div>
-
-      {openError && <div className="browser-error">{openError}</div>}
-
-      {mode === 'diagnostic' ? (
-        <div className="tauri-diagnostic-preview">
-          {makerUrl && (
-            <div className="tauri-preview-notice">
-              <strong>Maker 页面拒绝内嵌</strong>
-              <span>
-                TapTap Maker 不允许在 Tauri iframe 中直接打开。请用“外部打开”进入完整 Maker 页面；下方诊断预览用于查看截图和基本交互状态。
-              </span>
-            </div>
-          )}
-          <ScreenshotBrowserPreview initialUrl={url} />
-        </div>
-      ) : (
-        <iframe
-          className="tauri-browser-frame"
-          src={url}
-          title="TapTap Maker preview"
-          onLoad={() => localStorage.setItem(PREVIEW_URL_KEY, url)}
-        />
-      )}
+      <ScreenshotBrowserPreview initialUrl={url || MAKER_DEFAULT_URL} />
     </div>
   )
 }
@@ -218,8 +159,8 @@ function ScreenshotBrowserPreview({ initialUrl = '' }: BrowserPreviewProps) {
           />
         ) : (
           <div className="browser-placeholder">
-            <p>正在打开 Maker 诊断预览</p>
-            <p className="browser-muted">如果站点拒绝内嵌，请使用右上角“外部打开”。</p>
+            <p>正在打开 Maker 预览</p>
+            <p className="browser-muted">页面加载后可直接在预览区查看当前状态。</p>
           </div>
         )}
       </div>

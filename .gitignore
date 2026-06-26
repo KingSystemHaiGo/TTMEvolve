@@ -26,6 +26,8 @@ config.json
 # Windows local launchers
 *.lnk
 *.vbs
+!TTMEvolve.vbs
+!TTMEvolve-Practice.vbs
 
 # Node.js / Electron
 **/node_modules/

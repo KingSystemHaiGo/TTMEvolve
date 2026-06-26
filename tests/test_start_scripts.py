@@ -95,6 +95,24 @@ def test_start_tauri_bat_includes_friendly_error_messages():
     assert "build-portable" in text or "build_all" in text, "should hint at build_portable"
 
 
+def test_start_tauri_bat_gui_launches_release_detached():
+    text = (_PROJECT_ROOT / "start-tauri.bat").read_text(encoding="utf-8")
+    assert 'start "TTMEvolve"' in text, "GUI launcher should detach the desktop app"
+    assert "cargo build --release" in text, "GUI fallback should build a no-console release exe"
+    assert "TTMEVOLVE_ALLOW_DEBUG_GUI" in text, "debug GUI should be opt-in only"
+    assert "cargo run --manifest-path src-tauri\\Cargo.toml" not in text, (
+        "GUI mode should not leave a cargo/cmd window attached"
+    )
+
+
+def test_visible_windows_vbs_launchers_target_tauri_launcher():
+    for name in ("TTMEvolve.vbs", "TTMEvolve-Practice.vbs"):
+        text = (_PROJECT_ROOT / name).read_text(encoding="utf-8")
+        assert "start-tauri.bat" in text
+        assert "start-gui.ps1" not in text
+        assert "start-practice.ps1" not in text
+
+
 def test_start_tauri_sh_includes_friendly_error_messages():
     text = (_PROJECT_ROOT / "start-tauri.sh").read_text(encoding="utf-8")
     assert "ERROR" in text, "launcher should print ERROR on missing python"

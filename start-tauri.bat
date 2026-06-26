@@ -5,7 +5,7 @@ REM
 REM v0.9.0 enhanced:
 REM   - portable Python first, then .venv, then system Python
 REM   - GUI / CLI / headless modes
-REM   - source checkout GUI fallback builds frontend and runs Tauri with Cargo
+REM   - source checkout GUI fallback builds frontend and release Tauri
 REM   - friendly error messages
 REM =============================================================================
 
@@ -63,15 +63,13 @@ goto :run_backend
 
 :run_gui
 if exist "src-tauri\target\release\ttmevolve.exe" (
-    echo [start-tauri] starting production build
-    "src-tauri\target\release\ttmevolve.exe" %*
-    exit /b %errorlevel%
+    start "TTMEvolve" "%CD%\src-tauri\target\release\ttmevolve.exe" %*
+    exit /b 0
 )
 
-if exist "src-tauri\target\debug\ttmevolve.exe" (
-    echo [start-tauri] starting debug build
-    "src-tauri\target\debug\ttmevolve.exe" %*
-    exit /b %errorlevel%
+if /i "!TTMEVOLVE_ALLOW_DEBUG_GUI!"=="1" if exist "src-tauri\target\debug\ttmevolve.exe" (
+    start "TTMEvolve" "%CD%\src-tauri\target\debug\ttmevolve.exe" %*
+    exit /b 0
 )
 
 where cargo >nul 2>nul
@@ -88,13 +86,16 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [start-tauri] no built binary; building frontend for Tauri
+echo [start-tauri] no release binary; building frontend for Tauri
 npm.cmd --prefix frontend run build
 if errorlevel 1 exit /b %errorlevel%
 
-echo [start-tauri] starting Tauri from source with Cargo
-cargo run --manifest-path src-tauri\Cargo.toml -- %*
-exit /b %errorlevel%
+echo [start-tauri] building Tauri release
+cargo build --release --manifest-path src-tauri\Cargo.toml
+if errorlevel 1 exit /b %errorlevel%
+
+start "TTMEvolve" "%CD%\src-tauri\target\release\ttmevolve.exe" %*
+exit /b 0
 
 :run_backend
 "!PYTHON_EXE!" main.py --embedded %*
