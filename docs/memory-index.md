@@ -1089,3 +1089,13 @@
 - 重要经验：全量运行必须覆盖 Python/TS/Electron/Rust 四条链路；Tauri resources 不能包含 live runtime state（cache/home/tmp/electron profile），否则构建会扫描用户状态和锁文件。
 
 ## Last updated: 2026-06-26 10:15
+
+## 2026-06-26 v1.5.1 README/GitHub Landing Fix
+
+- User caught that GitHub README was not updated after the full v1.5.1 validation/fix/push cycle.
+- Rewrote `README.md` as readable UTF-8 content aligned with the current architecture: Tauri 2.x + Rust + WebView2 as the primary GUI, React frontend, Python App Server, Maker MCP, API-first LLM routing, and Electron only as a legacy compatibility build surface.
+- Removed stale GitHub-facing launch docs for deleted legacy scripts (`start-gui.*`, `start-practice.*`) and old Electron-primary commands.
+- Added latest validation evidence to README: Python `598 passed, 14 skipped`, Rust `32 passed`, frontend build passed, Electron compatibility build passed, and synced commit `a3e7626`.
+- Lesson: GitHub sync is incomplete if README/release-facing docs still describe an older architecture, even when code/tests/commit/push are already complete.
+
+## Last updated: 2026-06-26 10:41

@@ -1,156 +1,127 @@
 # TTMEvolve
 
-> **v0.7.0**：完整 Windows 桌面应用（Tauri 2.x + Rust + 云端 LLM）
-> **不装任何环境依赖，双击即可运行**
+> **v1.5.1 full validation pass**: Tauri 2.x + Rust + WebView2 desktop shell, React workbench, Python App Server, cloud/API LLM routing, Maker MCP integration, and cross-stack release validation.
 
-TTMEvolve 是一个面向 TapTap Maker 游戏开发的自进化 Agent 工作台。
+TTMEvolve is a desktop AI development workbench for TapTap Maker projects. It is designed to connect project understanding, Maker MCP tools, code edits, build verification, runtime evidence, memory, and learning into one local system.
 
-它的目标不是只做一个聊天框，而是把「理解项目、调用 Maker MCP、修改代码、构建验证、沉淀经验、下次复用」串成一个可持续迭代的本地开发系统。你可以把它理解为一个专门服务 TapTap Maker 的桌面级 AI IDE：前端是 Tauri + WebView2 + React，后端是 Python App Server，Agent 通过工具系统、沙箱、审批、记忆和学习模块完成真实开发任务。
+The current primary GUI is **Tauri + React**. The Python backend provides the App Server, session runtime, Maker setup APIs, LLM routing, sandbox/approval controls, and learning/memory services. The legacy Electron package is kept as a compatibility/build surface, not the normal user entry.
 
-## 项目亮点（v0.7.0）
+## Current Status
 
-- **Tauri 桌面壳**：Rust 内核 + WebView2，启动 < 2s，内存 < 80MB
-- **云端 LLM 多 Provider**：OpenAI / Anthropic / DeepSeek / Qwen / Zhipu / Moonshot / SiliconFlow / MiniMax，**自动故障转移**
-- **内嵌便携环境**：Python + Node 全部打包到 `portable/`，**零安装**
-- **完整 Settings 页面**：5 面板（项目 / MCP / Schema / 工作台 / 开发者模式）+ 主题切换
-- **面向 TapTap Maker**：内置 Maker MCP 接入、项目选择、初始化、诊断和一键修复
-- **可控执行**：通过 sandbox、approval profile 和工具校验控制 Agent 行为边界
-- **自进化机制**：运行时记录任务轨迹、错误模式、修复经验和技能沉淀
+- **Latest synced release work**: `v1.5.1: full validation bugfix pass`
+- **Latest pushed commit**: `a3e7626`
+- **Python tests**: `598 passed, 14 skipped`
+- **Rust/Tauri tests**: `32 passed`
+- **Frontend build**: passed
+- **Electron compatibility build**: passed
+- **Default test scope**: `pytest.ini` limits collection to `tests/` and skips runtime state directories such as `portable/`, `storage/`, `workspace/`, and `vendor/`
 
-## 一句话启动
+## Highlights
 
-Windows 推荐直接双击或运行：
+- **Tauri desktop shell**: Rust + WebView2 with lifecycle management for the Python backend and fast_ops bridge.
+- **React workbench**: chat-first Agent UI, Maker preview surface, setup/settings/tool panels, runtime evidence, and diagnostics.
+- **Python App Server**: local HTTP/SSE runtime for sessions, files, browser tooling, Maker setup, LLM probes, and evidence bundles.
+- **API-first LLM runtime**: provider routing for OpenAI-compatible APIs, Claude, DeepSeek, Qwen, Zhipu, Moonshot, SiliconFlow, MiniMax, and explicit local GGUF fallback.
+- **Maker MCP integration**: project selection, setup doctor, tool audit, auth/home isolation, and remote Maker tool registration.
+- **Controlled execution**: sandbox modes, approval profiles, tool validation, structured runtime events, rollback/version helpers, and compact diagnostics.
+- **Memory and learning**: session evidence, vector/cold memory, skill sync, async reflection, and persistent runtime lessons.
 
-```cmd
+## Quick Start
+
+On Windows, use the visible launcher or run:
+
+```powershell
 .\start-tauri.bat
 ```
 
-或者开发者模式：
-
-```cmd
-cd src-tauri
-cargo tauri dev
-```
-
-如果你只想在终端里跑 Agent：
+CLI/headless modes use the same launcher:
 
 ```powershell
-.\start.bat
+.\start-tauri.bat --cli
+.\start-tauri.bat --headless
 ```
 
-## 系统架构
+For a backend-only smoke run:
+
+```powershell
+python main.py --serve --mock
+```
+
+The launcher prefers embedded runtimes under `portable/`, then `.venv/`, then system tools. Normal user-facing launch should stay GUI-first; batch and PowerShell scripts are bootstrap details.
+
+## Architecture
 
 ```mermaid
 flowchart TB
-    User["用户"] --> GUI["Electron + React 桌面工作台"]
-    User --> CLI["CLI 终端入口"]
+    User["User"] --> GUI["Tauri + React desktop workbench"]
+    User --> CLI["CLI / headless entry"]
 
     GUI --> Server["Python App Server<br/>127.0.0.1:7345"]
     CLI --> Server
 
-    Server --> Agent["TapMakerAgent<br/>ReAct 推理循环"]
-    Agent --> LLM["LLM Provider<br/>local / deepseek / openai / claude / mock"]
-    Agent --> Tools["工具注册表<br/>文件 / Shell / Git / Browser / Maker MCP"]
-    Agent --> Runtime["运行时治理<br/>Sandbox / Approval / Health / Rollback"]
-    Agent --> Memory["记忆与学习<br/>Session / Vector Index / Skill Sync"]
+    Server --> Agent["TapMakerAgent<br/>Plan / ReAct / tool runtime"]
+    Agent --> LLM["LLM Router<br/>API providers / explicit local GGUF / mock"]
+    Agent --> Tools["Tool Registry<br/>Files / Shell / Git / Browser / Maker MCP"]
+    Agent --> Runtime["Runtime Controls<br/>Sandbox / Approval / Health / Rollback"]
+    Agent --> Memory["Memory + Learning<br/>Sessions / Evidence / Vector Index / Skills"]
 
     Tools --> Maker["TapTap Maker MCP"]
-    Tools --> Project["Maker 游戏项目"]
-    Runtime --> Storage["storage/ 运行数据"]
-    Memory --> Docs["docs/ 经验沉淀"]
+    Tools --> Project["Maker project workspace"]
+    Runtime --> Storage["storage/ runtime state"]
+    Memory --> Docs["docs/ persistent knowledge"]
 ```
 
-## 目录结构
+## Repository Map
 
-| 路径 | 作用 |
+| Path | Purpose |
 | --- | --- |
-| `agent/` | Agent 主循环、工具调用、MCP 集成、工具校验 |
-| `core/` | 配置、沙箱、健康监控、运行时事件、可移植环境 |
-| `server/` | 本地 App Server、SSE 会话、Maker 设置、浏览器服务 |
-| `frontend/` | React 前端工作台 |
-| `electron/` | Electron 主进程、preload、桌面壳构建 |
-| `llm/` | LLM Provider 适配层 |
-| `memory/` | 记忆管理 |
-| `ecosystem/` | 技能同步、跨生态集成 |
-| `scripts/` | 启动、依赖准备、构建、诊断脚本 |
-| `tests/` | 自动化测试 |
-| `docs/` | 架构、设计、反馈、发布和会话文档 |
-| `workspace/` | 默认 Maker 练习项目目录，已忽略 |
-| `storage/` | 运行数据和会话状态，已忽略 |
-| `portable/` | 便携运行时 HOME、缓存、临时目录，已忽略 |
-| `vendor/` | 可选内嵌 Python、Node、Git、模型、浏览器等，已忽略 |
-| `models/` | 本地模型文件，已忽略 |
+| `src-tauri/` | Primary Tauri/Rust desktop shell, app lifecycle, fast_ops bridge, commands, updater, bundle config |
+| `frontend/` | React + Vite workbench UI |
+| `server/` | Local App Server, session APIs, Maker setup/status APIs, browser service |
+| `agent/` | Agent runtime, ReAct loop, tool registry, MCP integration, tool validation |
+| `core/` | Config, sandbox, approval, health, runtime events, portable environment, updater client |
+| `llm/` | LLM providers, router/factory, local GGUF support, provider presets |
+| `memory/` | Memory manager, AGENTS.md parsing/indexing, vector/cold memory |
+| `learning/` | Trajectory collection, reflection, skill generation/validation |
+| `ecosystem/` | Cross-agent adapters and skill sync |
+| `electron/` | Legacy Electron compatibility/build surface |
+| `scripts/` | Bootstrap, packaging, diagnostics, portable runtime helpers |
+| `tests/` | Python regression tests |
+| `docs/` | Release notes, architecture notes, memory, roadmaps, session knowledge |
+| `workspace/` | Ignored default Maker project workspace |
+| `portable/` | Ignored portable runtime home/cache/temp/auth state |
+| `storage/` | Ignored runtime/session state |
+| `vendor/` | Ignored optional embedded dependencies |
+| `models/` | Ignored local GGUF/model files |
 
-## 运行环境
+## Requirements
 
-### 必需环境
+For development from source:
 
-- Windows 10/11
-- Python 3.10 或更高版本
-- Node.js 18 或更高版本
+- Windows 10/11 for the primary WebView2 GUI path
+- Python 3.10+
+- Node.js 18+
+- Rust toolchain with Cargo
 - Git
-- 可访问 npm 包源
+- npm package source access
 
-### 可选环境
+For Maker work:
 
-- TapTap Maker 账号与 Maker MCP 授权
-- 本地 GGUF 模型文件
-- DeepSeek / OpenAI 兼容 / Claude 等 API Key
-- 内嵌运行时：`vendor/python`、`vendor/node`、`vendor/git`
+- TapTap Maker account and Maker MCP authorization
+- A real Maker project directory, usually under `workspace/default-maker-project` or another selected project directory
 
-启动脚本会优先使用 `vendor/` 下的内嵌运行时；如果没有，则使用系统 PATH 中的 Python、Node 和 Git。
+For real LLM execution:
 
-## 快速开始
+- A configured API provider/key, or
+- An explicit local GGUF setup
 
-### 1. 克隆仓库
+`mock` is for tests and offline smoke checks. Normal GUI execution should use a real provider or fail clearly as unconfigured.
 
-```powershell
-git clone https://github.com/KingSystemHaiGo/TTMEvolve.git
-cd TTMEvolve
-```
+## Configuration
 
-### 2. 安装前端依赖
+On first startup, `config.example.json` can be copied to `config.json`. `config.json` is local/private and ignored by Git.
 
-根目录、前端和 Electron 都有自己的 Node 依赖：
-
-```powershell
-npm install
-cd frontend
-npm install
-cd ..\electron
-npm install
-cd ..
-```
-
-如果你只使用一键脚本，并且项目里已经有可用的 `node_modules/` 或内嵌依赖，可以先直接运行启动脚本。
-
-### 3. 准备 Python 环境
-
-首次运行 `start.ps1` 或 `start-gui.ps1` 时会自动创建 `.venv/`：
-
-```powershell
-.\start.bat
-```
-
-脚本会执行：
-
-- 检测 Python
-- 创建 `.venv/`
-- 调用 `scripts/bootstrap.py`
-- 检查或安装运行依赖
-- 自动创建 `config.json`，如果它还不存在
-
-### 4. 配置 `config.json`
-
-首次启动时，如果根目录没有 `config.json`，脚本会从 `config.example.json` 复制一份：
-
-```powershell
-copy config.example.json config.json
-```
-
-`config.json` 是你的本地私有配置，已经被 `.gitignore` 排除，不应该提交到 GitHub。
-
-最小可运行配置示例：
+Minimal test configuration:
 
 ```json
 {
@@ -168,171 +139,7 @@ copy config.example.json config.json
 }
 ```
 
-如果要使用 DeepSeek：
-
-```json
-{
-  "llm": {
-    "provider": "deepseek",
-    "model": "deepseek-v4-pro",
-    "api_key": "sk-...",
-    "base_url": "https://api.deepseek.com"
-  }
-}
-```
-
-## 启动方式
-
-### 桌面 GUI
-
-```powershell
-.\start-gui.bat
-```
-
-等价 PowerShell 入口：
-
-```powershell
-.\start-gui.ps1
-```
-
-GUI 启动流程：
-
-1. 检测 Python、Node、Git。
-2. 初始化 `portable/` 隔离运行时目录。
-3. 创建或复用 `.venv/`。
-4. 执行 `scripts/bootstrap.py`。
-5. 构建 `frontend/` 到 Electron renderer。
-6. 构建 Electron main/preload。
-7. 打开桌面窗口。
-
-如果 Electron 桌面壳启动失败，脚本会切换到浏览器调试模式：
-
-```text
-http://127.0.0.1:5173/
-```
-
-### Maker 实战练习模式
-
-```powershell
-.\start-practice.bat
-```
-
-等价 PowerShell 入口：
-
-```powershell
-.\start-practice.ps1
-```
-
-默认行为：
-
-- 在 `workspace/smoke-maker-game` 创建 Maker 项目目录。
-- 更新 `config.json` 的 `project_root` 和 `maker_mcp.cwd`。
-- 调用 `npx -y @taptap/maker install --ide codex,cursor,claude`。
-- 在 Maker 项目目录执行 `npx -y @taptap/maker init`。
-- 启动 TTMEvolve GUI。
-
-常用参数：
-
-```powershell
-.\start-practice.ps1 -ProjectName my-maker-game
-.\start-practice.ps1 -ProjectDir D:\Games\my-maker-game
-.\start-practice.ps1 -NoGui
-.\start-practice.ps1 -SkipMakerInstall
-.\start-practice.ps1 -SkipMakerInit
-.\start-practice.ps1 -DryRun
-```
-
-### CLI 模式
-
-```powershell
-.\start.bat
-```
-
-直接执行一次任务：
-
-```powershell
-python main.py --provider mock "列出项目文件"
-python main.py --provider deepseek "检查 Maker 项目状态"
-python main.py --profile safe --provider mock "读取 README"
-```
-
-启动 App Server：
-
-```powershell
-python main.py --serve
-```
-
-打开旧版 GUI 入口：
-
-```powershell
-python main.py --gui
-```
-
-## App Server 协议
-
-TTMEvolve 的 CLI 和 GUI 都通过本地 App Server 通信：
-
-```text
-http://127.0.0.1:7345
-```
-
-常用接口：
-
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| `GET` | `/health` | 健康检查 |
-| `POST` | `/sessions` | 创建任务会话 |
-| `GET` | `/sessions/{id}/events` | SSE 任务事件流 |
-| `GET` | `/sessions/{id}/status` | 查询任务状态 |
-| `POST` | `/sessions/{id}/cancel` | 取消任务 |
-| `POST` | `/config/llm` | 更新 LLM 配置 |
-| `POST` | `/llm/probe` | 测试 LLM Provider |
-| `GET` | `/tools` | 查看可用工具 |
-| `POST` | `/maker/project/select` | 选择 Maker 项目 |
-| `POST` | `/maker/practice/start` | 启动 Maker 实战初始化 |
-| `GET` | `/maker/setup-status` | Maker 配置状态 |
-| `GET` | `/maker/tool-audit` | Maker 工具诊断 |
-| `GET` | `/runtime/readiness` | 运行时就绪状态 |
-| `GET` | `/runtime/portable` | 便携环境诊断 |
-
-创建任务示例：
-
-```powershell
-$body = @{ task = "读取 README 并总结项目能力"; provider = "mock" } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:7345/sessions -Body $body -ContentType "application/json"
-```
-
-## 配置说明
-
-### LLM 配置
-
-`llm.provider` 决定当前模型来源：
-
-| provider | 说明 |
-| --- | --- |
-| `mock` | 测试模式，不调用真实模型 |
-| `local` | 本地 GGUF 模型 |
-| `deepseek` | DeepSeek API |
-| `openai` | OpenAI 或兼容接口 |
-| `claude` | Anthropic Claude API |
-
-常用字段：
-
-```json
-{
-  "llm": {
-    "provider": "deepseek",
-    "model": "deepseek-v4-pro",
-    "api_key": "sk-...",
-    "base_url": "https://api.deepseek.com",
-    "timeout": 45,
-    "max_history_steps": 6,
-    "reserve_tokens": 256
-  }
-}
-```
-
-### Maker MCP 配置
+Maker MCP configuration should point at the actual Maker game project, not the TTMEvolve app root:
 
 ```json
 {
@@ -350,7 +157,9 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:7345/sessions -Body $body -
     ],
     "cwd": "./workspace/default-maker-project",
     "env": {
-      "TAPTAP_MCP_ENV": "production"
+      "TAPTAP_MCP_ENV": "production",
+      "TAPTAP_MAKER_HOME": "./portable/taptap-maker",
+      "TTM_MAKER_HOME": "./portable/taptap-maker"
     },
     "request_timeout_seconds": 30
   },
@@ -358,330 +167,139 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:7345/sessions -Body $body -
 }
 ```
 
-注意：
+Important Maker rules:
 
-- `maker_mcp.cwd` 应该指向真实 Maker 游戏项目，而不是 TTMEvolve 仓库根目录。
-- Windows 路径建议写成 `D:/Games/my-maker-game`，不要在 JSON/TOML 字符串里裸写反斜杠。
-- `start-practice.ps1` 会自动帮你更新 `project_root` 和 `maker_mcp.cwd`。
+- `maker_mcp.cwd` and relative config paths are config-file-relative.
+- `TAPTAP_MAKER_HOME` is the official Maker auth/home variable; `TTM_MAKER_HOME` is mirrored for compatibility.
+- Empty, `0`, `none`, `null`, or `undefined` Maker project ids are treated as not bound.
 
-### 沙箱与审批
+## Development Commands
 
-```json
-{
-  "sandbox": {
-    "mode": "workspace-write"
-  },
-  "approval": {
-    "policy": "on-request"
-  },
-  "profiles": {
-    "safe": {
-      "sandbox": { "mode": "read-only" },
-      "approval": { "policy": "always" }
-    },
-    "autonomous": {
-      "sandbox": { "mode": "workspace-write" },
-      "approval": { "policy": "never" }
-    }
-  }
-}
-```
-
-可选 sandbox：
-
-- `read-only`：只读，适合检查和审计。
-- `workspace-write`：允许写工作区，默认推荐。
-- `danger-full-access`：高权限模式，只在你明确知道风险时使用。
-
-可选 approval：
-
-- `always`：所有敏感动作都需要确认。
-- `on-request`：按工具和风险请求确认。
-- `never`：不请求确认，适合自动化环境。
-
-## 开发命令
-
-### 前端开发
+Frontend build:
 
 ```powershell
-npm run dev:frontend
+npm.cmd --prefix frontend run build
 ```
 
-默认 Vite 地址：
+Legacy Electron compatibility build:
+
+```powershell
+npm.cmd --prefix electron run build
+```
+
+Tauri/Rust tests:
+
+```powershell
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+Tauri development shell, when the Tauri CLI is available:
+
+```powershell
+cd src-tauri
+cargo tauri dev
+```
+
+Python tests:
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q
+```
+
+Real local GGUF smoke tests are opt-in because they are slow and machine-dependent:
+
+```powershell
+$env:TTMEVOLVE_RUN_REAL_LOCAL_LLM = "1"
+.venv\Scripts\python.exe -m pytest tests/test_local_llm.py -q
+```
+
+## App Server API
+
+Default local server:
 
 ```text
-http://127.0.0.1:5173/
+http://127.0.0.1:7345
 ```
 
-### Electron 开发
+Common endpoints:
 
-```powershell
-npm run dev:electron
-```
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Health and runtime status |
+| `POST` | `/sessions` | Create an Agent session |
+| `GET` | `/sessions/{id}/events` | SSE event stream |
+| `GET` | `/sessions/{id}/status` | Session status |
+| `POST` | `/sessions/{id}/cancel` | Cancel session |
+| `POST` | `/config/llm` | Update LLM configuration |
+| `POST` | `/llm/probe` | Probe configured LLM provider |
+| `GET` | `/tools` | List available Agent tools |
+| `POST` | `/maker/project/select` | Select Maker project |
+| `POST` | `/maker/practice/start` | Start Maker practice/setup flow |
+| `GET` | `/maker/setup-status` | Maker setup status |
+| `GET` | `/maker/tool-audit` | Maker remote/local tool audit |
+| `GET` | `/runtime/readiness` | No-network runtime readiness gate |
+| `GET` | `/runtime/portable` | Portable environment diagnostics |
+| `GET` | `/sessions/{id}/evidence?steps=20` | Compact runtime evidence bundle |
+| `GET` | `/sessions/{id}/evidence.md?steps=20` | Pasteable evidence Markdown |
 
-### 同时运行前端和 Electron
+## Data And Safety Boundaries
 
-```powershell
-npm run dev
-```
-
-### 构建
-
-```powershell
-npm run build
-```
-
-构建前端：
-
-```powershell
-npm run build:frontend
-```
-
-构建 Electron：
-
-```powershell
-npm run build:electron
-```
-
-打包桌面分发：
-
-```powershell
-npm run dist
-```
-
-## 测试
-
-推荐先跑 Python 单元测试：
-
-```powershell
-python -m pytest
-```
-
-也可以单独跑关键测试：
-
-```powershell
-python -m pytest tests/test_app_server.py
-python -m pytest tests/test_session_store.py
-python -m pytest tests/test_maker_setup.py
-python -m pytest tests/test_runtime_events.py
-python -m pytest tests/test_tool_call_validation.py
-```
-
-如果只是验证 CLI 和 App Server：
-
-```powershell
-python main.py --provider mock "status"
-python main.py --serve
-```
-
-## 典型工作流
-
-### 新建一个 Maker 练习项目
-
-```powershell
-.\start-practice.ps1 -ProjectName smoke-maker-game
-```
-
-完成后，在 GUI 里输入一个小任务，例如：
-
-```text
-给主界面添加一个开始按钮，并构建验证
-```
-
-### 切换到已有 Maker 项目
-
-```powershell
-.\start-practice.ps1 -ProjectDir D:\TapTapMakerProjects\my-game -SkipMakerInit
-```
-
-或者在 GUI 内通过 Maker 项目选择能力切换。
-
-### 检查 LLM 是否真的可用
-
-启动服务后调用：
-
-```powershell
-$body = @{ provider = "deepseek"; timeout = 20 } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:7345/llm/probe -Body $body -ContentType "application/json"
-```
-
-### 查看 Maker 接入状态
-
-```powershell
-Invoke-RestMethod http://127.0.0.1:7345/maker/setup-status
-Invoke-RestMethod http://127.0.0.1:7345/maker/tool-audit
-```
-
-## 数据与安全边界
-
-以下内容不会提交到 Git：
+Do not commit local/private runtime state:
 
 - `config.json`
-- `.env`
-- `.env.*`
+- `.env*`
 - `.venv/`
 - `node_modules/`
 - `storage/`
 - `portable/`
 - `workspace/`
-- `test_project/`
 - `vendor/`
 - `models/`
 - `logs/`
 - `.codex/`
 - `.cursor/`
 - `.mcp.json`
-- Windows 快捷方式和本地启动脚本包装文件
+- generated shortcuts and local build artifacts
 
-请不要提交：
+Never commit API keys, TapTap Maker auth state, local model files, user caches, build outputs, or private project assets.
 
-- API Key
-- TapTap Maker 登录态
-- 本地模型文件
-- 用户缓存
-- 构建产物
-- 真实项目中的隐私素材
+## Troubleshooting
 
-## 常见问题
-
-### 1. 第一次启动提示 `config.json missing`
-
-这是正常行为。脚本已经从 `config.example.json` 创建了 `config.json`，请按需填写 LLM、Maker 项目路径和 API Key，然后重新启动。
-
-### 2. Electron 窗口闪退
-
-查看日志：
-
-```text
-logs/gui/
-start-gui.log
-```
-
-如果 Electron 启动失败，`start-gui.ps1` 会尝试切换到浏览器调试模式：
-
-```text
-http://127.0.0.1:5173/
-```
-
-### 3. Maker MCP 无法连接
-
-先运行：
+If the backend must be checked without GUI:
 
 ```powershell
-.\start-practice.ps1 -NoGui
+python main.py --serve --mock
 ```
 
-然后检查：
+If a provider is configured but you need proof it is actually called, use `/llm/probe` and inspect endpoint/tokens/latency evidence. MiniMax should show `/text/chatcompletion_v2`; OpenAI-compatible providers should show `/chat/completions`; Claude should show `/messages`.
 
-```text
-http://127.0.0.1:7345/maker/setup-status
-http://127.0.0.1:7345/maker/tool-audit
-```
+If Maker tools are missing:
 
-常见原因：
+1. Check `GET /runtime/portable` for home/cache/temp leaks.
+2. Check `GET /maker/setup-status`.
+3. Check `GET /maker/tool-audit`.
+4. Confirm the active Maker project has a real bound project id and `.project/settings.json`.
+5. Confirm both `TAPTAP_MAKER_HOME` and `TTM_MAKER_HOME` are set.
 
-- 没有安装 Node.js 或找不到 `npx`。
-- Maker 项目还没有初始化。
-- TapTap Maker 授权未完成。
-- `maker_mcp.cwd` 指向了错误目录。
+If tests unexpectedly scan runtime state, confirm `pytest.ini` is present and `testpaths = tests` is active.
 
-### 4. TOML 或 JSON 路径解析报错
+## GitHub
 
-Windows 路径建议统一写成正斜杠：
-
-```text
-D:/CC/TTMEvolve
-```
-
-不要在 TOML 双引号字符串里写：
-
-```text
-D:\CC\TTMEvolve
-```
-
-因为 `\C` 可能被解析成非法转义。
-
-### 5. Python 依赖安装失败
-
-可以删除损坏的虚拟环境后重试：
-
-```powershell
-Remove-Item -Recurse -Force .venv
-.\start.bat
-```
-
-如果你使用内嵌 Python，请确认：
-
-```text
-vendor/python/python.exe
-```
-
-存在且可执行。
-
-### 6. 前端依赖缺失
-
-分别安装根目录、前端和 Electron 的依赖：
-
-```powershell
-npm install
-cd frontend
-npm install
-cd ..\electron
-npm install
-cd ..
-```
-
-### 7. 想先离线测试，不调用真实模型
-
-使用 mock provider：
-
-```powershell
-python main.py --provider mock "列出项目文件"
-```
-
-## GitHub 协作
-
-当前仓库远程地址：
+Repository:
 
 ```text
 https://github.com/KingSystemHaiGo/TTMEvolve
 ```
 
-常规提交：
+Current release gate for a broad sync:
 
 ```powershell
-git status
-git add .
-git commit -m "描述本次修改"
-git push
+.venv\Scripts\python.exe -m pytest -q
+npm.cmd --prefix frontend run build
+npm.cmd --prefix electron run build
+cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-首次推送 main 分支：
+## License
 
-```powershell
-git push -u origin main
-```
-
-查看远程：
-
-```powershell
-git remote -v
-```
-
-## 路线图
-
-- [x] 三层架构：Agent Layer、Runtime Layer、Learning Layer
-- [x] 本地 App Server 和 SSE 会话协议
-- [x] Electron + React 桌面工作台
-- [x] Maker MCP 安装、初始化、诊断和实战入口
-- [x] 多 LLM Provider 接入
-- [x] 沙箱、审批、健康监控和运行时事件
-- [x] 记忆、技能同步和经验沉淀基础设施
-- [ ] 更稳定的 Maker 项目端到端构建验证
-- [ ] 更完整的模型配置向导
-- [ ] 更细粒度的任务回放和可视化调试
-- [ ] 更强的自动修复与回滚策略
-
-## 许可证
-
-当前仓库暂未声明开源许可证。发布或公开协作前，请先补充 `LICENSE` 文件并明确使用范围。
+The Tauri bundle metadata currently declares MIT. Ensure `LICENSE` is present and aligned before public distribution.
