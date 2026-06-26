@@ -13,6 +13,7 @@ import json
 import time
 
 from .vector_index import TextChunk, VectorIndex
+from .shared_policy import SharedMemoryPolicy
 
 _KNOWN_WORKSPACE_PROFILES = {"coding", "docs", "maker", "browser", "general"}
 _DEFAULT_PROFILE_POLICIES: Dict[str, Dict[str, Any]] = {
@@ -41,6 +42,7 @@ class ColdMemory:
         vi_cfg = vector_index_config or {}
         self._fallback_to_keyword = vi_cfg.get("fallback_to_keyword", True)
         self._profile_policies = _resolve_profile_policies(vi_cfg.get("profile_policies"))
+        self._shared_policy_config = vi_cfg.get("shared_memory") if isinstance(vi_cfg.get("shared_memory"), dict) else {}
         self._vector_index = VectorIndex(
             namespace="cold_memory",
             storage_dir=self.storage_path,
@@ -55,14 +57,24 @@ class ColdMemory:
             self.rebuild()
 
     def index(self, item: Dict[str, Any], content: str) -> None:
+        write_policy = SharedMemoryPolicy.from_config(
+            self._shared_policy_config,
+            agent_id=str(item.get("agent_id") or item.get("source_agent") or "default"),
+        )
+        item = write_policy.apply_index_metadata(item)
+        workspace_profile = _normalize_workspace_profile(
+            item.get("workspace_profile") or item.get("profile")
+        )
+        if not write_policy.can_index(workspace_profile):
+            raise PermissionError(f"Agent '{write_policy.agent_id}' cannot index {workspace_profile} memory.")
         entry = {
             "id": item.get("id", f"{time.time()}"),
             "type": item.get("type", "unknown"),
             "summary": content[:200],
             "timestamp": time.time(),
-            "workspace_profile": _normalize_workspace_profile(
-                item.get("workspace_profile") or item.get("profile")
-            ),
+            "workspace_profile": workspace_profile,
+            "agent_id": item.get("agent_id", "default"),
+            "visibility": item.get("visibility", "private"),
         }
         self._index.append(entry)
         self._save()
@@ -81,11 +93,18 @@ class ColdMemory:
         top_k: int = 5,
         workspace_profile: str = "general",
         allow_profile_fallback: Optional[bool] = None,
+        agent_id: Optional[str] = None,
+        shared_policy: Optional[SharedMemoryPolicy] = None,
     ) -> List[Dict[str, Any]]:
         profile = _normalize_workspace_profile(workspace_profile)
         policy = self.profile_policy(profile, top_k=top_k)
         effective_top_k = policy["top_k"]
-        filter_fn = _profile_filter(profile, include_general=policy["include_general"])
+        memory_policy = shared_policy or self.shared_policy(agent_id)
+        filter_fn = _profile_filter(
+            profile,
+            include_general=policy["include_general"],
+            shared_policy=memory_policy,
+        )
 
         results = self._vector_index.search(query, top_k=effective_top_k, filter_fn=filter_fn)
         if results:
@@ -97,17 +116,26 @@ class ColdMemory:
                 effective_top_k,
                 workspace_profile=profile,
                 include_general=policy["include_general"],
+                shared_policy=memory_policy,
             )
             if keyword_hits:
                 return keyword_hits
 
         should_fallback = policy["allow_fallback"] if allow_profile_fallback is None else bool(allow_profile_fallback)
         if should_fallback and profile != "general":
-            fallback_results = self._vector_index.search(query, top_k=effective_top_k)
+            fallback_results = self._vector_index.search(
+                query,
+                top_k=effective_top_k,
+                filter_fn=_shared_filter(memory_policy),
+            )
             if fallback_results:
                 return [chunk.meta for _, chunk in fallback_results if chunk.meta]
             if self._fallback_to_keyword:
-                return self._keyword_search(query, effective_top_k)
+                return self._keyword_search(
+                    query,
+                    effective_top_k,
+                    shared_policy=memory_policy,
+                )
         return []
 
     def profile_policy(self, workspace_profile: str = "general", top_k: int = 5) -> Dict[str, Any]:
@@ -118,6 +146,12 @@ class ColdMemory:
         policy["include_general"] = bool(policy.get("include_general", profile != "general"))
         policy["allow_fallback"] = bool(policy.get("allow_fallback", profile != "general"))
         return policy
+
+    def shared_policy(self, agent_id: Optional[str] = None) -> SharedMemoryPolicy:
+        return SharedMemoryPolicy.from_config(
+            self._shared_policy_config,
+            agent_id=str(agent_id or "default"),
+        )
 
     def rebuild(self) -> None:
         """从 JSON 源文件重建向量索引。"""
@@ -139,12 +173,16 @@ class ColdMemory:
         top_k: int,
         workspace_profile: str = "general",
         include_general: bool = True,
+        shared_policy: Optional[SharedMemoryPolicy] = None,
     ) -> List[Dict[str, Any]]:
         query_lower = query.lower()
         profile = _normalize_workspace_profile(workspace_profile)
+        memory_policy = shared_policy or self.shared_policy()
         hits = []
         for entry in self._index:
             if not _profile_matches_entry(entry, profile, include_general=include_general):
+                continue
+            if not memory_policy.can_read(entry, profile):
                 continue
             score = 0
             if query_lower in entry.get("summary", "").lower():
@@ -171,6 +209,8 @@ class ColdMemory:
                 entry["workspace_profile"] = _normalize_workspace_profile(
                     entry.get("workspace_profile") or entry.get("profile")
                 )
+                entry["agent_id"] = str(entry.get("agent_id") or entry.get("source_agent") or "default")
+                entry["visibility"] = str(entry.get("visibility") or "private")
         except Exception:
             self._index = []
 
@@ -195,15 +235,37 @@ def _profile_matches_entry(
     return include_general and entry_profile == "general"
 
 
-def _profile_filter(profile: str, include_general: bool = True):
+def _profile_filter(
+    profile: str,
+    include_general: bool = True,
+    shared_policy: Optional[SharedMemoryPolicy] = None,
+):
     if profile == "general":
+        return _shared_filter(shared_policy)
+
+    def matches(chunk: TextChunk) -> bool:
+        meta = chunk.meta or {}
+        if not _profile_matches_entry(
+            meta,
+            profile,
+            include_general=include_general,
+        ):
+            return False
+        if shared_policy is not None and not shared_policy.can_read(meta, profile):
+            return False
+        return True
+
+    return matches
+
+
+def _shared_filter(shared_policy: Optional[SharedMemoryPolicy]):
+    if shared_policy is None:
         return None
 
     def matches(chunk: TextChunk) -> bool:
-        return _profile_matches_entry(
+        return shared_policy.can_read(
             chunk.meta or {},
-            profile,
-            include_general=include_general,
+            _normalize_workspace_profile((chunk.meta or {}).get("workspace_profile")),
         )
 
     return matches

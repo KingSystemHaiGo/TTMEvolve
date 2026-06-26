@@ -53,8 +53,8 @@ Commands run on 2026-06-26:
 .venv\Scripts\python.exe -m pytest tests\test_memory_manager.py tests\test_tool_call_validation.py tests\test_sandbox.py tests\test_tool_timeouts.py tests\test_plan_first.py tests\test_plan_first_integration.py tests\test_plan_validation.py tests\test_coding_agent_v060.py tests\test_runtime_events.py tests\test_runtime_contract.py -q
 # 95 passed
 
-.venv\Scripts\python.exe -m pytest tests\test_cold_memory_vector.py tests\test_memory_manager_recall.py tests\test_memory_manager.py -q
-# profile-aware cold memory retrieval and per-profile policy focused suite passed
+.venv\Scripts\python.exe -m pytest tests\test_cold_memory_vector.py tests\test_memory_manager_recall.py tests\test_memory_manager.py tests\test_shared_memory_policy.py -q
+# profile-aware cold memory retrieval, per-profile policy, and shared-memory policy focused suite passed
 ```
 
 ## Zleap-Agent Learning / Zleap-Agent 学习结论
@@ -76,8 +76,8 @@ Applied now:
 
 Next:
 
-- Add shared-memory policy surfaces for multi-agent collaboration.
-- Show profile-level runtime evidence in Workbench/debug surfaces, not in the main chat.
+- Expose shared-memory policy summaries in Evidence Bundle / Workbench debug surfaces.
+- Add shared-memory promotion/demotion rules driven by task evidence, not only manual metadata.
 
 ## Long-Task Continuation Evidence / 长任务续航证据
 

@@ -182,12 +182,16 @@ class MemoryManager:
         session_id: str,
         summary: str,
         workspace_profile: str = "general",
+        agent_id: str = "default",
+        visibility: str = "private",
     ) -> None:
         self.cold.index(
             {
                 "id": session_id,
                 "type": "session_summary",
                 "workspace_profile": _normalize_workspace_profile(workspace_profile),
+                "agent_id": agent_id,
+                "visibility": visibility,
             },
             summary,
         )
@@ -197,11 +201,13 @@ class MemoryManager:
         query: str,
         top_k: int = 3,
         workspace_profile: str = "general",
+        agent_id: str = "default",
     ) -> List[Dict[str, Any]]:
         return self.cold.search(
             query,
             top_k=top_k,
             workspace_profile=_normalize_workspace_profile(workspace_profile),
+            agent_id=agent_id,
         )
 
     def _cold_recall_top_k(self, workspace_profile: str) -> int:

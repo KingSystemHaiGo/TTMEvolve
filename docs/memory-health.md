@@ -156,3 +156,12 @@ pm.cmd --prefix frontend run build passed; focused tool-routing pytest for proje
 - MemoryManager now asks ColdMemory.profile_policy() for the effective recall size, so docs/maker/coding can use different recall budgets.
 - Added tests for excluding general memory, disabling global fallback, top_k overrides, and Manager-level policy use in prepare_think_payload().
 - Architecture next step moves from per-profile retrieval policy to multi-agent shared-memory policy surfaces and profile evidence visibility.
+## 2026-06-26 Shared Memory Policy Surface POST
+
+- Added memory/shared_policy.py with SharedMemoryPolicy, a conservative multi-agent memory policy surface.
+- Cold memory entries now persist agent_id and visibility metadata. Default visibility is private, so existing single-agent behavior remains safe while multi-agent sharing must be explicit.
+- ColdMemory.search() can now filter by agent_id and shared-memory policy: agents can read their own private memory, shared/public memory according to policy, and cannot read another agent's private records by default.
+- ColdMemory.index() enforces write-profile gates when configured, preventing a specialized agent from writing outside its allowed workspace profiles.
+- MemoryManager.archive_session() and recall() accept agent_id / visibility metadata so session summaries can participate in the same policy.
+- Added focused tests for private/shared/public visibility, disabled shared reads, write-profile rejection, and Manager archive/recall metadata.
+- This is a policy foundation, not a full multi-agent collaboration runtime yet; next work should expose policy evidence in Evidence Bundle/Workbench and add promotion/demotion rules based on verified task outcomes.
