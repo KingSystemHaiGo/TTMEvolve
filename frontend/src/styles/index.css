@@ -5532,37 +5532,6 @@ select:disabled {
   background: var(--tm-surface);
 }
 
-.tauri-browser-topbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--tm-border);
-  background: var(--tm-page);
-}
-
-.tauri-browser-topbar span {
-  flex: 1;
-  min-width: 0;
-  color: var(--tm-text-muted);
-  font-size: 12px;
-  font-weight: 900;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tauri-browser-topbar button {
-  min-height: 26px;
-  border: 1px solid var(--tm-border);
-  border-radius: var(--tm-radius-sm);
-  background: var(--tm-surface-soft);
-  color: var(--tm-text-muted);
-  font-size: 12px;
-  font-weight: 900;
-}
-
 .tauri-browser-frame {
   flex: 1;
   width: 100%;

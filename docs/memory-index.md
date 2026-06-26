@@ -1196,3 +1196,20 @@
   - Real `TTMEvolve.vbs` launch produced exactly one new visible window: `ttmevolve / TTMEvolve`; `/health` returned `status=ok`; screenshot showed integrated titlebar and clean Maker preview.
 
 ## Last updated: 2026-06-26 12:44
+
+## 2026-06-26 Tauri Native Maker Preview
+
+- User clarified that the preview area being visible but not truly clickable is unacceptable.
+- Fixed the Tauri normal-user preview path by creating a native child WebView labeled `maker-preview` through Rust commands instead of rendering the Playwright screenshot fallback.
+- Frontend `BrowserPreview` now uses Tauri preview commands to show/hide/navigate/reload and continuously sync the native WebView bounds from `.native-browser-host`.
+- Playwright-backed `/browser/*` remains available for Agent automation and diagnostics only; it no longer acts as the normal desktop preview in Tauri.
+- Validation:
+  - `npm.cmd --prefix frontend run build` passed.
+  - `cargo build --manifest-path src-tauri/Cargo.toml` passed.
+  - `cargo test --manifest-path src-tauri/Cargo.toml` -> 34 passed.
+  - `.venv\Scripts\python.exe -m pytest tests/test_start_scripts.py tests/test_tauri_lifecycle.py -q` -> 28 passed.
+  - `cargo build --release --manifest-path src-tauri/Cargo.toml` passed.
+  - Real `TTMEvolve.vbs` launch showed one visible `ttmevolve / TTMEvolve` window, no visible cmd/powershell windows, `/health.status=ok`, and Windows child-window enumeration showed both `TapTap 制造` and `TTMEvolve` WebView2/Chromium child windows.
+- Important lesson: the product needs two browser layers, not one compromised layer: Tauri/WebView2 for the user's live desktop preview, Playwright for Agent-driven operation.
+
+## Last updated: 2026-06-26 13:52

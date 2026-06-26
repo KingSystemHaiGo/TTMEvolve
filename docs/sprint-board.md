@@ -129,3 +129,10 @@
 > 版本：v1.5.1 全量运行 bugfix
 > 触发：全量 pytest / frontend build / Electron build / Cargo test
 ## Last updated: 2026-06-26 08:42
+
+## 2026-06-26 13:52 Native Maker Preview
+
+- Status: done.
+- Fixed: Tauri desktop preview now uses a native child WebView2 (`maker-preview`) for normal users instead of screenshot polling.
+- Preserved: Playwright browser service remains the Agent automation path.
+- Verified: frontend build, Rust build/test, lifecycle/start-script tests, release build, and real `TTMEvolve.vbs` smoke with one visible app window and WebView2 child window evidence.

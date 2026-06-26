@@ -74,4 +74,36 @@ export async function openExternalUrl(url: string): Promise<void> {
   await invoke<void>("open_external_url", { url });
 }
 
+export interface MakerPreviewBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export async function makerPreviewShow(url: string, bounds: MakerPreviewBounds): Promise<void> {
+  if (!isTauri()) return;
+  await invoke<void>("maker_preview_show", { url, bounds });
+}
+
+export async function makerPreviewHide(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke<void>("maker_preview_hide");
+}
+
+export async function makerPreviewSetBounds(bounds: MakerPreviewBounds): Promise<void> {
+  if (!isTauri()) return;
+  await invoke<void>("maker_preview_set_bounds", { bounds });
+}
+
+export async function makerPreviewNavigate(url: string): Promise<void> {
+  if (!isTauri()) return;
+  await invoke<void>("maker_preview_navigate", { url });
+}
+
+export async function makerPreviewReload(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke<void>("maker_preview_reload");
+}
+
 export { isTauri };

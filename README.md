@@ -55,7 +55,7 @@ The launcher prefers embedded runtimes under `portable/`, then `.venv/`, then sy
 | --- | --- | --- |
 | Startup gate | The GUI waits for config, `/health`, Maker setup, and Maker MCP status before exposing the workbench. | GUI 会先等待配置、`/health`、Maker setup 和 Maker MCP 状态检查完成，再进入工作台。 |
 | Maker routing | If Maker setup or Maker MCP needs attention, the app opens the Maker Access page automatically. | 如果 Maker setup 或 Maker MCP 需要处理，应用会自动打开 Maker 接入页。 |
-| Preview | Electron uses BrowserView; Tauri uses WebView2/iframe preview with screenshot diagnostics fallback. | Electron 使用 BrowserView；Tauri 使用 WebView2/iframe 预览，并保留截图诊断 fallback。 |
+| Preview | Tauri uses a native child WebView2 for the live, clickable Maker preview; Playwright remains separate for Agent automation. | Tauri 使用原生子 WebView2 作为可点击交互的 Maker 预览；Playwright 仅保留给 Agent 自动化操作。 |
 | Permission mode | Each session can choose `safe`, `default`, or `autonomous` in the chat send area. | 每次会话都可以在聊天发送区选择 `safe`、`default` 或 `autonomous` 权限模式。 |
 | Chat shape | User messages are right-side bubbles; assistant answers are full-width Markdown pages; tool events are compact status rows. | 用户消息是右侧气泡；助手回复是全宽 Markdown 页面；工具事件是紧凑状态行。 |
 
@@ -151,9 +151,10 @@ The latest full sync validated these paths:
 - `.venv\Scripts\python.exe -m pytest -q` -> `598 passed, 14 skipped`
 - `npm.cmd --prefix frontend run build` -> passed
 - `npm.cmd --prefix electron run build` -> passed
-- `cargo test --manifest-path src-tauri/Cargo.toml` -> `32 passed`
-- Real `start-tauri.bat` launch opened a responding TTMEvolve window.
-- `/health` returned `status=ok`, Maker setup returned `readiness=ready`, and Maker MCP returned `connected=true`, `tool_count=10`.
+- `cargo test --manifest-path src-tauri/Cargo.toml` -> `34 passed`
+- `.venv\Scripts\python.exe -m pytest tests/test_start_scripts.py tests/test_tauri_lifecycle.py -q` -> `28 passed`
+- Real `TTMEvolve.vbs` launch opened one visible TTMEvolve window with no visible cmd/powershell windows.
+- `/health` returned `status=ok`; child-window enumeration showed both the TTMEvolve shell WebView and the TapTap Maker preview WebView.
 
 ## Maker MCP Rules / Maker MCP 规则
 

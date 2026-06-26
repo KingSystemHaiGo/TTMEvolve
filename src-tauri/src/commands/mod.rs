@@ -3,11 +3,16 @@
 use std::process::Command;
 use std::sync::Arc;
 
-use serde::Serialize;
-use tauri::{AppHandle, Manager, Runtime, State, Window};
+use serde::{Deserialize, Serialize};
+use tauri::{
+    AppHandle, LogicalPosition, LogicalSize, Manager, Position, Rect, Runtime, Size, State, Window,
+};
 
 use crate::fast_ops::{self, DirSizeResult, FileEntry, LogTail, PortProbeResult};
 use crate::server_manager::{ServerManager, ServerStatus};
+
+const MAKER_PREVIEW_LABEL: &str = "maker-preview";
+const MAKER_PREVIEW_DEFAULT_URL: &str = "https://maker.taptap.cn/";
 
 #[derive(Serialize)]
 pub struct ServerStatusDto {
@@ -22,6 +27,15 @@ pub struct BridgeStatusDto {
     pub host: String,
     pub port: u16,
     pub running: bool,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewBoundsDto {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
 }
 
 impl From<&ServerStatus> for ServerStatusDto {
@@ -113,6 +127,36 @@ fn is_allowed_external_url(url: &str) -> bool {
     trimmed.starts_with("https://") || trimmed.starts_with("http://")
 }
 
+fn parse_preview_url(url: Option<String>) -> Result<tauri::Url, String> {
+    let raw = url
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(MAKER_PREVIEW_DEFAULT_URL);
+    if !is_allowed_external_url(raw) {
+        return Err("preview URL must use http or https".to_string());
+    }
+    raw.parse::<tauri::Url>()
+        .map_err(|err| format!("invalid preview URL: {err}"))
+}
+
+fn validated_preview_bounds(bounds: PreviewBoundsDto) -> Result<Rect, String> {
+    if !bounds.x.is_finite()
+        || !bounds.y.is_finite()
+        || !bounds.width.is_finite()
+        || !bounds.height.is_finite()
+    {
+        return Err("preview bounds must be finite numbers".to_string());
+    }
+
+    let width = bounds.width.max(1.0);
+    let height = bounds.height.max(1.0);
+    Ok(Rect {
+        position: Position::Logical(LogicalPosition::new(bounds.x.max(0.0), bounds.y.max(0.0))),
+        size: Size::Logical(LogicalSize::new(width, height)),
+    })
+}
+
 #[tauri::command]
 pub fn open_external_url(url: String) -> Result<(), String> {
     let url = url.trim().to_string();
@@ -145,6 +189,103 @@ pub fn open_external_url(url: String) -> Result<(), String> {
         .spawn()
         .map(|_| ())
         .map_err(|err| format!("failed to open URL externally: {err}"))
+}
+
+#[tauri::command]
+pub async fn maker_preview_show<R: Runtime>(
+    app: AppHandle<R>,
+    window: Window<R>,
+    url: Option<String>,
+    bounds: PreviewBoundsDto,
+) -> Result<(), String> {
+    let parsed_url = parse_preview_url(url)?;
+    let rect = validated_preview_bounds(bounds)?;
+
+    if let Some(webview) = app.get_webview(MAKER_PREVIEW_LABEL) {
+        webview.show().map_err(|err| err.to_string())?;
+        webview
+            .set_bounds(rect)
+            .map_err(|err| format!("failed to resize Maker preview: {err}"))?;
+        webview
+            .navigate(parsed_url)
+            .map_err(|err| format!("failed to navigate Maker preview: {err}"))?;
+        return Ok(());
+    }
+
+    let builder = tauri::webview::WebviewBuilder::new(
+        MAKER_PREVIEW_LABEL,
+        tauri::WebviewUrl::External(parsed_url),
+    );
+    let position = LogicalPosition::new(
+        match rect.position {
+            Position::Logical(value) => value.x,
+            Position::Physical(value) => value.x as f64,
+        },
+        match rect.position {
+            Position::Logical(value) => value.y,
+            Position::Physical(value) => value.y as f64,
+        },
+    );
+    let size = LogicalSize::new(
+        match rect.size {
+            Size::Logical(value) => value.width,
+            Size::Physical(value) => value.width as f64,
+        },
+        match rect.size {
+            Size::Logical(value) => value.height,
+            Size::Physical(value) => value.height as f64,
+        },
+    );
+
+    window
+        .add_child(builder, position, size)
+        .map_err(|err| format!("failed to create Maker preview: {err}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn maker_preview_hide<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    if let Some(webview) = app.get_webview(MAKER_PREVIEW_LABEL) {
+        webview.hide().map_err(|err| err.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn maker_preview_set_bounds<R: Runtime>(
+    app: AppHandle<R>,
+    bounds: PreviewBoundsDto,
+) -> Result<(), String> {
+    let Some(webview) = app.get_webview(MAKER_PREVIEW_LABEL) else {
+        return Ok(());
+    };
+    webview
+        .set_bounds(validated_preview_bounds(bounds)?)
+        .map_err(|err| format!("failed to resize Maker preview: {err}"))
+}
+
+#[tauri::command]
+pub async fn maker_preview_navigate<R: Runtime>(
+    app: AppHandle<R>,
+    url: String,
+) -> Result<(), String> {
+    let parsed_url = parse_preview_url(Some(url))?;
+    let Some(webview) = app.get_webview(MAKER_PREVIEW_LABEL) else {
+        return Err("Maker preview is not ready".to_string());
+    };
+    webview
+        .navigate(parsed_url)
+        .map_err(|err| format!("failed to navigate Maker preview: {err}"))
+}
+
+#[tauri::command]
+pub async fn maker_preview_reload<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    let Some(webview) = app.get_webview(MAKER_PREVIEW_LABEL) else {
+        return Ok(());
+    };
+    webview
+        .reload()
+        .map_err(|err| format!("failed to reload Maker preview: {err}"))
 }
 
 // ---------- fast_ops: hot path commands ----------
@@ -209,6 +350,11 @@ pub fn register<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
         window_toggle_maximize,
         window_close,
         open_external_url,
+        maker_preview_show,
+        maker_preview_hide,
+        maker_preview_set_bounds,
+        maker_preview_navigate,
+        maker_preview_reload,
         fast_probe_port,
         fast_find_available_port,
         fast_tail_log,
@@ -221,7 +367,7 @@ pub fn register<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
 
 #[cfg(test)]
 mod tests {
-    use super::is_allowed_external_url;
+    use super::{is_allowed_external_url, validated_preview_bounds, PreviewBoundsDto};
 
     #[test]
     fn external_url_validation_allows_http_and_https_only() {
@@ -230,5 +376,30 @@ mod tests {
         assert!(!is_allowed_external_url("file:///C:/secret.txt"));
         assert!(!is_allowed_external_url("javascript:alert(1)"));
         assert!(!is_allowed_external_url("https://maker.taptap.cn/\ncalc"));
+    }
+
+    #[test]
+    fn preview_bounds_validation_clamps_to_visible_positive_rect() {
+        let rect = validated_preview_bounds(PreviewBoundsDto {
+            x: -12.0,
+            y: 8.0,
+            width: 0.0,
+            height: 320.0,
+        })
+        .unwrap();
+        match rect.position {
+            tauri::Position::Logical(position) => {
+                assert_eq!(position.x, 0.0);
+                assert_eq!(position.y, 8.0);
+            }
+            tauri::Position::Physical(_) => panic!("expected logical position"),
+        }
+        match rect.size {
+            tauri::Size::Logical(size) => {
+                assert_eq!(size.width, 1.0);
+                assert_eq!(size.height, 320.0);
+            }
+            tauri::Size::Physical(_) => panic!("expected logical size"),
+        }
     }
 }

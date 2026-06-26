@@ -1,6 +1,12 @@
 import { MouseEvent, useEffect, useRef, useState } from 'react'
 import { useBrowser } from '../hooks/useBrowser'
-import { isTauri } from '../lib/tauri'
+import {
+  isTauri,
+  makerPreviewHide,
+  makerPreviewNavigate,
+  makerPreviewSetBounds,
+  makerPreviewShow,
+} from '../lib/tauri'
 
 const PREVIEW_URL_KEY = 'ttmevolve.preview.url'
 const MAKER_DEFAULT_URL = 'https://maker.taptap.cn/'
@@ -38,15 +44,70 @@ export default function BrowserPreview({ initialUrl = '' }: BrowserPreviewProps)
 }
 
 function TauriWebPreview({ initialUrl }: BrowserPreviewProps) {
+  const hostRef = useRef<HTMLDivElement | null>(null)
+  const [error, setError] = useState('')
   const url = savedPreviewUrl(initialUrl || MAKER_DEFAULT_URL)
 
   useEffect(() => {
     localStorage.setItem(PREVIEW_URL_KEY, url)
   }, [url])
 
+  useEffect(() => {
+    let frame = 0
+    let hasShown = false
+
+    const currentBounds = () => {
+      const host = hostRef.current
+      if (!host) return null
+      const rect = host.getBoundingClientRect()
+      return {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+      }
+    }
+
+    const syncBounds = () => {
+      const bounds = currentBounds()
+      if (!bounds) return
+      const action = hasShown ? makerPreviewSetBounds(bounds) : makerPreviewShow(url, bounds)
+      action
+        .then(() => {
+          hasShown = true
+          setError('')
+        })
+        .catch((err) => setError(String(err)))
+    }
+
+    const schedule = () => {
+      window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(syncBounds)
+    }
+
+    schedule()
+    const resizeObserver = new ResizeObserver(schedule)
+    if (hostRef.current) resizeObserver.observe(hostRef.current)
+    window.addEventListener('resize', schedule)
+    window.addEventListener('scroll', schedule, true)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', schedule)
+      window.removeEventListener('scroll', schedule, true)
+      makerPreviewHide().catch(() => undefined)
+    }
+  }, [url])
+
+  useEffect(() => {
+    makerPreviewNavigate(url).catch(() => undefined)
+  }, [url])
+
   return (
     <div className="browser-preview tauri-browser-preview">
-      <ScreenshotBrowserPreview initialUrl={url || MAKER_DEFAULT_URL} />
+      {error && <div className="browser-error">{error}</div>}
+      <div ref={hostRef} className="native-browser-host" aria-label="Maker preview" />
     </div>
   )
 }
