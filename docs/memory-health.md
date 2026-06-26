@@ -172,3 +172,10 @@ pm.cmd --prefix frontend run build passed; focused tool-routing pytest for proje
 - LLM Onboarding Bundle now includes the same shared_memory object and a shared_memory_policy closure-gate check, so external agents can inspect memory-sharing boundaries before reusing memory.
 - The summary is intentionally non-secret: it exposes policy shape and counts, not raw memory contents or private records.
 - Added endpoint-level assertions to test_app_server_evidence_bundle_endpoint covering Evidence JSON, Evidence Markdown, Onboarding JSON, and closure gate.
+## 2026-06-26 Desktop UX And Tool Routing Evidence POST
+
+- Treat screenshots as historical clues only; current truth must come from code, tests, builds, and live runtime evidence.
+- Tightened the history popover affordance with an explicit icon close control, while preserving Esc and outside-click dismissal.
+- Replaced visible Workbench English/status labels with Chinese product-facing labels and removed candidate-count wording from normal runtime summaries.
+- Expanded chat event filtering so candidate/tool-selection/ranking wording is translated to user intent instead of leaking internal tool names or ranking internals.
+- Added a regression test proving basic project/cmd work keeps project_status and execute_shell ahead of Maker tools even when many Maker remote tools are registered.

@@ -259,6 +259,48 @@ def test_tool_registry_keeps_shell_tool_for_cmd_and_terminal_requests():
         assert ranked == ["project_status", "execute_shell"]
 
 
+def test_tool_registry_does_not_let_maker_tools_crowd_out_basic_project_work():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tools = ToolRegistry(root / "skills")
+        executor = _make_executor(root)
+        builtin_tools = [
+            ("project_status", "查看当前项目概况、Git 状态、主要目录和运行配置"),
+            ("execute_shell", "执行允许的 shell/cmd/powershell 命令，用于运行测试、查看系统输出和项目命令"),
+            ("read_file", "读取项目文件"),
+            ("search_files", "搜索项目文件"),
+        ]
+        maker_tools = [
+            "maker_status_lite",
+            "maker_build_current_directory",
+            "create_video_task",
+            "query_video_task",
+            "generate_image",
+            "create_3d_model_task",
+        ]
+        for name, description in builtin_tools:
+            tools.register(
+                name=name,
+                description=description,
+                parameters={"type": "object", "properties": {}},
+                handler=executor.propose_action,
+                source="builtin",
+            )
+        for name in maker_tools:
+            tools.register(
+                name=name,
+                description=f"Maker remote tool {name}",
+                parameters={"type": "object", "properties": {}},
+                handler=executor.propose_action,
+                source="maker_mcp",
+            )
+
+        ranked = [tool["name"] for tool in tools.rank_tools("查看项目状态，了解项目，并运行正常的 cmd 指令", limit=4)]
+
+        assert ranked[:2] == ["project_status", "execute_shell"]
+        assert "maker_status_lite" not in ranked[:2]
+
+
 def test_tool_registry_prioritizes_create_document_for_document_tasks():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

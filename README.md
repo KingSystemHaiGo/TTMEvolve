@@ -163,9 +163,9 @@ The latest full sync validated these paths:
 
 最近一次完整同步已验证：
 
-- `npm.cmd --prefix frontend run build` -> passed after history/tool-status UI fixes
-- `npm.cmd --prefix frontend run build` -> passed after Workbench label/internal-tool wording polish
-- `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_tool_registry_prioritizes_project_status_for_project_questions tests\test_tool_call_validation.py::test_tool_registry_keeps_project_and_shell_tools_for_basic_project_work tests\test_tool_call_validation.py::test_tool_registry_keeps_shell_tool_for_cmd_and_terminal_requests -q` -> `3 passed`
+- `npm.cmd --prefix frontend run build` -> passed after history close affordance and Workbench label polish
+- `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_tool_registry_prioritizes_project_status_for_project_questions tests\test_tool_call_validation.py::test_tool_registry_keeps_project_and_shell_tools_for_basic_project_work tests\test_tool_call_validation.py::test_tool_registry_keeps_shell_tool_for_cmd_and_terminal_requests tests\test_tool_call_validation.py::test_tool_registry_does_not_let_maker_tools_crowd_out_basic_project_work -q` -> `4 passed`
+- `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_shared_memory_policy.py tests\test_app_server_resume.py::test_app_server_evidence_bundle_endpoint -q` -> `37 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_sandbox.py -q` -> `25 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_coding_agent_minimal_programming_smoke -q` -> `1 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_coding_agent_can_create_user_document -q` -> `1 passed`

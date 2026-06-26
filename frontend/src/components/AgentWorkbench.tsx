@@ -401,7 +401,7 @@ export default function AgentWorkbench({ state }: Props) {
       {state.goalChecklist.criteria && state.goalChecklist.criteria.length > 0 && (
         <div className={`workbench-goals goals-${state.goalChecklist.overall || 'active'}`}>
           <div className="workbench-goals-head">
-            <span>Acceptance</span>
+            <span>验收</span>
             <strong>{state.goalChecklist.nextFocus || goalOverallLabel(state.goalChecklist.overall)}</strong>
             {makerGoalCount > 0 && <small>{makerGoalCount} Maker flow</small>}
           </div>
@@ -524,31 +524,31 @@ function MakerBriefingPanel({ state }: { state: AgentWorkbenchState }) {
   return (
     <div className={`workbench-maker-briefing briefing-${status}`}>
       <div className="workbench-maker-briefing-head">
-        <span>Maker First Action</span>
+        <span>Maker 起步建议</span>
         <strong>{briefing.authority || '-'}</strong>
         {template.id && <small>{template.id}</small>}
       </div>
       {briefing.recommendedFirstAction && (
         <div className="workbench-maker-briefing-action">
-          <span>Next</span>
+          <span>下一步</span>
           <strong>{briefing.recommendedFirstAction}</strong>
         </div>
       )}
       <div className="workbench-maker-briefing-grid">
-        <Metric label="Ready" value={briefing.readiness || '-'} />
-        <Metric label="Template" value={template.status || '-'} />
-        <Metric label="Tools" value={String(tools.length)} />
-        <Metric label="Warnings" value={String(warnings.length)} />
+        <Metric label="就绪" value={briefing.readiness || '-'} />
+        <Metric label="流程" value={template.status || '-'} />
+        <Metric label="工具" value={String(tools.length)} />
+        <Metric label="提醒" value={String(warnings.length)} />
       </div>
       {tools.length > 0 && (
         <div className="workbench-maker-briefing-line">
-          <span>Tools</span>
+          <span>建议工具</span>
           <strong>{tools.join(' / ')}</strong>
         </div>
       )}
       {(briefing.recommendedEndpoint || endpointText) && (
         <div className="workbench-maker-briefing-line">
-          <span>Evidence</span>
+          <span>证据</span>
           <strong>{[briefing.recommendedEndpoint, endpointText].filter(Boolean).join(' | ')}</strong>
         </div>
       )}
@@ -582,7 +582,7 @@ function MakerGuardPanel({ state }: { state: AgentWorkbenchState }) {
   return (
     <div className={`workbench-maker-guard guard-${decision}`}>
       <div className="workbench-maker-guard-head">
-        <span>First Action Guard</span>
+        <span>起步检查</span>
         <strong>{makerGuardLabel(decision)}</strong>
         {guard.tool && <small>{guard.tool}</small>}
       </div>
@@ -599,7 +599,7 @@ function MakerGuardPanel({ state }: { state: AgentWorkbenchState }) {
       )}
       {guard.recommendedEndpoint && (
         <div className="workbench-maker-guard-line">
-          <span>Endpoint</span>
+          <span>端点</span>
           <small>{guard.recommendedEndpoint}</small>
         </div>
       )}
@@ -1078,39 +1078,39 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
               {evidenceUrl && (
                 <button type="button" onClick={() => loadEvidenceBundle('manual')}>
                   {evidencePreviewState === 'loading'
-                    ? 'Loading'
+                    ? '读取中'
                     : evidencePreviewState === 'error'
-                      ? 'Retry'
-                      : 'Evidence'}
+                      ? '重试'
+                      : '证据'}
                 </button>
               )}
               {evidenceMarkdownUrl && (
                 <button type="button" onClick={copyEvidenceMarkdown}>
                   {evidenceCopyState === 'copied'
-                    ? 'Copied'
+                    ? '已复制'
                     : evidenceCopyState === 'error'
-                      ? 'Copy failed'
-                      : 'Copy Evidence'}
+                      ? '复制失败'
+                      : '复制证据'}
                 </button>
               )}
               <button type="button" onClick={copyExternalAgentBoot}>
                 {externalBootCopyState === 'copied'
-                  ? 'Copied'
+                  ? '已复制'
                   : externalBootCopyState === 'error'
-                    ? 'Copy failed'
-                    : 'Copy Boot'}
+                    ? '复制失败'
+                    : '复制启动'}
               </button>
             </div>
           </div>
           {evidenceUrl && (
             <div className="workbench-external-agent-evidence">
-              <span>Bundle</span>
+              <span>证据包</span>
               <strong>{evidenceBundleSummary(evidencePreview, evidencePreviewState)}</strong>
             </div>
           )}
           {onboardingUrl && (
             <div className="workbench-external-agent-evidence workbench-external-agent-onboarding">
-              <span>Onboarding</span>
+              <span>启动入口</span>
               <strong>{onboardingUrl}</strong>
             </div>
           )}
@@ -1138,16 +1138,16 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
       {quickstartUrl && (
         <div className="workbench-quickstart">
           <div className="workbench-quickstart-head">
-            <span>LLM Quickstart</span>
+            <span>模型启动指引</span>
             <div>
               <button type="button" onClick={loadQuickstartPreview}>
                 {quickstartPreviewState === 'loading'
-                  ? 'Loading'
+                  ? '读取中'
                   : quickstartPreviewState === 'error'
-                    ? 'Retry'
+                    ? '重试'
                     : quickstartPreview
-                      ? 'Refresh'
-                      : 'Preview'}
+                      ? '刷新'
+                      : '预览'}
               </button>
               <button
                 type="button"
@@ -1307,21 +1307,21 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
       )}
       {communication.learning_status && (
         <div className="workbench-contract-line">
-          <span>Learning</span>
+          <span>学习</span>
           <strong>{communication.learning_status}</strong>
         </div>
       )}
       {learningUrl && (
         <div className={`workbench-learning-status learning-${learningPreview?.latest?.state || state.layers.learning.status || 'idle'}`}>
           <div className="workbench-learning-status-head">
-            <span>Learning Status</span>
+            <span>学习状态</span>
             <strong>{learningStatusSummary(learningPreview, state.layers.learning.detail)}</strong>
             <button type="button" onClick={() => loadLearningStatus('manual')}>
               {learningPreviewState === 'loading'
-                ? 'Loading'
+                ? '读取中'
                 : learningPreviewState === 'error'
-                  ? 'Retry'
-                  : 'Refresh'}
+                  ? '重试'
+                  : '刷新'}
             </button>
           </div>
           {learningPreview?.latest?.detail && <small>{learningPreview.latest.detail}</small>}
@@ -1332,23 +1332,23 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
       )}
       {warningCodes.length > 0 && (
         <div className="workbench-contract-line">
-          <span>Codes</span>
+          <span>诊断码</span>
           <strong>{warningCodes.join(' / ')}</strong>
         </div>
       )}
       {handoffUrl && (
         <div className="workbench-handoff">
           <div className="workbench-handoff-head">
-            <span>Agent Handoff</span>
+            <span>Agent 交接</span>
             <div>
               <button type="button" onClick={loadHandoffPreview}>
                 {handoffPreviewState === 'loading'
-                  ? 'Loading'
+                  ? '读取中'
                   : handoffPreviewState === 'error'
-                    ? 'Retry'
+                    ? '重试'
                     : handoffPreview
-                      ? 'Refresh'
-                      : 'Preview'}
+                      ? '刷新'
+                      : '预览'}
               </button>
               <button type="button" onClick={copyHandoff}>
                 {handoffCopyState === 'copied'
@@ -1725,15 +1725,15 @@ function metricLabel(key: string): string {
 function stageLabel(stage: AgentWorkbenchState['stage']): string {
   switch (stage) {
     case 'idle':
-      return 'Idle'
+      return '就绪'
     case 'running':
-      return 'Running'
+      return '运行中'
     case 'approval':
-      return 'Approval'
+      return '待确认'
     case 'error':
-      return 'Needs care'
+      return '需要处理'
     case 'done':
-      return 'Done'
+      return '已完成'
     default:
       return stage
   }
@@ -1742,11 +1742,11 @@ function stageLabel(stage: AgentWorkbenchState['stage']): string {
 function toolStatusLabel(status: 'running' | 'ok' | 'error'): string {
   switch (status) {
     case 'running':
-      return 'running'
+      return '运行中'
     case 'ok':
-      return 'ok'
+      return '完成'
     case 'error':
-      return 'error'
+      return '失败'
     default:
       return status
   }
@@ -1755,13 +1755,13 @@ function toolStatusLabel(status: 'running' | 'ok' | 'error'): string {
 function goalOverallLabel(overall?: AgentWorkbenchState['goalChecklist']['overall']): string {
   switch (overall) {
     case 'done':
-      return 'All criteria met'
+      return '全部通过'
     case 'warn':
-      return 'Needs review'
+      return '需要复核'
     case 'fail':
-      return 'Needs repair'
+      return '需要修复'
     default:
-      return 'In progress'
+      return '进行中'
   }
 }
 
@@ -1840,9 +1840,8 @@ function runtimeTokenCacheSummary(summary?: RuntimeMetricsSummary): string {
 function runtimeRankingSummary(summary?: RuntimeMetricsSummary): string {
   const ranking = summary?.tool_ranking || {}
   const selected = ranking.selected_count ?? '-'
-  const available = ranking.candidate_count ?? '-'
   const hit = ranking.cache_hit === undefined ? '-' : ranking.cache_hit ? '命中' : '未命中'
-  return `已选 ${selected} / 可选 ${available} / ${hit}`
+  return `启用 ${selected} / 缓存 ${hit}`
 }
 
 function runtimeLatestMetricSummary(metric: RuntimeMetricLatest): string {
@@ -1854,8 +1853,7 @@ function runtimeLatestMetricSummary(metric: RuntimeMetricLatest): string {
     typeof metric.total_tokens === 'number' ? `tokens=${metric.total_tokens}` : '',
     typeof metric.token_count === 'number' ? `ctx_tokens=${metric.token_count}` : '',
     typeof metric.context_build_ms === 'number' ? `ctx=${formatMs(metric.context_build_ms)}` : '',
-    typeof metric.selected_count === 'number' ? `已选=${metric.selected_count}` : '',
-    typeof metric.candidate_count === 'number' ? `可选=${metric.candidate_count}` : '',
+    typeof metric.selected_count === 'number' ? `启用=${metric.selected_count}` : '',
     metric.cache_hit !== undefined ? `缓存=${metric.cache_hit ? '命中' : '未命中'}` : '',
   ].filter(Boolean).join(' | ')
 }
@@ -1959,7 +1957,7 @@ function evidenceBundleSummary(
 function userFacingWorkbenchStatus(value?: string): string {
   const text = String(value || '').trim()
   if (!text) return ''
-  if (/tool[_\s-]?selection|candidate|候选工具|Tool context ranked/i.test(text)) {
+  if (/tool[_\s-]?selection|candidate|候选工具|可选工具|工具筛选|Tool context ranked/i.test(text)) {
     return '正在判断下一步'
   }
   if (text === 'Session created') return '会话已创建，正在等待模型响应'
@@ -2009,7 +2007,7 @@ function externalAgentBootLines({
     communication.maker_briefing ? `7. Use Maker Briefing: ${API_BASE}${communication.maker_briefing}` : '',
     communication.maker_guard ? `8. Verify Maker Guard: ${API_BASE}${communication.maker_guard}` : '',
     metricsUrl ? `9. Inspect Runtime Metrics: ${metricsUrl}` : '',
-    learningUrl ? `10. Watch Learning Status: ${learningUrl}` : '',
+    learningUrl ? `10. 查看学习状态: ${learningUrl}` : '',
     communication.context_sync ? `11. Pull Context Sync: ${API_BASE}${communication.context_sync}` : '',
     communication.llm_probe_history ? `12. Check LLM Probe History: ${API_BASE}${communication.llm_probe_history}` : '',
     communication.llm_feedback_summary ? `13. Read LLM Feedback Summary: ${API_BASE}${communication.llm_feedback_summary}` : '',

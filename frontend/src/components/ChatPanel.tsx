@@ -208,10 +208,16 @@ export default function ChatPanel({
           <div className="chat-history-head">
             <div>
               <strong>历史对话</strong>
-              <span>选择一条记录可带回当前对话；按 Esc 或点击空白处也能关闭。</span>
+              <span>选择一条记录可带回当前对话；按 Esc、点空白处或点右上角都能关闭。</span>
             </div>
-            <button type="button" onClick={() => setHistoryOpen(false)} aria-label="收起历史对话">
-              关闭
+            <button
+              type="button"
+              className="chat-history-close"
+              onClick={() => setHistoryOpen(false)}
+              aria-label="关闭历史对话"
+              title="关闭历史"
+            >
+              ×
             </button>
           </div>
           <div className="chat-history-list">
@@ -413,7 +419,7 @@ function currentActivityLabel(
 function readableStatus(value?: string): string {
   const text = String(value || '').trim()
   if (!text) return ''
-  if (text.startsWith('候选工具')) return '正在选择合适能力'
+  if (/^(候选工具|可选工具|工具筛选)/.test(text)) return '正在选择合适能力'
   if (text === 'Tool context ranked') return '正在选择合适能力'
   if (text === 'Session created') return '会话已创建，正在等待模型响应。'
   if (text === 'Task finished') return '任务已完成，正在整理最终回复。'

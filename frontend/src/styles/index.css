@@ -6523,14 +6523,19 @@ select:disabled {
 }
 
 .chat-history-head button {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
   min-height: 30px;
-  padding: 0 10px;
+  padding: 0;
+  place-items: center;
   border: 1px solid var(--tm-border);
   border-radius: var(--tm-radius);
   background: var(--tm-primary-surface);
   color: var(--tm-primary-deep);
-  font-size: 12px;
+  font-size: 18px;
   font-weight: 800;
+  line-height: 1;
 }
 
 .chat-history-head button:hover {

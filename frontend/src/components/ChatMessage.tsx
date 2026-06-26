@@ -149,7 +149,7 @@ function compactLine(content: string): string {
 function userFacingAction(content: string): string {
   const text = compactLine(content)
   if (!text) return ''
-  if (/tool[_\s-]?selection|candidate|候选工具|Tool context ranked/i.test(text)) {
+  if (/tool[_\s-]?selection|candidate|候选工具|可选工具|工具筛选|Tool context ranked/i.test(text)) {
     return '正在判断下一步'
   }
   return text
@@ -158,7 +158,7 @@ function userFacingAction(content: string): string {
 function userFacingStatus(content: string): string {
   const text = compactLine(content)
   if (!text) return ''
-  if (/tool[_\s-]?selection|candidate|候选工具|Tool context ranked/i.test(text)) {
+  if (/tool[_\s-]?selection|candidate|候选工具|可选工具|工具筛选|Tool context ranked/i.test(text)) {
     return '正在判断下一步'
   }
   if (text === 'Session created') return '会话已创建'

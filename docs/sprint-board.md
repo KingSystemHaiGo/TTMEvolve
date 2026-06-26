@@ -161,3 +161,12 @@
 - Unified titlebar, Maker action topbar, chat context cards, conversation bar, input row, and tool buttons around shared radius/control-height tokens.
 - Reduced mismatched mint panels and aligned the shell into one desktop surface.
 - Verified: frontend build and browser screenshot check at 1600x900.
+
+## 2026-06-26 Desktop UX Evidence Pass
+
+- Status: verifying.
+- Principle: screenshots are treated as stale evidence unless confirmed by current code/tests/runtime.
+- Updated: history popover has explicit icon close plus Esc/outside-click dismissal.
+- Updated: Workbench normal labels use Chinese product language and no longer expose candidate-count wording in user-facing summaries.
+- Updated: chat status/event filtering maps tool-selection/candidate/ranking internals to "正在判断下一步".
+- Added: regression coverage that project_status and execute_shell stay ahead of Maker tools for project-state/cmd requests.
