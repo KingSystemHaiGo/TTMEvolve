@@ -230,3 +230,12 @@
 - Fixed: batch vector add now allocates unique internal ids even when many chunks are added in the same timestamp window.
 - Preserved: keyword fallback and profile-aware cold-memory recall behavior.
 - Verified: `tests/test_vector_index.py tests/test_cold_memory_vector.py tests/test_memory_manager_recall.py` -> `18 passed, 2 skipped`.
+
+## 2026-06-26 23:08 Desktop History + Project Tool Reliability
+
+- Status: verified.
+- Fixed: history trigger now switches to `关闭历史` while open; the popover states close button, Esc, and outside-click dismissal.
+- Fixed: normal chat and active status keep candidate/ranking internals hidden behind user-facing progress language.
+- Fixed: `project_status` and `execute_shell` are pinned for project-state/cmd/git-status tasks even if Maker context is present.
+- Preserved: `Token` and `tok/s` remain technical units in assistant usage chips.
+- Verified: `npm.cmd --prefix frontend run build` and focused ToolRegistry pytest (`6 passed`).

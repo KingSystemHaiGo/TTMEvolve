@@ -58,10 +58,10 @@ The launcher prefers embedded runtimes under `portable/`, then `.venv/`, then sy
 | Preview | Tauri uses a native child WebView2 for the live, clickable Maker preview; Playwright remains separate for Agent automation. | Tauri 使用原生子 WebView2 作为可点击交互的 Maker 预览；Playwright 仅保留给 Agent 自动化操作。 |
 | Permission mode | Each session can choose `safe`, `default`, or `autonomous` in the chat send area. | 每次会话都可以在聊天发送区选择 `safe`、`default` 或 `autonomous` 权限模式。 |
 | Chat shape | User messages are right-side bubbles; assistant answers are full-width Markdown pages; tool events are compact status rows. | 用户消息是右侧气泡；助手回复是全宽 Markdown 页面；工具事件是紧凑状态行。 |
-| Product polish | History is a dismissible popover; normal users see action progress, not internal tool candidate lists. | 历史记录是可关闭浮层；普通用户只看到动作进度，不看到内部候选工具列表。 |
+| Product polish | History is a dismissible popover with a close button, Esc, outside-click, and an active "close history" trigger; normal users see action progress, not internal tool candidate lists. | 历史记录是可关闭浮层，支持关闭按钮、Esc、点击外部关闭，并在展开时把入口切换为“关闭历史”；普通用户只看到动作进度，不看到内部候选工具列表。 |
 | Advanced evidence | The Workbench keeps diagnostics available, while the normal chat hides raw candidate-tool wording and stays Chinese-first. | Workbench 仍保留诊断证据；普通聊天隐藏原始候选工具措辞，并保持中文优先。 |
-| Project status | `project_status` gives the Agent a first-class read-only way to inspect the current project, Git state, and top-level files. | `project_status` 让 Agent 可以用一等只读工具查看当前项目、Git 状态和顶层文件。 |
-| Shell commands | `execute_shell` remains selectable for `cmd`, PowerShell, terminal, build, test, and Git-status requests. | `execute_shell` 会稳定覆盖 `cmd`、PowerShell、终端、构建、测试和 Git 状态类请求。 |
+| Project status | `project_status` gives the Agent a first-class read-only way to inspect the current project, Git state, and top-level files. It is pinned ahead of Maker-only tools for project-state questions. | `project_status` 让 Agent 可以用一等只读工具查看当前项目、Git 状态和顶层文件；遇到项目状态类问题时会固定排在 Maker-only 工具前面。 |
+| Shell commands | `execute_shell` remains selectable for `cmd`, PowerShell, terminal, build, test, and Git-status requests. It is pinned with `project_status` when the user asks for normal command-line work. | `execute_shell` 会稳定覆盖 `cmd`、PowerShell、终端、构建、测试和 Git 状态类请求；用户要求正常命令行工作时会和 `project_status` 一起固定保留。 |
 | Document creation | `create_document` lets the Agent create Markdown/text/JSON documents through the same sandbox, approval, and event pipeline as code edits. | `create_document` 让 Agent 可以通过和代码编辑相同的沙箱、审批、事件链路新建 Markdown/text/JSON 文档。 |
 | Search performance | `search_files` skips heavy/runtime directories and large/binary files, then returns scan metrics. | `search_files` 默认跳过重目录、运行时目录、大文件和二进制文件，并返回扫描指标。 |
 | Workspace profile | Tool ranking infers `coding/docs/maker/browser/general` and uses it to narrow candidate tools. | 工具排序会推断 `coding/docs/maker/browser/general` 工作面，并用它收敛候选工具。 |
@@ -180,6 +180,8 @@ The latest full sync validated these paths:
 
 最近一次完整同步已验证：
 
+- `npm.cmd --prefix frontend run build` -> passed after history close affordance, topbar wording, and unit-preserving usage chips (`Token` / `tok/s`)
+- `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_tool_registry_prioritizes_project_status_for_project_questions tests\test_tool_call_validation.py::test_tool_registry_keeps_project_and_shell_tools_for_basic_project_work tests\test_tool_call_validation.py::test_tool_registry_keeps_shell_tool_for_cmd_and_terminal_requests tests\test_tool_call_validation.py::test_tool_registry_does_not_let_maker_tools_crowd_out_basic_project_work tests\test_tool_call_validation.py::test_tool_registry_pins_foundation_tools_even_with_maker_context_noise tests\test_tool_call_validation.py::test_tool_registry_llm_schema_uses_user_safe_operation_copy -q` -> `6 passed`
 - `npm.cmd --prefix frontend run build` -> passed after history close affordance and Workbench label polish
 - `npm.cmd --prefix frontend run build` -> passed after Chinese-first desktop UI polish and hidden candidate-tool chat filtering
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_tool_registry_prioritizes_project_status_for_project_questions tests\test_tool_call_validation.py::test_tool_registry_keeps_project_and_shell_tools_for_basic_project_work tests\test_tool_call_validation.py::test_tool_registry_keeps_shell_tool_for_cmd_and_terminal_requests tests\test_tool_call_validation.py::test_tool_registry_does_not_let_maker_tools_crowd_out_basic_project_work -q` -> `4 passed`

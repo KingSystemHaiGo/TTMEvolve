@@ -38,12 +38,12 @@ export default function CockpitHeader({
       <div className="cockpit-actions">
         {onOpenMakerSetup && (
           <button className="topbar-button primary" type="button" onClick={onOpenMakerSetup}>
-            Maker接入
+            Maker 接入
           </button>
         )}
         {onOpenTools && (
           <button className="topbar-button" type="button" onClick={onOpenTools}>
-            可用工具
+            工具
           </button>
         )}
         {onToggleMakerDestination && (
@@ -53,7 +53,7 @@ export default function CockpitHeader({
         )}
         <StatusPill
           label="Maker MCP"
-          value={mcpConnected ? `已连接 · ${mcpStatus?.tool_count ?? 0} 个工具` : '未连接'}
+          value={mcpConnected ? `已连接 · ${mcpStatus?.tool_count ?? 0} 项` : '未连接'}
           tone={mcpConnected ? 'mint' : 'warning'}
           title={mcpStatus?.last_error || mcpStatus?.remote_identity?.summary || `@taptap/maker ${makerVersion}`}
         />

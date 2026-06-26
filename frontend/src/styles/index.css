@@ -1187,7 +1187,8 @@ button {
   font-weight: 800;
 }
 
-.chat-mini-button:hover {
+.chat-mini-button:hover,
+.chat-mini-button.active {
   border-color: var(--tm-primary-border);
   background: var(--tm-primary-surface);
   color: var(--tm-primary-deep);
@@ -6533,15 +6534,17 @@ select:disabled {
   border-radius: var(--tm-radius);
   background: var(--tm-primary-surface);
   color: var(--tm-primary-deep);
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
   line-height: 1;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
 }
 
 .chat-history-head button:hover {
   border-color: var(--tm-primary-border);
   background: var(--tm-primary);
   color: #ffffff;
+  transform: translateY(-1px);
 }
 
 /* Normal-user desktop polish: keep temporary panes clear and hide debug-like density. */

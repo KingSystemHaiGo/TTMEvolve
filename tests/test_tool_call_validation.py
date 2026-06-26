@@ -301,6 +301,55 @@ def test_tool_registry_does_not_let_maker_tools_crowd_out_basic_project_work():
         assert "maker_status_lite" not in ranked[:2]
 
 
+def test_tool_registry_pins_foundation_tools_even_with_maker_context_noise():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tools = ToolRegistry(root / "skills")
+        executor = _make_executor(root)
+        for name, source in [
+            ("project_status", "builtin"),
+            ("execute_shell", "builtin"),
+            ("read_file", "builtin"),
+            ("list_directory", "builtin"),
+            ("search_files", "builtin"),
+            ("maker_build_current_directory", "maker_mcp"),
+            ("maker_status_lite", "maker_mcp"),
+            ("generate_image", "maker_mcp"),
+        ]:
+            tools.register(
+                name=name,
+                description=f"{name} tool",
+                parameters={"type": "object", "properties": {}},
+                handler=executor.propose_action,
+                source=source,
+            )
+
+        query = "TapTap Maker 预览还开着，但我现在要查看项目状态，了解项目，并用 cmd 跑 git status"
+        ranked = [tool["name"] for tool in tools.rank_tools(query, limit=4)]
+
+        assert ranked[:2] == ["project_status", "execute_shell"]
+        assert tools.last_rank_stats()["workspace_profile"] == "coding"
+
+
+def test_tool_registry_llm_schema_uses_user_safe_operation_copy():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tools = ToolRegistry(root / "skills")
+        executor = _make_executor(root)
+        tools.register(
+            name="project_status",
+            description="查看当前项目状态",
+            parameters={"type": "object", "properties": {}},
+            handler=executor.propose_action,
+            source="builtin",
+        )
+
+        schema = tools.schema_for_llm(query="查看项目状态", limit=1)
+
+        assert "可用操作" in schema
+        assert "候选工具" not in schema
+
+
 def test_tool_registry_prioritizes_create_document_for_document_tasks():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -1246,6 +1295,11 @@ if __name__ == "__main__":
     test_tool_registry_validate_builtin_tool()
     test_tool_registry_ranks_and_limits_relevant_tools()
     test_tool_registry_prioritizes_project_status_for_project_questions()
+    test_tool_registry_keeps_project_and_shell_tools_for_basic_project_work()
+    test_tool_registry_keeps_shell_tool_for_cmd_and_terminal_requests()
+    test_tool_registry_does_not_let_maker_tools_crowd_out_basic_project_work()
+    test_tool_registry_pins_foundation_tools_even_with_maker_context_noise()
+    test_tool_registry_llm_schema_uses_user_safe_operation_copy()
     test_tool_registry_prioritizes_create_document_for_document_tasks()
     test_tool_registry_reports_workspace_profile_for_coding_tasks()
     test_tool_registry_workspace_profile_reduces_irrelevant_tools()

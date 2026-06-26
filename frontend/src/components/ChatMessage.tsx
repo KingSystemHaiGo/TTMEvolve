@@ -88,7 +88,7 @@ function MessageUsageBar({ usage }: { usage: NonNullable<Message['usage']> }) {
 }
 
 function formatDuration(value: number): string {
-  if (!Number.isFinite(value)) return 'waiting'
+  if (!Number.isFinite(value)) return '等待中'
   if (value >= 1000) return `${(value / 1000).toFixed(1)}s`
   return `${Math.round(value)}ms`
 }
@@ -172,7 +172,7 @@ function userFacingToolName(value: string): string {
   const tool = text.split(/\s|\(|{|:/)[0]
   const labels: Record<string, string> = {
     project_status: '查看项目状态',
-    execute_shell: '执行系统命令',
+    execute_shell: '执行命令',
     read_file: '读取文件',
     list_directory: '查看目录',
     search_files: '搜索文件',

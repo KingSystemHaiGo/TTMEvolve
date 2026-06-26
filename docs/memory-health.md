@@ -235,3 +235,12 @@ pm.cmd --prefix frontend run build passed; focused tool-routing pytest for proje
 - Fixed batch internal-id allocation at the same boundary: ids are now allocated as a unique sequence for each add batch instead of repeatedly sampling the same microsecond timestamp.
 - Added tests for reverse-map maintenance, unique batch ids, and a fake FAISS search path that fails if search tries to linearly scan `_id_map.items()`.
 - Verification: `.venv\Scripts\python.exe -m pytest tests\test_vector_index.py tests\test_cold_memory_vector.py tests\test_memory_manager_recall.py -q` -> `18 passed, 2 skipped`. Skips are FAISS-availability guarded; the fast-path logic is still covered with a fake index.
+
+## 2026-06-26 History Close + Foundation Tool Pinning POST
+
+- User reported five remaining product issues: history close was unclear, some visible wording still felt wrong, candidate tools should not be visible, project/cmd work appeared unavailable, and desktop UI/product thinking needed stronger grounding.
+- Applied the design/product rule from current UI references: command bars/toolbar controls should be grouped around user actions, and advanced/internal details should use progressive disclosure. In TTMEvolve this means normal chat shows task progress, while candidate/ranking diagnostics stay in Workbench/evidence.
+- Tightened history affordance: the toolbar trigger changes to `关闭历史` while open, the popover explains close/Esc/outside-click, and the close icon has consistent radius/transition styling.
+- Preserved technical units after user correction: usage chips keep `Token` and `tok/s` because they are units, not prose labels.
+- Added foundation tool pinning in `ToolRegistry`: project-state and shell/cmd/git-status intent pins `project_status` and `execute_shell` ahead of Maker-only tools, even when Maker context is present.
+- Verification: `npm.cmd --prefix frontend run build` passed; focused ToolRegistry pytest for project/cmd routing and safe operation wording passed (`6 passed`).

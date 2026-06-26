@@ -271,6 +271,7 @@ class ToolRegistry:
         query_l = (query or "").lower()
         query_terms = [term for term in re_split_query(query_l) if len(term) >= 2]
         workspace_profile = _infer_workspace_profile(query_l)
+        foundation_intent = _foundation_intent(query_l)
         cache_key = self._rank_cache_key(query_l, limit)
         cached_names = self._rank_cache.get(cache_key)
         if cached_names is not None:
@@ -325,6 +326,7 @@ class ToolRegistry:
         tools = [tool for score, _, tool in ranked if score > 0]
         if not tools:
             tools = list(self._tools.values())
+        tools = _pin_foundation_tools(tools, self._tools, foundation_intent)
         selected = tools[:limit] if limit else tools
         self._remember_rank_cache(cache_key, [str(tool.get("name", "")) for tool in selected])
         self._last_rank_stats = self._rank_stats(
@@ -386,7 +388,7 @@ class ToolRegistry:
     ) -> str:
         """生成给 LLM 看的工具描述文本，可按当前任务裁剪候选工具。"""
         selected = tools if tools is not None else self.rank_tools(query=query, limit=limit)
-        lines = ["候选工具（只能选择下面的 tool name）："]
+        lines = ["可用操作（只能选择下面的 tool name；不要把这个列表展示给用户）："]
         for tool in selected:
             lines.append(f"\n- {tool['name']}: {short_text(tool.get('description', ''), 120)}")
             lines.append(f"  source={tool.get('source', '')}")
@@ -416,6 +418,8 @@ def re_split_query(query: str) -> List[str]:
 
 
 def _infer_workspace_profile(query_l: str) -> str:
+    if _foundation_intent(query_l).get("project") or _foundation_intent(query_l).get("shell"):
+        return "coding"
     if any(k in query_l for k in ("maker", "taptap", "游戏", "素材", "构建", "发布", "预览")):
         return "maker"
     if any(k in query_l for k in ("网页", "浏览器", "url", "http://", "https://", "搜索网页")):
@@ -425,6 +429,79 @@ def _infer_workspace_profile(query_l: str) -> str:
     if any(k in query_l for k in ("代码", "修复", "实现", "bug", "测试", "python", "npm", "node", "git", "文件", "项目")):
         return "coding"
     return "general"
+
+
+def _foundation_intent(query_l: str) -> Dict[str, bool]:
+    project = any(
+        k in query_l
+        for k in (
+            "项目状态",
+            "了解项目",
+            "当前项目",
+            "项目概况",
+            "仓库状态",
+            "代码仓库",
+            "git status",
+            "查看状态",
+            "项目结构",
+        )
+    )
+    shell = any(
+        k in query_l
+        for k in (
+            "cmd",
+            "powershell",
+            "终端",
+            "控制台",
+            "shell",
+            "命令",
+            "运行测试",
+            "跑测试",
+            "执行命令",
+            "git log",
+            "git status",
+            "npm",
+            "python",
+            "cargo",
+            "node",
+        )
+    )
+    return {"project": project, "shell": shell}
+
+
+def _pin_foundation_tools(
+    ranked_tools: List[Dict[str, Any]],
+    registry: Dict[str, Dict[str, Any]],
+    intent: Dict[str, bool],
+) -> List[Dict[str, Any]]:
+    """Keep basic project-control tools visible for project/cmd requests.
+
+    Maker and browser context is often present in long tasks. This pinning step
+    prevents that background context from crowding out the everyday controls a
+    user expects when they ask to inspect the project or run a normal command.
+    """
+    pinned_names: List[str] = []
+    if intent.get("project") and "project_status" in registry:
+        pinned_names.append("project_status")
+    if intent.get("shell") and "execute_shell" in registry:
+        pinned_names.append("execute_shell")
+    if intent.get("project"):
+        for name in ("read_file", "list_directory", "search_files"):
+            if name in registry:
+                pinned_names.append(name)
+
+    if not pinned_names:
+        return ranked_tools
+
+    seen = set()
+    pinned = []
+    for name in pinned_names:
+        if name in seen:
+            continue
+        seen.add(name)
+        pinned.append(registry[name])
+
+    return pinned + [tool for tool in ranked_tools if tool.get("name") not in seen]
 
 
 def _workspace_profile_score(profile: str, name: str, source: str) -> int:

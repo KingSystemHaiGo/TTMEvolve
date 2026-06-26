@@ -195,8 +195,13 @@ export default function ChatPanel({
           <button className="chat-mini-button" type="button" onClick={startNewConversation}>
             新对话
           </button>
-          <button ref={historyButtonRef} className="chat-mini-button" type="button" onClick={toggleHistory}>
-            历史
+          <button
+            ref={historyButtonRef}
+            className={`chat-mini-button${historyOpen ? ' active' : ''}`}
+            type="button"
+            onClick={toggleHistory}
+          >
+            {historyOpen ? '关闭历史' : '历史'}
           </button>
           {onCollapse && (
             <button className="panel-collapse-button" onClick={onCollapse} title="收起 Agent 面板">
@@ -211,7 +216,7 @@ export default function ChatPanel({
           <div className="chat-history-head">
             <div>
               <strong>历史对话</strong>
-              <span>从最近记录里继续一个任务。</span>
+              <span>点右上角关闭，也可以按 Esc 或点击面板外。</span>
             </div>
             <button
               type="button"
@@ -434,6 +439,8 @@ function readableStatus(value?: string): string {
   if (text.startsWith('Context synced after')) {
     return text.replace('Context synced after', '工具调用后已同步上下文：')
   }
+  if (/^操作预检通过[:：]/.test(text)) return '操作检查通过，正在继续执行。'
+  if (/^操作预检失败[:：]/.test(text)) return '操作检查失败，正在重新选择合适操作。'
   return text
 }
 
@@ -455,7 +462,7 @@ function sessionStatusLabel(value?: string): string {
 function userFacingToolName(value: string): string {
   const labels: Record<string, string> = {
     project_status: '查看项目状态',
-    execute_shell: '执行系统命令',
+    execute_shell: '执行命令',
     read_file: '读取文件',
     list_directory: '查看目录',
     search_files: '搜索文件',
