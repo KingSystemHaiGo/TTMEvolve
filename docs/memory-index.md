@@ -1142,3 +1142,13 @@
 - Remaining product nuance: Tauri does not provide Electron's embedded Chromium BrowserView; the preview is WebView2-based. If TapTap Maker blocks iframe embedding, the screenshot diagnostics fallback remains available.
 
 ## Last updated: 2026-06-26 12:08
+
+## 2026-06-26 README Bilingual Landing Tightening
+
+- User clarified that the GitHub README should be Chinese/English bilingual.
+- Verified the local README is valid UTF-8 and that GitHub API content already contained both Chinese and English.
+- Reworked `README.md` into a clearer paired bilingual layout: status, desktop behavior, repository map, commands, latest verification, Maker MCP rules, API endpoints, safety boundaries, troubleshooting, GitHub, and license now present English and Chinese side by side or as direct paired paragraphs.
+- Validation: UTF-8 read and bilingual marker assertions passed.
+- Lesson: Windows terminal output can display Chinese UTF-8 as mojibake even when file bytes are correct; for GitHub-facing docs, validate by decoding bytes/API response and make the bilingual structure visually explicit.
+
+## Last updated: 2026-06-26 12:04
