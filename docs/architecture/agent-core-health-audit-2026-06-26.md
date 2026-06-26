@@ -75,6 +75,17 @@ Next:
 - Add per-profile memory retrieval policies.
 - Show profile-level runtime evidence in Workbench/debug surfaces, not in the main chat.
 
+## Long-Task Continuation Evidence / 长任务续航证据
+
+New evidence added on 2026-06-26:
+
+- `context_sync.snapshot.continuation_checkpoint` is now emitted by `ReActLoop`.
+- The checkpoint includes `workspace_profile`, open plan steps, goal focus, last tool/result, artifact refs, a deterministic compression summary, and explicit resume limits.
+- `SessionStore.get_context_sync_history()` now exposes `resume_ready`, `resume_mode`, `workspace_profile`, `open_plan_count`, and the full checkpoint through the existing pull API.
+- Verified by `tests/test_tool_call_validation.py::test_react_loop_context_sync_includes_continuation_checkpoint` and `tests/test_app_server_resume.py::test_app_server_context_sync_endpoint`.
+
+Boundary: this is a durable context handoff checkpoint, not full Python process resurrection. A restarted runtime can inspect and continue from the checkpoint, but restoring an interrupted in-process tool call is still not proven.
+
 ## 健康度判断 / Health Assessment
 
 | Area | Status | Notes |

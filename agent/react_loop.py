@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from agent.tool_registry import ToolRegistry
 from core.cancellation import TaskCancelled
+from core.context_compression import compress_trajectory, should_compress
 from core.executor import Executor
 from core.event_log import EventLog
 from core.goal_tracking import checklist_context_hint, update_goal_checklist
@@ -685,7 +686,8 @@ class ReActLoop:
 
     def _maybe_emit_context_sync(self, iteration: int, reason: str, force: bool = False) -> None:
         snapshot = self._build_context_sync_snapshot(iteration)
-        encoded = json.dumps(snapshot, ensure_ascii=False, sort_keys=True, default=str)
+        snapshot_for_signature = self._snapshot_for_signature(snapshot)
+        encoded = json.dumps(snapshot_for_signature, ensure_ascii=False, sort_keys=True, default=str)
         signature = hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
         previous_signature = self._context_sync_signature
         changed = bool(previous_signature and previous_signature != signature)
@@ -707,6 +709,14 @@ class ReActLoop:
             "snapshot": snapshot,
         })
 
+    @staticmethod
+    def _snapshot_for_signature(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+        stable = json.loads(json.dumps(snapshot, ensure_ascii=False, default=str))
+        checkpoint = stable.get("continuation_checkpoint")
+        if isinstance(checkpoint, dict):
+            checkpoint.pop("context_revision", None)
+        return stable
+
     def _build_context_sync_snapshot(self, iteration: int) -> Dict[str, Any]:
         last_step = self._latest_actionable_step()
         action = last_step.get("action") if isinstance(last_step.get("action"), dict) else {}
@@ -719,11 +729,18 @@ class ReActLoop:
         skill_sync = self._latest_skill_sync if isinstance(self._latest_skill_sync, dict) else {}
         artifacts = self._collect_artifact_refs(limit=8)
         params = action.get("params") if isinstance(action.get("params"), dict) else {}
+        checkpoint = self._build_continuation_checkpoint(
+            iteration=iteration,
+            last_step=last_step,
+            artifacts=artifacts,
+            skill_sync=skill_sync,
+        )
         return {
             "session_id": self._session_id,
             "task": self._task,
             "iteration": iteration,
             "trajectory_steps": len(self._trajectory),
+            "workspace_profile": checkpoint.get("workspace_profile", "general"),
             "last_tool": action.get("tool") or observation.get("tool"),
             "last_action": {
                 "tool": action.get("tool"),
@@ -751,7 +768,109 @@ class ReActLoop:
             },
             "artifact_refs": artifacts,
             "artifact_count": len(artifacts),
+            "continuation_checkpoint": checkpoint,
         }
+
+    def _build_continuation_checkpoint(
+        self,
+        *,
+        iteration: int,
+        last_step: Dict[str, Any],
+        artifacts: List[Dict[str, Any]],
+        skill_sync: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Build a compact handoff point for long-task resume/agent handoff.
+
+        This is not full process resurrection. It is the durable contract another
+        process or future runtime can use to understand what remains without
+        replaying the raw SSE stream.
+        """
+        action = last_step.get("action") if isinstance(last_step.get("action"), dict) else {}
+        observation = last_step.get("observation") if isinstance(last_step.get("observation"), dict) else {}
+        plan_validation = (
+            last_step.get("plan_validation")
+            if isinstance(last_step.get("plan_validation"), dict)
+            else {}
+        )
+        budget_stats = (
+            last_step.get("budget_stats")
+            if isinstance(last_step.get("budget_stats"), dict)
+            else {}
+        )
+        workspace_profile = str(budget_stats.get("workspace_profile") or "general")
+        open_plan_steps = self._open_plan_steps(limit=6)
+        compressed = compress_trajectory(
+            self._trajectory,
+            task=self._task,
+            checklist=self._goal_checklist,
+            plan=self._plan,
+            verbatim_turns=4,
+            max_turns=20,
+        )
+        compression_needed = should_compress(self._trajectory)
+        return {
+            "version": "continuation-checkpoint.v1",
+            "session_id": self._session_id,
+            "context_revision": self._context_sync_revision + 1,
+            "iteration": iteration,
+            "trajectory_steps": len(self._trajectory),
+            "workspace_profile": workspace_profile,
+            "resume_mode": "context_handoff",
+            "resume_ready": True,
+            "resume_limits": {
+                "process_resurrection": False,
+                "requires_runtime_replay": False,
+                "raw_sse_replay_required": False,
+            },
+            "open_plan_steps": open_plan_steps,
+            "goal_overall": self._goal_checklist.get("overall"),
+            "goal_next_focus": self._goal_checklist.get("next_focus"),
+            "last_tool": action.get("tool") or observation.get("tool"),
+            "last_ok": observation.get("ok"),
+            "plan_verdict": plan_validation.get("verdict"),
+            "artifact_refs": artifacts[:6],
+            "artifact_count": len(artifacts),
+            "skill_sync": {
+                "state": skill_sync.get("state"),
+                "compatibility_status": skill_sync.get("compatibility_status"),
+                "changed": bool(skill_sync.get("changed")),
+            },
+            "compression": {
+                "needed": compression_needed,
+                "version": compressed.get("version"),
+                "compressed_step_count": compressed.get("compressed_step_count", 0),
+                "skipped_step_count": compressed.get("skipped_step_count", 0),
+                "verbatim_step_count": len(compressed.get("verbatim_steps") or []),
+                "stats": compressed.get("stats", {}),
+                "summary": compressed.get("summary", "")[:1200],
+            },
+            "handoff_hint": (
+                "Continue from this checkpoint using task, open_plan_steps, "
+                "goal_next_focus, last_tool/last_ok, artifact_refs, and compression.summary. "
+                "Use context_sync/runtime_metrics instead of raw SSE unless details are missing."
+            ),
+        }
+
+    def _open_plan_steps(self, limit: int = 6) -> List[Dict[str, Any]]:
+        steps = self._plan.get("steps") if isinstance(self._plan, dict) else []
+        if not isinstance(steps, list):
+            return []
+        open_steps: List[Dict[str, Any]] = []
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            status = step.get("status")
+            if status not in {"pending", "in_progress"}:
+                continue
+            open_steps.append({
+                "id": step.get("id"),
+                "title": step.get("title") or step.get("step") or step.get("description"),
+                "status": status,
+                "tool": step.get("tool"),
+            })
+            if len(open_steps) >= limit:
+                break
+        return open_steps
 
     def _latest_actionable_step(self) -> Dict[str, Any]:
         for step in reversed(self._trajectory):

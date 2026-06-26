@@ -990,6 +990,60 @@ def test_react_loop_emits_context_sync_snapshot():
         assert "trajectory_steps" in last["diff_keys"]
 
 
+def test_react_loop_context_sync_includes_continuation_checkpoint():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tools = ToolRegistry(root / "skills")
+        executor = _make_executor(root)
+        events = []
+        loop = ReActLoop(
+            llm=MockLLM([]),
+            tools=tools,
+            executor=executor,
+            event_log=EventLog(root / "events.jsonl"),
+            max_iterations=1,
+            event_sink=events.append,
+        )
+        loop._session_id = "ctx-checkpoint"
+        loop._task = "large ongoing project"
+        loop._goal_checklist = {
+            "overall": "active",
+            "counts": {"done": 1, "pending": 2},
+            "next_focus": "finish runtime bus",
+        }
+        loop._plan = {
+            "summary": "system work",
+            "steps": [
+                {"id": "a", "title": "done", "status": "done"},
+                {"id": "b", "title": "wire continuation", "status": "in_progress", "tool": "modify_file"},
+                {"id": "c", "title": "verify", "status": "pending", "tool": "execute_shell"},
+            ],
+        }
+        for i in range(9):
+            loop._trajectory.append({
+                "iteration": i,
+                "thought": f"step {i}",
+                "action": {"tool": "read_file" if i == 0 else "modify_file", "params": {"path": f"f{i}.txt"}},
+                "observation": {"ok": i % 3 != 0, "tool": "modify_file", "path": f"f{i}.txt"},
+                "plan_validation": {"verdict": "warn" if i == 8 else "pass", "summary": "checked"},
+                "budget_stats": {"workspace_profile": "coding"},
+            })
+
+        loop._maybe_emit_context_sync(iteration=8, reason="manual", force=True)
+
+        context_events = [event for event in events if event.get("type") == "context_sync"]
+        checkpoint = context_events[-1]["payload"]["snapshot"]["continuation_checkpoint"]
+        assert checkpoint["version"] == "continuation-checkpoint.v1"
+        assert checkpoint["resume_ready"] is True
+        assert checkpoint["resume_limits"]["process_resurrection"] is False
+        assert checkpoint["workspace_profile"] == "coding"
+        assert checkpoint["goal_next_focus"] == "finish runtime bus"
+        assert checkpoint["open_plan_steps"][0]["title"] == "wire continuation"
+        assert checkpoint["compression"]["needed"] is True
+        assert checkpoint["compression"]["compressed_step_count"] > 0
+        assert "large ongoing project" in checkpoint["compression"]["summary"]
+
+
 def test_react_loop_passes_workspace_profile_to_memory_context():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

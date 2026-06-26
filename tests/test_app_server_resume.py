@@ -479,6 +479,16 @@ def test_app_server_context_sync_endpoint():
                     "last_tool": "query_skills",
                     "plan_validation": {"verdict": "pass"},
                     "goal_checklist": {"overall": "active"},
+                    "workspace_profile": "coding",
+                    "continuation_checkpoint": {
+                        "version": "continuation-checkpoint.v1",
+                        "workspace_profile": "coding",
+                        "resume_ready": True,
+                        "resume_mode": "context_handoff",
+                        "open_plan_steps": [
+                            {"id": "next", "title": "continue implementation", "status": "pending"}
+                        ],
+                    },
                     "artifact_count": 1,
                     "artifact_refs": [{"path": "skill.json", "tool": "query_skills"}],
                 },
@@ -496,6 +506,11 @@ def test_app_server_context_sync_endpoint():
             assert data["latest"]["revision"] == 2
             assert data["latest"]["last_tool"] == "query_skills"
             assert data["latest"]["plan_verdict"] == "pass"
+            assert data["latest"]["workspace_profile"] == "coding"
+            assert data["latest"]["resume_ready"] is True
+            assert data["latest"]["resume_mode"] == "context_handoff"
+            assert data["latest"]["open_plan_count"] == 1
+            assert data["latest"]["continuation_checkpoint"]["open_plan_steps"][0]["id"] == "next"
             assert data["latest"]["artifact_count"] == 1
             assert data["latest"]["snapshot"]["artifact_refs"][0]["path"] == "skill.json"
         finally:

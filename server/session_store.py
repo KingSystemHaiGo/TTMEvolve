@@ -251,6 +251,11 @@ class SessionStore:
                 continue
             payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
             snapshot = payload.get("snapshot") if isinstance(payload.get("snapshot"), dict) else {}
+            checkpoint = (
+                snapshot.get("continuation_checkpoint")
+                if isinstance(snapshot.get("continuation_checkpoint"), dict)
+                else {}
+            )
             history.append({
                 "step": payload.get("iteration"),
                 "reason": payload.get("reason"),
@@ -267,6 +272,13 @@ class SessionStore:
                 "goal_overall": (snapshot.get("goal_checklist") or {}).get("overall")
                     if isinstance(snapshot.get("goal_checklist"), dict)
                     else None,
+                "workspace_profile": snapshot.get("workspace_profile") or checkpoint.get("workspace_profile"),
+                "continuation_checkpoint": checkpoint,
+                "resume_ready": checkpoint.get("resume_ready"),
+                "resume_mode": checkpoint.get("resume_mode"),
+                "open_plan_count": len(checkpoint.get("open_plan_steps") or [])
+                    if isinstance(checkpoint.get("open_plan_steps"), list)
+                    else 0,
                 "artifact_count": snapshot.get("artifact_count", 0),
                 "timestamp": event.get("created_at"),
             })
