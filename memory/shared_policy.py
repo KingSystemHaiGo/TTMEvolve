@@ -86,6 +86,24 @@ class SharedMemoryPolicy:
         )
         return next_item
 
+    def to_summary(self) -> Dict[str, Any]:
+        return {
+            "agent_id": self.agent_id,
+            "read_profiles": sorted(self.read_profiles) if self.read_profiles is not None else ["*"],
+            "write_profiles": sorted(self.write_profiles) if self.write_profiles is not None else ["*"],
+            "include_general": self.include_general,
+            "can_read_shared": self.can_read_shared,
+            "can_read_public": self.can_read_public,
+            "can_read_private_own": self.can_read_private_own,
+            "can_read_private_other": self.can_read_private_other,
+            "default_visibility": self.default_visibility,
+            "boundary": (
+                "private_other_allowed"
+                if self.can_read_private_other
+                else "owner_private_plus_explicit_shared"
+            ),
+        }
+
 
 def _profile_set(value: Any) -> Optional[Set[str]]:
     if value is None:

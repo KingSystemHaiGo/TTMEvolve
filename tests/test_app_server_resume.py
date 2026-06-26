@@ -1227,6 +1227,10 @@ def test_app_server_evidence_bundle_endpoint():
             assert data["llm_call_proof"]["expected_endpoint"].endswith("/text/chatcompletion_v2")
             assert data["llm_call_proof"]["observed_endpoint"].endswith("/text/chatcompletion_v2")
             assert data["llm_feedback_summary"]["version"] == "llm-feedback-summary.v1"
+            assert data["shared_memory"]["status"] == "ready"
+            assert data["shared_memory"]["default_visibility"] == "private"
+            assert data["shared_memory"]["can_read_private_other"] is False
+            assert data["shared_memory"]["boundary"] == "owner_private_plus_explicit_shared"
             assert data["runtime_advice"]["status"] == "needs_action"
             assert data["runtime_advice"]["priority"] == "maker_mcp_connection"
             assert data["counts"]["context_sync"] == 1
@@ -1249,6 +1253,9 @@ def test_app_server_evidence_bundle_endpoint():
             assert "mcp_connected: `False`" in markdown
             assert "mcp_tool_count: `0`" in markdown
             assert "## Layer Communication" in markdown
+            assert "## Shared Memory" in markdown
+            assert "default_visibility=`private`" in markdown
+            assert "private_other=`False`" in markdown
             assert "## Continuation" in markdown
             assert "workspace_profile: `maker`" in markdown
             assert "goal_next_focus: Run Maker build" in markdown
@@ -1271,12 +1278,15 @@ def test_app_server_evidence_bundle_endpoint():
             }
             assert onboarding["summary"]["api_call_proof"] == "api_call_observed"
             assert onboarding["summary"]["continuation"] == "ready"
+            assert onboarding["shared_memory"]["boundary"] == "owner_private_plus_explicit_shared"
+            assert onboarding["shared_memory"]["default_visibility"] == "private"
             assert onboarding["continuation"]["workspace_profile"] == "maker"
             assert onboarding["continuation"]["open_plan_steps"][0]["id"] == "build"
             assert onboarding["startup_order"][0] == "/agent/onboarding?session_id=evidence1&steps=20"
             assert onboarding["endpoints"]["onboarding_bundle"] == "/agent/onboarding?session_id=evidence1&steps=20"
             assert onboarding["closure_gate"]["checks"][0]["id"] == "any_llm_startup"
             assert any(check["id"] == "long_task_continuation" and check["status"] == "ready" for check in onboarding["closure_gate"]["checks"])
+            assert any(check["id"] == "shared_memory_policy" and check["status"] == "ready" for check in onboarding["closure_gate"]["checks"])
             assert "maker_mcp_remote_authority" in onboarding["closure_gate"]["live_validation_gaps"]
             assert onboarding["token_strategy"]["metrics"]["tool_ranking"]["selected_count"] == 6
             assert "TapTap Maker Plus" in onboarding["reference_principles"][0]

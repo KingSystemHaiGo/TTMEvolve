@@ -165,3 +165,10 @@ pm.cmd --prefix frontend run build passed; focused tool-routing pytest for proje
 - MemoryManager.archive_session() and recall() accept agent_id / visibility metadata so session summaries can participate in the same policy.
 - Added focused tests for private/shared/public visibility, disabled shared reads, write-profile rejection, and Manager archive/recall metadata.
 - This is a policy foundation, not a full multi-agent collaboration runtime yet; next work should expose policy evidence in Evidence Bundle/Workbench and add promotion/demotion rules based on verified task outcomes.
+## 2026-06-26 Shared Memory Evidence Surface POST
+
+- Added a compact shared-memory policy summary to the session Evidence Bundle under shared_memory.
+- Evidence Markdown now renders a ## Shared Memory section with agent id, boundary, default visibility, readable profile sets, and whether another agent's private memory is readable.
+- LLM Onboarding Bundle now includes the same shared_memory object and a shared_memory_policy closure-gate check, so external agents can inspect memory-sharing boundaries before reusing memory.
+- The summary is intentionally non-secret: it exposes policy shape and counts, not raw memory contents or private records.
+- Added endpoint-level assertions to test_app_server_evidence_bundle_endpoint covering Evidence JSON, Evidence Markdown, Onboarding JSON, and closure gate.

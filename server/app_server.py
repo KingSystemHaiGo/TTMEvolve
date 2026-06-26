@@ -759,6 +759,42 @@ def build_portable_runtime_status(*, server: Any) -> Dict[str, Any]:
     return diagnostics
 
 
+def build_shared_memory_policy_summary(*, server: Any, agent_id: str = "default") -> Dict[str, Any]:
+    """Return a compact, non-secret summary of the current shared-memory boundary."""
+    try:
+        memory_manager = getattr(server.agent, "memory_manager", None)
+        cold = getattr(memory_manager, "cold", None)
+        if cold is not None and hasattr(cold, "shared_policy"):
+            policy = cold.shared_policy(agent_id)
+            summary = policy.to_summary()
+        else:
+            summary = {
+                "agent_id": agent_id,
+                "read_profiles": ["*"],
+                "write_profiles": ["*"],
+                "include_general": True,
+                "can_read_shared": True,
+                "can_read_public": True,
+                "can_read_private_own": True,
+                "can_read_private_other": False,
+                "default_visibility": "private",
+                "boundary": "owner_private_plus_explicit_shared",
+            }
+        vector_cfg = server.agent.config.vector_index_config()
+        profile_policies = vector_cfg.get("profile_policies") if isinstance(vector_cfg, dict) else {}
+        summary["profile_policy_count"] = len(profile_policies) if isinstance(profile_policies, dict) else 0
+        summary["storage"] = "cold_memory"
+        summary["status"] = "ready"
+        return summary
+    except Exception as exc:
+        return {
+            "agent_id": agent_id,
+            "status": "error",
+            "error": str(exc),
+            "boundary": "unknown",
+        }
+
+
 def build_session_evidence_bundle(
     *,
     server: Any,
@@ -809,6 +845,7 @@ def build_session_evidence_bundle(
         llm_probe_latest=llm_probe_latest,
     )
     maker_setup = server.maker_setup_status(check_latest=False)
+    shared_memory = build_shared_memory_policy_summary(server=server)
 
     endpoint_keys = [
         "onboarding_bundle",
@@ -869,6 +906,7 @@ def build_session_evidence_bundle(
         "continuation": continuation,
         "layer_summary": layer_summary,
         "runtime_metrics_summary": runtime_summary,
+        "shared_memory": shared_memory,
         "learning_latest": learning_latest,
         "maker_guard_latest": maker_guard_latest,
         "llm_probe_latest": compact_llm_probe(llm_probe_latest),
@@ -946,6 +984,7 @@ def render_session_evidence_markdown(bundle: Dict[str, Any]) -> str:
         if isinstance(bundle.get("llm_feedback_summary"), dict)
         else {}
     )
+    shared_memory = bundle.get("shared_memory") if isinstance(bundle.get("shared_memory"), dict) else {}
     latest_feedback_run = (
         feedback_summary.get("latest_run")
         if isinstance(feedback_summary.get("latest_run"), dict)
@@ -1040,6 +1079,14 @@ def render_session_evidence_markdown(bundle: Dict[str, Any]) -> str:
         f"- token_cache: hits=`{token_cache.get('hits')}` misses=`{token_cache.get('misses')}` size=`{token_cache.get('size')}`",
         f"- tool_ranking: selected=`{tool_ranking.get('selected_count')}` candidates=`{tool_ranking.get('candidate_count')}` cache_hit=`{tool_ranking.get('cache_hit')}`",
         "",
+        "## Shared Memory",
+        f"- status: `{shared_memory.get('status') or '-'}` agent_id=`{shared_memory.get('agent_id') or '-'}`",
+        f"- boundary: `{shared_memory.get('boundary') or '-'}` default_visibility=`{shared_memory.get('default_visibility') or '-'}`",
+        f"- read_profiles: `{', '.join(str(item) for item in (shared_memory.get('read_profiles') or [])) or '-'}`",
+        f"- write_profiles: `{', '.join(str(item) for item in (shared_memory.get('write_profiles') or [])) or '-'}`",
+        f"- shared=`{shared_memory.get('can_read_shared')}` public=`{shared_memory.get('can_read_public')}` private_other=`{shared_memory.get('can_read_private_other')}`",
+        f"- profile_policy_count: `{shared_memory.get('profile_policy_count') if shared_memory.get('profile_policy_count') is not None else '-'}`",
+        "",
         "## Continuation",
         f"- status: `{continuation.get('status') or '-'}` resume_ready=`{continuation.get('resume_ready')}` mode=`{continuation.get('resume_mode') or '-'}`",
         f"- workspace_profile: `{continuation.get('workspace_profile') or '-'}` context_revision=`{continuation.get('context_revision') or '-'}`",
@@ -1122,6 +1169,11 @@ def build_llm_onboarding_bundle(
         if isinstance(evidence.get("learning_latest"), dict)
         else {}
     )
+    shared_memory = (
+        evidence.get("shared_memory")
+        if isinstance(evidence.get("shared_memory"), dict)
+        else {}
+    )
     continuation = (
         evidence.get("continuation")
         if isinstance(evidence.get("continuation"), dict)
@@ -1196,6 +1248,16 @@ def build_llm_onboarding_bundle(
             "status": "ready" if continuation.get("resume_ready") else "instrumented",
             "evidence": [endpoints.get("evidence_bundle"), endpoints.get("context_sync")],
             "summary": "Continuation checkpoint exposes workspace profile, open plan steps, goal focus, artifacts, and compression state.",
+        },
+        {
+            "id": "shared_memory_policy",
+            "status": "ready" if shared_memory.get("status") == "ready" else "instrumented",
+            "evidence": [endpoints.get("evidence_bundle")],
+            "summary": (
+                "Shared-memory boundary is "
+                f"{shared_memory.get('boundary') or 'unknown'} with default visibility "
+                f"{shared_memory.get('default_visibility') or 'unknown'}."
+            ),
         },
         {
             "id": "frontend_backend_loop",
@@ -1282,6 +1344,7 @@ def build_llm_onboarding_bundle(
         },
         "runtime_advice": advice,
         "continuation": continuation,
+        "shared_memory": shared_memory,
         "layer_summary": layer_summary,
         "runtime_metrics_summary": runtime_summary,
         "learning_latest": learning_latest or None,
@@ -1299,6 +1362,7 @@ def build_llm_onboarding_bundle(
                 "Agent/Core Runtime/Learning evidence is independently pullable.",
                 "Token strategy prefers readiness/evidence/context summaries over raw histories.",
                 "Long tasks expose continuation checkpoints before raw transcript replay.",
+                "Shared-memory policy is explicit before multi-agent memory reuse.",
                 "Workbench and backend expose the same compact evidence path.",
             ],
         },

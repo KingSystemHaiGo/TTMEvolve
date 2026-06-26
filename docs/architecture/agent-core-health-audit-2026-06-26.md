@@ -55,6 +55,9 @@ Commands run on 2026-06-26:
 
 .venv\Scripts\python.exe -m pytest tests\test_cold_memory_vector.py tests\test_memory_manager_recall.py tests\test_memory_manager.py tests\test_shared_memory_policy.py -q
 # profile-aware cold memory retrieval, per-profile policy, and shared-memory policy focused suite passed
+
+.venv\Scripts\python.exe -m pytest tests\test_app_server_resume.py::test_app_server_evidence_bundle_endpoint -q
+# Evidence/Onboarding shared_memory summary covered
 ```
 
 ## Zleap-Agent Learning / Zleap-Agent 学习结论
@@ -76,7 +79,7 @@ Applied now:
 
 Next:
 
-- Expose shared-memory policy summaries in Evidence Bundle / Workbench debug surfaces.
+- Surface the same shared-memory evidence in Workbench debug panels.
 - Add shared-memory promotion/demotion rules driven by task evidence, not only manual metadata.
 
 ## Long-Task Continuation Evidence / 长任务续航证据
