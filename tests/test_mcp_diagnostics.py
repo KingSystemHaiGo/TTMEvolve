@@ -140,6 +140,13 @@ def test_app_server_exposes_mcp_status_and_tools():
             assert status["connected"] is True
             assert status["tool_count"] >= 1
             assert status["remote_identity"]["status"] == "present"
+            probed_status = _get_json("http://127.0.0.1:17352/mcp/status?probe=true")
+            assert probed_status["probe"]["ok"] is True
+            assert probed_status["probe"]["source"] == "fresh_stdio_initialize_tools_list"
+            assert "maker_ping" in probed_status["probe"]["tools_preview"]
+            probe = _get_json("http://127.0.0.1:17352/mcp/probe")
+            assert probe["ok"] is True
+            assert probe["tool_count"] >= 1
             tools = _get_json("http://127.0.0.1:17352/mcp/tools")
             assert "maker_ping" in [tool["name"] for tool in tools["tools"]]
         finally:

@@ -144,3 +144,11 @@
 - Kept Maker MCP status in the top bar with Maker actions.
 - Moved token/latency evidence to assistant-message usage chips.
 - Verified: frontend build and Tauri release build.
+
+## 2026-06-26 MakerMCP Auto Update + Real Probe
+
+- Status: done.
+- Added automatic cached npm latest-version checks to Maker setup status.
+- Added fresh Maker MCP stdio initialize/tools-list probe surfaced through `/mcp/probe`, `/mcp/status?probe=true`, and Maker setup evidence.
+- GUI now shows package update evidence and real probe result, while normal polling uses cached checks.
+- Verified: focused Python MCP/setup diagnostics and frontend build.

@@ -53,6 +53,7 @@ from server.maker_setup import (
     ensure_agent_root_maker_mcp_registration,
     ensure_internal_maker_mcp_latest_config,
     prepare_auth_flow,
+    probe_maker_mcp_config,
     record_recent_project,
     render_maker_setup_markdown,
 )
@@ -1701,10 +1702,31 @@ class AppServer:
         )
         self.pending_maker_auth: Dict[str, Any] = {}
         self.maker_practice_runner = MakerPracticeRunner(APP_ROOT)
+        self._maker_mcp_probe_cache: Dict[str, Any] = {"checked_at": 0.0, "result": {}}
         self.agent.executor.set_browser_service(self.browser_service)
 
     def maker_tool_audit(self) -> Dict[str, Any]:
         return build_maker_tool_audit(agent=self.agent)
+
+    def maker_mcp_probe(self, *, force: bool = False) -> Dict[str, Any]:
+        ttl_seconds = 30.0
+        now = time.time()
+        cached = self._maker_mcp_probe_cache.get("result")
+        checked_at = float(self._maker_mcp_probe_cache.get("checked_at") or 0.0)
+        if not force and isinstance(cached, dict) and cached and now - checked_at < ttl_seconds:
+            return {
+                **cached,
+                "probe_check": "cached",
+                "cache_ttl_seconds": ttl_seconds,
+            }
+        probe = probe_maker_mcp_config(config=self.agent.config)
+        probe["probe_check"] = "ok" if probe.get("ok") else "failed"
+        probe["cache_ttl_seconds"] = ttl_seconds
+        self._maker_mcp_probe_cache = {
+            "checked_at": time.time(),
+            "result": probe,
+        }
+        return probe
 
     def reconnect_maker_mcp(self) -> Dict[str, Any]:
         before_setup = self.maker_setup_status(check_latest=False)
@@ -1803,6 +1825,7 @@ class AppServer:
             app_root=APP_ROOT,
             check_latest=check_latest,
             tool_audit=self.maker_tool_audit(),
+            mcp_probe=self.maker_mcp_probe(force=False),
             pending_auth=self.pending_maker_auth,
         )
 
@@ -2917,17 +2940,33 @@ class AppServer:
                     return
 
                 if path == "/mcp/status":
+                    params = parse_qs(parsed.query)
+                    wants_probe = str((params.get("probe") or ["false"])[0]).lower() in {"1", "true", "yes"}
                     integration = server.agent.mcp_integration
                     if not integration:
-                        self._json_response(200, {
+                        status = {
                             "connected": False,
                             "tool_count": 0,
                             "tools": [],
                             "last_error": "Maker MCP integration is not configured",
                             "last_call": None,
-                        })
+                        }
+                        if wants_probe:
+                            status["probe"] = server.maker_mcp_probe(force=True)
+                        self._json_response(200, status)
                         return
-                    self._json_response(200, integration.status())
+                    status = integration.status()
+                    if wants_probe:
+                        status["probe"] = server.maker_mcp_probe(force=True)
+                    else:
+                        status["probe"] = server.maker_mcp_probe(force=False)
+                    self._json_response(200, status)
+                    return
+
+                if path == "/mcp/probe":
+                    params = parse_qs(parsed.query)
+                    force_probe = str((params.get("force") or ["true"])[0]).lower() not in {"0", "false", "no"}
+                    self._json_response(200, server.maker_mcp_probe(force=force_probe))
                     return
 
                 if path == "/mcp/tools":

@@ -17,6 +17,7 @@ from server.maker_setup import (
     build_maker_tool_audit,
     ensure_agent_root_maker_mcp_registration,
     ensure_internal_maker_mcp_latest_config,
+    probe_maker_mcp_config,
     prepare_auth_flow,
     render_maker_setup_markdown,
 )
@@ -138,12 +139,65 @@ def test_maker_setup_status_detects_project_and_commands():
         assert status["project"]["maker_initialized"] is True
         assert status["project"]["project_id"] == "p1"
         assert status["maker_package"]["configured"] == "0.0.19"
+        assert status["maker_package"]["latest_check"] != "skipped"
         assert status["commands"]["install_maker_mcp"].startswith("npx -y @taptap/maker install")
         assert status["endpoints"]["tool_audit"] == "/maker/tool-audit"
+        assert status["endpoints"]["mcp_probe"] == "/mcp/probe"
 
         markdown = render_maker_setup_markdown(status)
         assert "Maker Setup Doctor" in markdown
         assert "generate_image" in markdown
+
+
+def test_maker_setup_status_auto_checks_latest_with_cache(monkeypatch):
+    calls = []
+
+    def fake_fetch_latest():
+        calls.append("fetch")
+        return {"latest": "9.9.9", "latest_check": "ok"}
+
+    monkeypatch.setattr("server.maker_setup._fetch_latest_version", fake_fetch_latest)
+    monkeypatch.setattr("server.maker_setup._LATEST_VERSION_CACHE", {"checked_at": 0.0, "result": {}})
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        cfg = _config(tmp_path)
+
+        first = build_maker_setup_status(
+            config=cfg,
+            app_root=_PROJECT_ROOT,
+            tool_audit=build_maker_tool_audit(agent=_FakeAgent()),
+        )
+        second = build_maker_setup_status(
+            config=cfg,
+            app_root=_PROJECT_ROOT,
+            tool_audit=build_maker_tool_audit(agent=_FakeAgent()),
+        )
+
+        assert calls == ["fetch"]
+        assert first["maker_package"]["latest"] == "9.9.9"
+        assert first["maker_package"]["update_available"] is True
+        assert second["maker_package"]["latest_check"] == "cached"
+
+
+def test_probe_maker_mcp_config_runs_fresh_tools_list():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        cfg = _config(tmp_path)
+        fake_server = _PROJECT_ROOT / "tests" / "fixtures" / "fake_mcp_server.py"
+        cfg.data["maker_mcp"] = {
+            "command": sys.executable,
+            "args": [str(fake_server)],
+            "cwd": str(_PROJECT_ROOT),
+            "env": {},
+        }
+
+        probe = probe_maker_mcp_config(config=cfg, timeout_seconds=3)
+
+        assert probe["ok"] is True
+        assert probe["connected"] is True
+        assert probe["tool_count"] >= 1
+        assert "maker_ping" in probe["tools_preview"]
+        assert probe["source"] == "fresh_stdio_initialize_tools_list"
 
 
 def test_maker_setup_status_blocks_unbound_project_id_zero():

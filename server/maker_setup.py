@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 from urllib import request
 
+from agent.mcp_client import MakerMCPClient
 from core.portable_env import portable_diagnostics
 from server.maker_faults import build_maker_fault_analysis
 
@@ -18,6 +19,7 @@ from server.maker_faults import build_maker_fault_analysis
 MAKER_PACKAGE = "@taptap/maker"
 MAKER_URL = "https://maker.taptap.cn/"
 MAKER_MCP_SERVER_ID = "taptap-maker"
+MAKER_LATEST_CACHE_TTL_SECONDS = 30 * 60
 
 REQUIRED_PROXY_TOOLS = [
     "generate_image",
@@ -30,12 +32,19 @@ REQUIRED_PROXY_TOOLS = [
     "query_3d_model_task",
 ]
 
+_LATEST_VERSION_CACHE: Dict[str, Any] = {
+    "checked_at": 0.0,
+    "result": {},
+}
+
 
 def build_maker_setup_status(
     *,
     config: Any,
     app_root: Path,
     check_latest: bool = False,
+    auto_check_latest: bool = True,
+    mcp_probe: Optional[Dict[str, Any]] = None,
     tool_audit: Optional[Dict[str, Any]] = None,
     pending_auth: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -56,17 +65,21 @@ def build_maker_setup_status(
         "configured": configured_version,
         "npx_available": bool(shutil.which("npx")),
         "latest": None,
-        "latest_check": "skipped",
+        "latest_check": "pending",
         "update_available": None,
         "install_command": "npx -y @taptap/maker install --ide codex,cursor,claude",
+        "auto_check": bool(auto_check_latest),
+        "cache_ttl_seconds": MAKER_LATEST_CACHE_TTL_SECONDS,
     }
-    if check_latest:
-        latest = _fetch_latest_version()
+    if check_latest or auto_check_latest:
+        latest = _latest_version_status(force=check_latest)
         version.update(latest)
         if latest.get("latest") and configured_version and configured_version != "latest":
             version["update_available"] = _versions_differ(configured_version, str(latest["latest"]))
         elif configured_version == "latest":
             version["update_available"] = False
+    else:
+        version["latest_check"] = "skipped"
 
     blockers: List[str] = []
     warnings: List[str] = []
@@ -117,6 +130,7 @@ def build_maker_setup_status(
         "portable_runtime": portable_status,
         "auth": auth,
         "tool_audit": tool_audit or {},
+        "mcp_probe": mcp_probe or {},
         "pending_auth": pending_auth or {},
         "wizard": _wizard_state(project),
         "commands": {
@@ -128,6 +142,7 @@ def build_maker_setup_status(
             "setup_status": "/maker/setup-status",
             "setup_status_markdown": "/maker/setup-status.md",
             "tool_audit": "/maker/tool-audit",
+            "mcp_probe": "/mcp/probe",
             "project_select": "/maker/project/select",
             "auth_prepare": "/maker/auth/prepare",
             "auth_complete": "/maker/auth/complete",
@@ -250,6 +265,66 @@ def build_maker_tool_audit(*, agent: Any) -> Dict[str, Any]:
             missing_required=missing_required,
         ),
     }
+
+
+def probe_maker_mcp_config(*, config: Any, timeout_seconds: float = 8.0) -> Dict[str, Any]:
+    """Start a fresh Maker MCP stdio client and verify initialize + tools/list."""
+    started_at = time.time()
+    maker_cfg = config.maker_mcp_config()
+    result: Dict[str, Any] = {
+        "version": "maker-mcp-probe.v1",
+        "ok": False,
+        "connected": False,
+        "tool_count": 0,
+        "tools_preview": [],
+        "source": "fresh_stdio_initialize_tools_list",
+        "checked_at": started_at,
+        "elapsed_ms": 0,
+        "command": str(maker_cfg.get("command") or "") if isinstance(maker_cfg, dict) else "",
+        "args": maker_cfg.get("args", []) if isinstance(maker_cfg, dict) and isinstance(maker_cfg.get("args"), list) else [],
+        "cwd": str(maker_cfg.get("cwd") or "") if isinstance(maker_cfg, dict) else "",
+        "error": "",
+    }
+    if not isinstance(maker_cfg, dict) or not maker_cfg:
+        result["error"] = "Maker MCP config is missing"
+        result["elapsed_ms"] = int((time.time() - started_at) * 1000)
+        return result
+
+    client: Optional[MakerMCPClient] = None
+    try:
+        request_timeout = min(
+            max(float(timeout_seconds or 8.0), 0.5),
+            float(getattr(config, "maker_mcp_request_timeout_seconds", lambda: timeout_seconds)() or timeout_seconds),
+        )
+        client = MakerMCPClient(
+            command=str(maker_cfg.get("command") or "node"),
+            args=[str(arg) for arg in maker_cfg.get("args", [])] if isinstance(maker_cfg.get("args"), list) else [],
+            cwd=Path(maker_cfg.get("cwd") or config.project_root()),
+            env=maker_cfg.get("env") if isinstance(maker_cfg.get("env"), dict) else {},
+            request_timeout_seconds=request_timeout,
+        )
+        client.start()
+        tools = client.list_tools()
+        preview = []
+        for tool in tools[:12]:
+            if isinstance(tool, dict) and tool.get("name"):
+                preview.append(str(tool.get("name")))
+        result.update({
+            "ok": True,
+            "connected": True,
+            "tool_count": len(tools),
+            "tools_preview": preview,
+        })
+    except Exception as exc:
+        result["error"] = str(exc)
+    finally:
+        if client is not None:
+            try:
+                client.stop()
+            except Exception:
+                pass
+        result["elapsed_ms"] = int((time.time() - started_at) * 1000)
+    return result
 
 
 def render_maker_setup_markdown(status: Dict[str, Any]) -> str:
@@ -683,6 +758,32 @@ def _fetch_latest_version() -> Dict[str, Any]:
         return {"latest": data.get("version"), "latest_check": "ok"}
     except Exception as exc:
         return {"latest": None, "latest_check": "unavailable", "latest_error": str(exc)}
+
+
+def _latest_version_status(*, force: bool = False) -> Dict[str, Any]:
+    now = time.time()
+    cached = _LATEST_VERSION_CACHE.get("result") if isinstance(_LATEST_VERSION_CACHE, dict) else {}
+    checked_at = float(_LATEST_VERSION_CACHE.get("checked_at") or 0.0)
+    if (
+        not force
+        and isinstance(cached, dict)
+        and cached
+        and now - checked_at < MAKER_LATEST_CACHE_TTL_SECONDS
+    ):
+        return {
+            **cached,
+            "latest_check": "cached" if cached.get("latest_check") == "ok" else cached.get("latest_check", "cached"),
+            "checked_at": checked_at,
+            "cache_ttl_seconds": MAKER_LATEST_CACHE_TTL_SECONDS,
+        }
+    latest = _fetch_latest_version()
+    _LATEST_VERSION_CACHE["checked_at"] = now
+    _LATEST_VERSION_CACHE["result"] = dict(latest)
+    return {
+        **latest,
+        "checked_at": now,
+        "cache_ttl_seconds": MAKER_LATEST_CACHE_TTL_SECONDS,
+    }
 
 
 def _versions_differ(current: str, latest: str) -> bool:

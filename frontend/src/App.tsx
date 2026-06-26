@@ -159,6 +159,7 @@ interface HealthInfo {
 interface McpStatus {
   connected?: boolean
   tool_count?: number
+  probe?: MakerMcpProbe
   remote_identity?: {
     status?: string
     summary?: string
@@ -172,6 +173,18 @@ interface McpStatus {
     elapsed_ms?: number
     error?: string
   } | null
+}
+
+interface MakerMcpProbe {
+  ok?: boolean
+  connected?: boolean
+  tool_count?: number
+  tools_preview?: string[]
+  source?: string
+  checked_at?: number
+  elapsed_ms?: number
+  probe_check?: string
+  error?: string
 }
 
 interface MakerSetupStatus {
@@ -198,7 +211,12 @@ interface MakerSetupStatus {
     configured?: string
     latest?: string | null
     npx_available?: boolean
+    latest_check?: string
+    update_available?: boolean | null
+    checked_at?: number
+    latest_error?: string
   }
+  mcp_probe?: MakerMcpProbe
   tool_audit?: {
     ok?: boolean
     remote_tool_count?: number
@@ -615,7 +633,7 @@ export default function App() {
   useEffect(() => {
     let cancelled = false
     const loadMcpStatus = () => {
-      fetch(`${API_BASE}/mcp/status`)
+      fetch(`${API_BASE}/mcp/status?probe=false`)
         .then((res) => res.json())
         .then((data: McpStatus) => {
           if (!cancelled) setMcpStatus(data)
@@ -781,13 +799,16 @@ export default function App() {
     setToolsLoading(true)
     setToolsError('')
     try {
-      const [toolsRes, auditRes] = await Promise.all([
+      const [toolsRes, auditRes, statusRes] = await Promise.all([
         fetch(`${API_BASE}/mcp/tools`),
         fetch(`${API_BASE}/maker/tool-audit`),
+        fetch(`${API_BASE}/mcp/status?probe=true`),
       ])
       const data = await toolsRes.json()
       const audit = await auditRes.json().catch(() => ({}))
+      const status = await statusRes.json().catch(() => null)
       setToolAudit(audit)
+      if (status) setMcpStatus(status)
       const remoteTools = Array.isArray(audit.remote_tools) ? audit.remote_tools : []
       const requiredTools = Array.isArray(audit.required_proxy_tools) ? audit.required_proxy_tools : []
       const fallbackTools = Array.isArray(data.tools) ? data.tools : Array.isArray(data) ? data : []
@@ -1241,7 +1262,7 @@ export default function App() {
             <MakerStepCard
               step="1"
               title="安装或升级 Maker MCP"
-              detail={makerSetup?.maker_package?.configured ? `当前 ${makerSetup.maker_package.configured}` : '尚未确认 Maker MCP 版本'}
+              detail={makerVersionDetail(makerSetup)}
               action={makerPractice?.running ? '正在执行' : '安装 / 升级'}
               disabled={Boolean(makerPractice?.running)}
               onClick={startMakerInstall}
@@ -1288,6 +1309,7 @@ export default function App() {
             <strong>当前状态：{makerReadinessLabel(makerSetup?.readiness)}</strong>
             <span>{makerAssuranceText(makerSetup, toolAudit)}</span>
             <span>下一步：{makerNextActionLabel(makerSetup?.commands?.recommended_next)}</span>
+            <span>{makerMcpProbeText(makerSetup?.mcp_probe || mcpStatus?.probe)}</span>
             <div>
               {makerPractice?.auth_url && (
                 <button type="button" onClick={() => openMakerAuth(makerPractice.auth_url || '')}>打开授权页</button>
@@ -1570,6 +1592,30 @@ function makerAssuranceText(setup: MakerSetupStatus | null, audit: any): string 
     return `普通编码和预览可继续；${missing || '部分'} 个创意代理工具缺失，素材/图片/视频/3D 生成会先降级或要求重连。`
   }
   return '硬性前置已通过，可以开始小型 Maker 实战任务。'
+}
+
+function makerVersionDetail(setup: MakerSetupStatus | null): string {
+  const pkg = setup?.maker_package
+  if (!pkg) return 'Checking Maker MCP package version...'
+  const current = pkg.configured || 'unknown'
+  const latest = pkg.latest || ''
+  const check = pkg.latest_check || 'pending'
+  if (pkg.update_available === true && latest) return `Current ${current}, latest ${latest} available`
+  if (pkg.update_available === false && latest) return `Current ${current}, latest ${latest}, up to date`
+  if (check === 'unavailable') return `Current ${current}, latest check unavailable`
+  if (check === 'cached' && latest) return `Current ${current}, latest ${latest} checked automatically`
+  if (latest) return `Current ${current}, latest ${latest}`
+  return `Current ${current}, checking latest automatically`
+}
+
+function makerMcpProbeText(probe?: MakerMcpProbe | null): string {
+  if (!probe) return 'Maker MCP real probe: waiting for initialize/tools-list.'
+  const elapsed = probe.elapsed_ms !== undefined ? ` in ${probe.elapsed_ms}ms` : ''
+  if (probe.ok || probe.connected) {
+    return `Maker MCP real probe passed${elapsed}: ${probe.tool_count ?? 0} tools from fresh tools/list.`
+  }
+  const error = probe.error ? ` ${probe.error}` : ''
+  return `Maker MCP real probe failed${elapsed}.${error}`
 }
 
 function makerSafetyChecks(setup: MakerSetupStatus | null, audit: any, mcp: McpStatus | null) {
