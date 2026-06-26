@@ -14,6 +14,8 @@ import time
 
 from .vector_index import TextChunk, VectorIndex
 
+_KNOWN_WORKSPACE_PROFILES = {"coding", "docs", "maker", "browser", "general"}
+
 
 class ColdMemory:
     """冷记忆：长期归档与语义检索。"""
@@ -50,6 +52,9 @@ class ColdMemory:
             "type": item.get("type", "unknown"),
             "summary": content[:200],
             "timestamp": time.time(),
+            "workspace_profile": _normalize_workspace_profile(
+                item.get("workspace_profile") or item.get("profile")
+            ),
         }
         self._index.append(entry)
         self._save()
@@ -62,13 +67,31 @@ class ColdMemory:
         )
         self._vector_index.add([chunk])
 
-    def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        results = self._vector_index.search(query, top_k=top_k)
+    def search(
+        self,
+        query: str,
+        top_k: int = 5,
+        workspace_profile: str = "general",
+        allow_profile_fallback: bool = True,
+    ) -> List[Dict[str, Any]]:
+        profile = _normalize_workspace_profile(workspace_profile)
+        filter_fn = _profile_filter(profile)
+
+        results = self._vector_index.search(query, top_k=top_k, filter_fn=filter_fn)
         if results:
             return [chunk.meta for _, chunk in results if chunk.meta]
 
         if self._fallback_to_keyword:
-            return self._keyword_search(query, top_k)
+            keyword_hits = self._keyword_search(query, top_k, workspace_profile=profile)
+            if keyword_hits:
+                return keyword_hits
+
+        if allow_profile_fallback and profile != "general":
+            fallback_results = self._vector_index.search(query, top_k=top_k)
+            if fallback_results:
+                return [chunk.meta for _, chunk in fallback_results if chunk.meta]
+            if self._fallback_to_keyword:
+                return self._keyword_search(query, top_k)
         return []
 
     def rebuild(self) -> None:
@@ -85,10 +108,18 @@ class ColdMemory:
         ]
         self._vector_index.add(chunks)
 
-    def _keyword_search(self, query: str, top_k: int) -> List[Dict[str, Any]]:
+    def _keyword_search(
+        self,
+        query: str,
+        top_k: int,
+        workspace_profile: str = "general",
+    ) -> List[Dict[str, Any]]:
         query_lower = query.lower()
+        profile = _normalize_workspace_profile(workspace_profile)
         hits = []
         for entry in self._index:
+            if not _profile_matches_entry(entry, profile):
+                continue
             score = 0
             if query_lower in entry.get("summary", "").lower():
                 score += 1
@@ -110,5 +141,33 @@ class ColdMemory:
             return
         try:
             self._index = json.loads(self._index_path.read_text(encoding="utf-8"))
+            for entry in self._index:
+                entry["workspace_profile"] = _normalize_workspace_profile(
+                    entry.get("workspace_profile") or entry.get("profile")
+                )
         except Exception:
             self._index = []
+
+
+def _normalize_workspace_profile(value: Any) -> str:
+    profile = str(value or "general").strip().lower()
+    return profile if profile in _KNOWN_WORKSPACE_PROFILES else "general"
+
+
+def _profile_matches_entry(entry: Dict[str, Any], profile: str) -> bool:
+    if profile == "general":
+        return True
+    entry_profile = _normalize_workspace_profile(
+        entry.get("workspace_profile") or entry.get("profile")
+    )
+    return entry_profile in {profile, "general"}
+
+
+def _profile_filter(profile: str):
+    if profile == "general":
+        return None
+
+    def matches(chunk: TextChunk) -> bool:
+        return _profile_matches_entry(chunk.meta or {}, profile)
+
+    return matches

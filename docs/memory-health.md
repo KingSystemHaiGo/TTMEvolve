@@ -142,3 +142,10 @@
 - README remains bilingual and now documents advanced evidence hiding plus shell-command routing.
 - Verification:
 pm.cmd --prefix frontend run build passed; focused tool-routing pytest for project status and cmd requests passed (3 passed).
+## 2026-06-26 Workspace Profile RAG Filtering POST
+
+- Implemented profile-aware cold memory/RAG retrieval. ColdMemory.index() now persists workspace_profile metadata, and ColdMemory.search() first filters vector and keyword recall to the active profile plus general.
+- Added safe fallback: if a non-general profile search returns no hits, recall retries globally so the agent does not lose all useful memory because of overly strict routing.
+- MemoryManager.prepare_think_payload() now passes its normalized profile into recall(), and archive_session() can persist profile metadata for future session summaries.
+- Added focused tests for profile filtering, general-memory inclusion, global fallback, keyword fallback behavior, and prompt injection behavior.
+- Architecture audit updated: the previous next step Use workspace_profile to filter vector memory retrieval is now implemented; next work should move to per-profile retrieval policy and multi-agent shared-memory policy surfaces.

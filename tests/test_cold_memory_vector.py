@@ -86,6 +86,74 @@ def test_keyword_fallback_when_disabled():
         assert hits[0]["id"] == "s1"
 
 
+def test_search_filters_by_workspace_profile_with_general_memory():
+    with tempfile.TemporaryDirectory() as tmp:
+        cold = ColdMemory(
+            Path(tmp),
+            vector_index_config={"enabled": True, "embedding_dim": 8},
+            encoder=_mock_encoder,
+        )
+        cold.index(
+            {"id": "docs1", "type": "session_summary", "workspace_profile": "docs"},
+            "README alpha shared design notes",
+        )
+        cold.index(
+            {"id": "maker1", "type": "session_summary", "workspace_profile": "maker"},
+            "Maker alpha shared scene build notes",
+        )
+        cold.index(
+            {"id": "general1", "type": "session_summary", "workspace_profile": "general"},
+            "Shared alpha cross-project lesson",
+        )
+
+        hits = cold.search("alpha shared", top_k=5, workspace_profile="docs")
+        ids = {hit["id"] for hit in hits}
+
+        assert "docs1" in ids
+        assert "general1" in ids
+        assert "maker1" not in ids
+
+
+def test_profile_search_falls_back_when_no_profile_hits():
+    with tempfile.TemporaryDirectory() as tmp:
+        cold = ColdMemory(
+            Path(tmp),
+            vector_index_config={"enabled": True, "embedding_dim": 8},
+            encoder=_mock_encoder,
+        )
+        cold.index(
+            {"id": "maker1", "type": "session_summary", "workspace_profile": "maker"},
+            "fallback-only particle emitter lesson",
+        )
+
+        hits = cold.search("fallback-only", top_k=3, workspace_profile="docs")
+
+        assert [hit["id"] for hit in hits] == ["maker1"]
+
+
+def test_keyword_fallback_respects_workspace_profile_then_global_fallback():
+    with tempfile.TemporaryDirectory() as tmp:
+        cold = ColdMemory(
+            Path(tmp),
+            vector_index_config={"enabled": False, "fallback_to_keyword": True},
+            encoder=_mock_encoder,
+        )
+        cold.index(
+            {"id": "docs1", "type": "session_summary", "workspace_profile": "docs"},
+            "keyword-profile checklist",
+        )
+        cold.index(
+            {"id": "maker1", "type": "session_summary", "workspace_profile": "maker"},
+            "keyword-profile prefab",
+        )
+
+        docs_hits = cold.search("keyword-profile", top_k=5, workspace_profile="docs")
+        fallback_hits = cold.search("prefab", top_k=5, workspace_profile="docs")
+
+        assert [hit["id"] for hit in docs_hits] == ["docs1"]
+        assert [hit["id"] for hit in fallback_hits] == ["maker1"]
+
+
 if __name__ == "__main__":
     test_vector_search()
     print("OK test_vector_search")
@@ -93,4 +161,10 @@ if __name__ == "__main__":
     print("OK test_rebuild_from_json")
     test_keyword_fallback_when_disabled()
     print("OK test_keyword_fallback_when_disabled")
+    test_search_filters_by_workspace_profile_with_general_memory()
+    print("OK test_search_filters_by_workspace_profile_with_general_memory")
+    test_profile_search_falls_back_when_no_profile_hits()
+    print("OK test_profile_search_falls_back_when_no_profile_hits")
+    test_keyword_fallback_respects_workspace_profile_then_global_fallback()
+    print("OK test_keyword_fallback_respects_workspace_profile_then_global_fallback")
     print("\nAll ColdMemory vector tests passed.")

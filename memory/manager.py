@@ -134,7 +134,11 @@ class MemoryManager:
         cold_recall_ms = 0.0
         cold_started_at = time.perf_counter()
         try:
-            cold_hits = self.recall(task, top_k=self.config.get("memory.vector_index.top_k", 3))
+            cold_hits = self.recall(
+                task,
+                top_k=self.config.get("memory.vector_index.top_k", 3),
+                workspace_profile=profile,
+            )
             if cold_hits:
                 cold_recall_hits = len(cold_hits)
                 lines = ["\n【历史归档】"]
@@ -172,11 +176,32 @@ class MemoryManager:
         )
         return text, stats
 
-    def archive_session(self, session_id: str, summary: str) -> None:
-        self.cold.index({"id": session_id, "type": "session_summary"}, summary)
+    def archive_session(
+        self,
+        session_id: str,
+        summary: str,
+        workspace_profile: str = "general",
+    ) -> None:
+        self.cold.index(
+            {
+                "id": session_id,
+                "type": "session_summary",
+                "workspace_profile": _normalize_workspace_profile(workspace_profile),
+            },
+            summary,
+        )
 
-    def recall(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
-        return self.cold.search(query, top_k)
+    def recall(
+        self,
+        query: str,
+        top_k: int = 3,
+        workspace_profile: str = "general",
+    ) -> List[Dict[str, Any]]:
+        return self.cold.search(
+            query,
+            top_k=top_k,
+            workspace_profile=_normalize_workspace_profile(workspace_profile),
+        )
 
     def _summarize_turns(self, turns: List[Dict[str, Any]]) -> str:
         """把一组旧 turn 摘要成一句话。优先用 LLM reflect，否则 rule-based。"""

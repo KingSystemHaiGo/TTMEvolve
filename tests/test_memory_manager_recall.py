@@ -88,9 +88,48 @@ def test_cold_recall_silently_fails_when_no_hits():
         assert "【历史归档】" not in context
 
 
+def test_prepare_think_payload_filters_cold_recall_by_workspace_profile():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        manager = MemoryManager(
+            project_root=tmp_path / "project",
+            storage_root=tmp_path / "storage",
+            skills_dir=tmp_path / "skills",
+            budget_manager=ContextBudgetManager(n_ctx=8192, reserve_tokens=256),
+        )
+        manager.cold = manager.cold.__class__(
+            manager.cold.storage_path,
+            vector_index_config={"enabled": True, "embedding_dim": 8},
+            encoder=_mock_encoder,
+        )
+        manager.cold.index(
+            {"id": "docs1", "type": "session_summary", "workspace_profile": "docs"},
+            "README shared-profile bilingual structure",
+        )
+        manager.cold.index(
+            {"id": "maker1", "type": "session_summary", "workspace_profile": "maker"},
+            "Maker shared-profile sprite import flow",
+        )
+
+        context, stats = manager.prepare_think_payload(
+            task="shared-profile README structure",
+            context="当前正在整理文档",
+            trajectory=[],
+            tools_description="工具列表",
+            max_tokens=2048,
+            workspace_profile="docs",
+        )
+
+        assert "README shared-profile" in context
+        assert "Maker shared-profile" not in context
+        assert stats.cold_recall_hits >= 1
+
+
 if __name__ == "__main__":
     test_prepare_think_payload_includes_cold_recall()
     print("OK test_prepare_think_payload_includes_cold_recall")
     test_cold_recall_silently_fails_when_no_hits()
     print("OK test_cold_recall_silently_fails_when_no_hits")
+    test_prepare_think_payload_filters_cold_recall_by_workspace_profile()
+    print("OK test_prepare_think_payload_filters_cold_recall_by_workspace_profile")
     print("\nAll MemoryManager recall tests passed.")
