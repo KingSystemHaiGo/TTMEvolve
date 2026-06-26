@@ -185,6 +185,42 @@ def test_tool_registry_ranks_and_limits_relevant_tools():
         assert "read_file" not in schema
 
 
+def test_tool_registry_prioritizes_project_status_for_project_questions():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tools = ToolRegistry(root / "skills")
+        executor = _make_executor(root)
+        for name, description in [
+            ("project_status", "查看当前项目概况、Git 状态、主要目录和运行配置"),
+            ("execute_shell", "执行允许的 shell 命令"),
+            ("maker_status_lite", "Maker MCP status"),
+        ]:
+            tools.register(
+                name=name,
+                description=description,
+                parameters={"type": "object", "properties": {}},
+                handler=executor.propose_action,
+                source="maker_mcp" if name.startswith("maker_") else "builtin",
+            )
+
+        ranked = tools.rank_tools("查看项目状态，了解项目", limit=2)
+
+        assert [tool["name"] for tool in ranked] == ["project_status", "execute_shell"]
+
+
+def test_executor_project_status_reports_git_and_top_level():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "package.json").write_text("{}", encoding="utf-8")
+        executor = _make_executor(root)
+
+        result = executor.propose_action("s1", "project_status", {})
+
+        assert result["ok"] is True
+        assert result["markers"]["package_json"] is True
+        assert any(item["name"] == "package.json" for item in result["top_level"])
+
+
 def test_tool_registry_preflight_returns_alternatives():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

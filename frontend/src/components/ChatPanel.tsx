@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ChatInput from './ChatInput'
 import ChatMessage from './ChatMessage'
 import { useBackend, type LlmUsagePayload } from '../hooks/useBackend'
@@ -70,6 +70,8 @@ export default function ChatPanel({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
+  const historyRef = useRef<HTMLDivElement>(null)
+  const historyButtonRef = useRef<HTMLButtonElement>(null)
   const setPanelLoading = (loading: boolean) => {
     setIsLoading(loading)
     onRunningChange?.(loading)
@@ -108,6 +110,26 @@ export default function ChatPanel({
       setHistoryLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (!historyOpen) return
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (!target) return
+      if (historyRef.current?.contains(target)) return
+      if (historyButtonRef.current?.contains(target)) return
+      setHistoryOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setHistoryOpen(false)
+    }
+    window.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [historyOpen])
 
   const stageLabel = (() => {
     switch (workbench.stage) {
@@ -171,8 +193,8 @@ export default function ChatPanel({
           <button className="chat-mini-button" type="button" onClick={startNewConversation}>
             新对话
           </button>
-          <button className="chat-mini-button" type="button" onClick={toggleHistory}>
-            历史
+          <button ref={historyButtonRef} className="chat-mini-button" type="button" onClick={toggleHistory}>
+            {historyOpen ? '关闭历史' : '历史'}
           </button>
           {onCollapse && (
             <button className="panel-collapse-button" onClick={onCollapse} title="收起 Agent 面板">
@@ -182,10 +204,15 @@ export default function ChatPanel({
         </div>
       </div>
       {historyOpen && (
-        <div className="chat-history-popover">
+        <div ref={historyRef} className="chat-history-popover">
           <div className="chat-history-head">
-            <strong>历史对话</strong>
-            <span>记忆会从后端会话和长期记忆恢复</span>
+            <div>
+              <strong>历史对话</strong>
+              <span>选择一条历史记录可查看摘要；按 Esc 或点外部关闭。</span>
+            </div>
+            <button type="button" onClick={() => setHistoryOpen(false)} aria-label="收起历史对话">
+              收起
+            </button>
           </div>
           <div className="chat-history-list">
             {historyLoading ? (
@@ -198,13 +225,13 @@ export default function ChatPanel({
                   onClick={() => {
                     addMessage({
                       role: 'system',
-                      content: `历史会话：${session.task || session.session_id || '未命名'}\n状态：${session.status || 'unknown'}\n需要继续时，可以直接描述要接着做什么。`,
+                      content: `历史会话：${session.task || session.session_id || '未命名'}\n状态：${sessionStatusLabel(session.status)}\n需要继续时，可以直接描述要接着做什么。`,
                     })
                     setHistoryOpen(false)
                   }}
                 >
                   <strong>{session.task || '未命名对话'}</strong>
-                  <span>{session.status || 'unknown'}</span>
+                  <span>{sessionStatusLabel(session.status)}</span>
                 </button>
               ))
             ) : (
@@ -353,6 +380,18 @@ function currentActivityLabel(
     }
   }
   const status = readableStatus(workbench.currentStatus)
+  if (!status) {
+    return {
+      title: '正在准备',
+      detail: 'Agent 正在准备下一步。',
+    }
+  }
+  if (status === '正在选择合适能力' || status.includes('Tool context ranked')) {
+    return {
+      title: '正在选择合适能力',
+      detail: 'Agent 正在选择下一步，不会把内部候选列表打扰你。',
+    }
+  }
   if (status.includes('创建会话') || status.includes('连接') || status.includes('验证')) {
     return {
       title: '正在连接模型',
@@ -374,14 +413,33 @@ function currentActivityLabel(
 function readableStatus(value?: string): string {
   const text = String(value || '').trim()
   if (!text) return ''
+  if (text.startsWith('候选工具')) return '正在选择合适能力'
+  if (text === 'Tool context ranked') return '正在选择合适能力'
   if (text === 'Session created') return '会话已创建，正在等待模型响应。'
   if (text === 'Task finished') return '任务已完成，正在整理最终回复。'
   if (text === 'Canceling task') return '正在停止当前任务。'
   if (text.startsWith('Queued:')) return text.replace('Queued:', '已排队：')
+  if (text.startsWith('已排队')) return text
   if (text === 'Runtime contract degraded') return '运行契约部分可用，正在继续处理。'
   if (text === 'Context synced') return '上下文已同步，正在继续。'
   if (text.startsWith('Context synced after')) {
     return text.replace('Context synced after', '工具调用后已同步上下文：')
   }
   return text
+}
+
+
+function sessionStatusLabel(value?: string): string {
+  switch (String(value || '').toLowerCase()) {
+    case 'done':
+      return '已完成'
+    case 'running':
+      return '运行中'
+    case 'error':
+      return '异常'
+    case 'canceled':
+      return '已取消'
+    default:
+      return value || '未知'
+  }
 }

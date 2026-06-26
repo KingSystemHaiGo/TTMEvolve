@@ -1596,26 +1596,26 @@ function makerAssuranceText(setup: MakerSetupStatus | null, audit: any): string 
 
 function makerVersionDetail(setup: MakerSetupStatus | null): string {
   const pkg = setup?.maker_package
-  if (!pkg) return 'Checking Maker MCP package version...'
-  const current = pkg.configured || 'unknown'
+  if (!pkg) return '正在检查 Maker MCP 版本...'
+  const current = pkg.configured || '未知'
   const latest = pkg.latest || ''
   const check = pkg.latest_check || 'pending'
-  if (pkg.update_available === true && latest) return `Current ${current}, latest ${latest} available`
-  if (pkg.update_available === false && latest) return `Current ${current}, latest ${latest}, up to date`
-  if (check === 'unavailable') return `Current ${current}, latest check unavailable`
-  if (check === 'cached' && latest) return `Current ${current}, latest ${latest} checked automatically`
-  if (latest) return `Current ${current}, latest ${latest}`
-  return `Current ${current}, checking latest automatically`
+  if (pkg.update_available === true && latest) return `当前 ${current}，发现新版本 ${latest}`
+  if (pkg.update_available === false && latest) return `当前 ${current}，已是最新 ${latest}`
+  if (check === 'unavailable') return `当前 ${current}，暂时无法检查最新版本`
+  if (check === 'cached' && latest) return `当前 ${current}，最新 ${latest}，已自动检查`
+  if (latest) return `当前 ${current}，最新 ${latest}`
+  return `当前 ${current}，正在自动检查最新版本`
 }
 
 function makerMcpProbeText(probe?: MakerMcpProbe | null): string {
-  if (!probe) return 'Maker MCP real probe: waiting for initialize/tools-list.'
-  const elapsed = probe.elapsed_ms !== undefined ? ` in ${probe.elapsed_ms}ms` : ''
+  if (!probe) return 'Maker MCP 真实检测：等待初始化和工具列表。'
+  const elapsed = probe.elapsed_ms !== undefined ? `，耗时 ${probe.elapsed_ms}ms` : ''
   if (probe.ok || probe.connected) {
-    return `Maker MCP real probe passed${elapsed}: ${probe.tool_count ?? 0} tools from fresh tools/list.`
+    return `Maker MCP 真实检测通过${elapsed}：读取到 ${probe.tool_count ?? 0} 个工具。`
   }
   const error = probe.error ? ` ${probe.error}` : ''
-  return `Maker MCP real probe failed${elapsed}.${error}`
+  return `Maker MCP 真实检测失败${elapsed}。${error}`
 }
 
 function makerSafetyChecks(setup: MakerSetupStatus | null, audit: any, mcp: McpStatus | null) {

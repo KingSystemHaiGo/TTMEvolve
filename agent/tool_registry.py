@@ -300,11 +300,13 @@ class ToolRegistry:
                 score += 8
             if name.startswith("browser_") and any(k in query_l for k in ("网页", "预览", "浏览器", "打开", "url", "maker.taptap")):
                 score += 7
-            if name in ("read_file", "list_directory", "search_files") and any(k in query_l for k in ("文件", "目录", "读取", "查找", "搜索", "代码")):
+            if name == "project_status" and any(k in query_l for k in ("项目状态", "了解项目", "当前项目", "项目概况", "当前进度", "git状态", "git status", "状态检查", "查看状态")):
+                score += 10
+            if name in ("read_file", "list_directory", "search_files", "project_status") and any(k in query_l for k in ("文件", "目录", "读取", "查找", "搜索", "代码", "项目", "状态", "了解")):
                 score += 6
             if name in ("modify_file", "delete_file") and any(k in query_l for k in ("修改", "写入", "创建", "删除", "修复", "实现")):
                 score += 6
-            if name == "execute_shell" and any(k in query_l for k in ("测试", "运行", "构建", "npm", "python", "命令")):
+            if name == "execute_shell" and any(k in query_l for k in ("测试", "运行", "构建", "npm", "python", "命令", "git status", "状态", "检查")):
                 score += 5
 
             # Stable fallback: built-ins remain visible when there is no match.

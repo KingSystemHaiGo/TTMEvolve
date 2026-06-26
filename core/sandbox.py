@@ -24,6 +24,7 @@ class Sandbox:
 
     # 工具名 -> 允许的文件操作类型
     TOOL_OPS = {
+        "project_status": "read",
         "read_file": "read",
         "list_directory": "read",
         "search_files": "read",

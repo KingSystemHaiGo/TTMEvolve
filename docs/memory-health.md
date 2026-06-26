@@ -113,3 +113,5 @@
 2026-06-26: Added MakerMCP automatic update detection and real MCP probe evidence. Important lesson: setup/status must not treat cached integration state as proof; use cached npm latest checks for routine polling, but expose a fresh stdio initialize/tools-list probe via `/mcp/status?probe=true` and `/mcp/probe` for real detection.
 
 2026-06-26: Unified desktop shell visual rhythm after screenshot review. Important lesson: TTMEvolve should use a single desktop design system for titlebar/topbar/chat/input/preview chrome: 32px titlebar, 44px topbar, 34-36px controls, 8/10px panel radii, shared teal/neutral tokens, and no mismatched card-like strips.
+
+2026-06-26: Hid internal tool-candidate chatter and made history/project status user-grade after screenshot feedback. Important lesson: normal users should see dismissible surfaces and task progress, not ranking/debug internals; "查看项目状态/了解项目" needs a first-class read-only `project_status` tool instead of hoping generic shell access is selected.

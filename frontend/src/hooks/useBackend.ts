@@ -556,7 +556,7 @@ export function useBackend(
           ...prev,
           sessionId,
           stage: 'running',
-          currentStatus: 'Session created',
+          currentStatus: '会话已创建，正在等待模型响应。',
         }))
         void fetchRuntimeContract(sessionId)
         let assistantText = ''
@@ -610,18 +610,18 @@ export function useBackend(
                   const wasCanceled = Boolean(payload.canceled)
                   const finalOutput = hadOutput
                     ? assistantText
-                    : payload.message || 'Task completed.'
+                    : payload.message || '任务已完成。'
                   setWorkbench((prev) => ({
                     ...prev,
                     stage: wasCanceled ? 'idle' : (prev.lastError ? 'error' : 'done'),
-                    currentStatus: payload.message || 'Task finished',
+                    currentStatus: payload.message || '任务已完成。',
                     finalOutput: wasCanceled ? '' : finalOutput,
                     currentTool: '',
                   }))
                   if (!wasCanceled && (hadOutput || payload.message)) {
                     commitAssistantMessage(finalOutput)
                   } else if (wasCanceled) {
-                    addMessage({ role: 'system', content: 'Current task canceled.' })
+                    addMessage({ role: 'system', content: '当前任务已取消。' })
                   }
                   es.close()
                   isLoadingRef.current = false
@@ -649,7 +649,6 @@ export function useBackend(
               }
               case 'tool_selection': {
                 const tools = Array.isArray(payload.tools) ? payload.tools : []
-                const names = tools.map((tool: any) => tool.name).filter(Boolean).slice(0, 4)
                 const stats = payload.stats && typeof payload.stats === 'object' ? payload.stats : {}
                 setWorkbench((prev) => ({
                   ...prev,
@@ -659,8 +658,8 @@ export function useBackend(
                       ...prev.layers.runtime,
                       status: 'active',
                       detail: payload.phase === 'action'
-                          ? '动作工具已排序'
-                        : 'Tool context ranked',
+                        ? '动作工具已排序'
+                        : '正在选择合适能力',
                       event: 'tool_selection',
                       metrics: {
                         ...(prev.layers.runtime.metrics || {}),
@@ -673,7 +672,7 @@ export function useBackend(
                       },
                     },
                   },
-                  currentStatus: names.length > 0 ? `候选工具：${names.join(', ')}` : prev.currentStatus,
+                  currentStatus: prev.currentStatus || '正在选择合适能力',
                 }))
                 break
               }
@@ -1464,12 +1463,12 @@ export function useBackend(
             return
           }
           if (isLoadingRef.current) {
-            addMessage({ role: 'system', content: 'Connection lost.' })
+            addMessage({ role: 'system', content: '连接已中断。' })
           }
           setWorkbench((prev) => ({
             ...prev,
             stage: 'error',
-            lastError: 'Connection lost.',
+            lastError: '连接已中断。',
           }))
           es.close()
           isLoadingRef.current = false
@@ -1478,7 +1477,7 @@ export function useBackend(
           runQueuedNext()
         }
       } catch (err: any) {
-        addMessage({ role: 'system', content: `Failed to send: ${err.message}` })
+        addMessage({ role: 'system', content: `发送失败：${err.message}` })
         setWorkbench((prev) => ({
           ...prev,
           stage: 'error',
@@ -1501,7 +1500,7 @@ export function useBackend(
         addMessage({ role: 'user', content: displayText || task })
         setWorkbench((prev) => ({
           ...prev,
-          currentStatus: `Queued: ${pendingQueueRef.current.length}`,
+          currentStatus: `已排队：${pendingQueueRef.current.length}`,
         }))
         return
       }
@@ -1517,7 +1516,7 @@ export function useBackend(
     setApproval(null)
     setWorkbench((prev) => ({
       ...prev,
-      currentStatus: 'Canceling task',
+      currentStatus: '正在停止当前任务。',
       lastError: '',
     }))
     try {

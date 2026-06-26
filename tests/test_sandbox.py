@@ -27,6 +27,13 @@ def test_workspace_allows_git():
     print("[PASS] workspace-write allows git")
 
 
+def test_read_only_allows_project_status():
+    sb = Sandbox(_PROJECT_ROOT, SandboxMode.READ_ONLY)
+    result = sb.validate("project_status", {})
+    assert result["allowed"], result
+    print("[PASS] read-only allows project status")
+
+
 def test_path_escape_blocked():
     sb = Sandbox(_PROJECT_ROOT, SandboxMode.WORKSPACE_WRITE)
     result = sb.validate("read_file", {"path": "../../../etc/passwd"})
@@ -43,6 +50,7 @@ def test_dangerous_command_blocked():
 
 if __name__ == "__main__":
     test_read_only_blocks_write()
+    test_read_only_allows_project_status()
     test_workspace_allows_git()
     test_path_escape_blocked()
     test_dangerous_command_blocked()

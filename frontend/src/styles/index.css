@@ -6513,3 +6513,27 @@ select:disabled {
 :root[data-theme='dark'] .status-pill-mint {
   background: linear-gradient(180deg, rgba(42, 42, 42, 0.98), var(--tm-primary-surface));
 }
+
+.chat-history-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.chat-history-head button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--tm-border);
+  border-radius: var(--tm-radius);
+  background: var(--tm-surface-soft);
+  color: var(--tm-text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.chat-history-head button:hover {
+  border-color: var(--tm-primary-border);
+  background: var(--tm-primary-surface);
+  color: var(--tm-primary-deep);
+}

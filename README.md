@@ -58,6 +58,8 @@ The launcher prefers embedded runtimes under `portable/`, then `.venv/`, then sy
 | Preview | Tauri uses a native child WebView2 for the live, clickable Maker preview; Playwright remains separate for Agent automation. | Tauri 使用原生子 WebView2 作为可点击交互的 Maker 预览；Playwright 仅保留给 Agent 自动化操作。 |
 | Permission mode | Each session can choose `safe`, `default`, or `autonomous` in the chat send area. | 每次会话都可以在聊天发送区选择 `safe`、`default` 或 `autonomous` 权限模式。 |
 | Chat shape | User messages are right-side bubbles; assistant answers are full-width Markdown pages; tool events are compact status rows. | 用户消息是右侧气泡；助手回复是全宽 Markdown 页面；工具事件是紧凑状态行。 |
+| Product polish | History is a dismissible popover; normal users see action progress, not internal tool candidate lists. | 历史记录是可关闭浮层；普通用户只看到动作进度，不看到内部候选工具列表。 |
+| Project status | `project_status` gives the Agent a first-class read-only way to inspect the current project, Git state, and top-level files. | `project_status` 让 Agent 可以用一等只读工具查看当前项目、Git 状态和顶层文件。 |
 
 ## Architecture / 架构
 
@@ -148,6 +150,8 @@ The latest full sync validated these paths:
 
 最近一次完整同步已验证：
 
+- `npm.cmd --prefix frontend run build` -> passed after history/tool-status UI fixes
+- `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_sandbox.py -q` -> `25 passed`
 - `.venv\Scripts\python.exe -m pytest -q` -> `598 passed, 14 skipped`
 - `npm.cmd --prefix frontend run build` -> passed
 - `npm.cmd --prefix electron run build` -> passed

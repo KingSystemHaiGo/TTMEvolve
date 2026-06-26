@@ -35,6 +35,7 @@ class Executor:
 
     # 允许直接执行的本地工具
     ALLOWED_LOCAL_TOOLS = {
+        "project_status",
         "read_file",
         "list_directory",
         "search_files",
@@ -249,6 +250,7 @@ class Executor:
             return result
 
     def _register_local_handlers(self) -> None:
+        self._tool_handlers["project_status"] = self._project_status
         self._tool_handlers["read_file"] = self._read_file
         self._tool_handlers["list_directory"] = self._list_directory
         self._tool_handlers["search_files"] = self._search_files
@@ -260,6 +262,54 @@ class Executor:
         self._tool_handlers["browser_click"] = self._browser_click
         self._tool_handlers["browser_evaluate"] = self._browser_evaluate
         self._tool_handlers["browser_screenshot"] = self._browser_screenshot
+
+    def _project_status(
+        self,
+        include_git: bool = True,
+        include_files: bool = True,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        root = self.project_root.resolve()
+        result: Dict[str, Any] = {
+            "ok": True,
+            "project_root": str(root),
+            "exists": root.exists(),
+            "top_level": [],
+            "git": {},
+            "markers": {
+                "git": (root / ".git").exists(),
+                "package_json": (root / "package.json").exists(),
+                "pyproject": (root / "pyproject.toml").exists(),
+                "config": (root / "config.json").exists(),
+                "maker_config": (root / ".maker-mcp" / "config.json").exists(),
+                "project_settings": (root / ".project" / "settings.json").exists(),
+            },
+        }
+        if include_files and root.exists():
+            items = []
+            for p in sorted(root.iterdir(), key=lambda item: (not item.is_dir(), item.name.lower()))[:40]:
+                items.append({"name": p.name, "is_dir": p.is_dir()})
+            result["top_level"] = items
+        if include_git and (root / ".git").exists():
+            git = subprocess.run(
+                ["git", "status", "--short", "--branch"],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=min(5.0, self.shell_timeout_seconds),
+            )
+            lines = [line for line in git.stdout.splitlines() if line.strip()]
+            result["git"] = {
+                "ok": git.returncode == 0,
+                "returncode": git.returncode,
+                "branch": lines[0] if lines else "",
+                "changed_count": max(0, len(lines) - 1),
+                "changes": lines[1:25],
+                "stderr": git.stderr,
+            }
+        return result
 
     @staticmethod
     def _handler_accepts_session_id(handler: Callable[..., Any]) -> bool:

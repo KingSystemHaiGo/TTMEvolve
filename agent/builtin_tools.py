@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 def register_builtin_tools(tools: "ToolRegistry", executor: "Executor") -> None:
     """注册所有内置工具描述。"""
+    _register_project_status(tools, executor)
     _register_read_file(tools, executor)
     _register_list_directory(tools, executor)
     _register_search_files(tools, executor)
@@ -23,6 +24,22 @@ def register_builtin_tools(tools: "ToolRegistry", executor: "Executor") -> None:
     _register_git_commit(tools, executor)
     _register_browser_tools(tools, executor)
 
+
+
+def _register_project_status(tools: "ToolRegistry", executor: "Executor") -> None:
+    tools.register(
+        name="project_status",
+        description="查看当前项目概况、Git 状态、主要目录和运行配置，用于了解项目状态或快速诊断工作区。",
+        parameters={
+            "type": "object",
+            "properties": {
+                "include_git": {"type": "boolean", "description": "是否包含 git status 摘要，默认 true"},
+                "include_files": {"type": "boolean", "description": "是否列出顶层文件和目录，默认 true"},
+            },
+        },
+        handler=executor.propose_action,
+        source="builtin",
+    )
 
 def _register_read_file(tools: "ToolRegistry", executor: "Executor") -> None:
     tools.register(
