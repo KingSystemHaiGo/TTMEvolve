@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 main.py -- TTMEvolve CLI entry point
 
@@ -187,6 +188,12 @@ def main():
     parser = argparse.ArgumentParser(description="TTMEvolve CLI")
     parser.add_argument("--config", default="config.json", help="Config file path")
     parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="Server port (default: config.llm.server_port or 7345)",
+    )
+    parser.add_argument(
         "--provider",
         choices=["local", "deepseek", "openai", "claude", "mock"],
         default=None,
@@ -212,7 +219,7 @@ def main():
         provider = config.llm_provider()
 
     if args.serve:
-        server = create_default_app_server(args.config, provider)
+        server = create_default_app_server(args.config, provider, port=args.port)
         try:
             server.start()
         except KeyboardInterrupt:

@@ -1018,3 +1018,50 @@
 - New rule: `.maker-mcp/config.json` existence is not enough. Treat empty ids, `0`, `none`, `null`, and `undefined` as `maker_project_not_bound`.
 - Setup Doctor now exposes `project_bound`; `maker_project_not_bound` is a blocker. GUI one-click repair should run Maker init/binding for this state, not just reconnect MCP.
 - Internal Maker MCP config normalization must explicitly write `TAPTAP_MAKER_HOME` and `TTM_MAKER_HOME` into `config.json`, and AppServer startup runs this normalization before first MCP connection.
+
+## 2026-06-25 / 2026-06-26 v0.6.0 + v0.7.0 Grand Releases
+
+- v0.6.0 完成并推送：Plan First + Coding Agent 强化 + Maker 策划与文案 + 知识整合。详见 `docs/v0.6.0-module-index.md`。
+- v0.6.0 含 30 项代码审查修复（Critical 5 / Medium 13 / Low 12）。
+- v0.7.0 完成并推送 tag：完整 Windows 桌面应用。详见 `docs/releases/v0.7.0-grand-release.md`。
+- v0.7.0 关键变更：
+  - **架构**：Electron → Tauri 2.x（Rust + WebView2）
+  - **LLM**：本地模型 → 全面云端（LLMRouter + 9 Provider + 故障转移）
+  - **包体积**：~450MB → ~200MB（-60%）
+  - **新增主题系统** + Settings 5 面板 + UI 组件库
+  - **192/192 测试通过**
+- v0.7.0 借鉴 Rinorsi/taptap-maker-plus 的主题与 Settings 设计；借鉴 taptap-maker-project 的 COS 协议。
+- 七大终极目标规划见 `docs/seven-grand-goals.md`。
+- COS 协议融入计划见 `docs/cos-integration.md`。
+
+## 2026-06-26 v0.8.0 - v1.3.0 系列
+
+- v0.8.0：Tauri 启动时自动拉起 fast_ops HTTP 桥接（端口 8766），统一生命周期管理（关闭时同时停 Python + 桥接）。`tests/test_tauri_lifecycle.py` 12 个测试。
+- v0.9.0：Tauri 三平台 targets（Windows NSIS+MSI、Linux DEB+AppImage、macOS DMG+APP）；启动器三模式（gui / cli / headless）；`tests/test_start_scripts.py` 14 个测试。
+- v1.0.0：tauri-plugin-updater 集成 + Python 客户端；`src-tauri/src/updater.rs` + `core/updater_client.py`；31 个测试覆盖版本比较、prerelease 语义、离线 fallback。
+- v1.0.0：5 个桌面图标（PNG 32x32 / 128x128 / 256x256 + icon.ico + icon.icns），通过 `scripts/build_portable/build_icons.py` 自动生成（品牌色 #00D9C5）。
+- v1.1.0：跨平台代码签名（Windows signtool、macOS codesign+notarytool、Linux GPG）；`scripts/build_portable/build_*.py` 4 个独立脚本 + 1 个编排器；18 个 dry-run 测试。
+- v1.2.0：E2E 测试（19 个）覆盖 Settings API、fast_ops fallback、LLM Router、Intent Classifier、Maker Knowledge、Updater、Critical modules；不依赖 HTTP server boot。
+- v1.3.0：国际化（i18n）— `core/i18n.py` + `i18n/en-US.json` + `i18n/zh-CN.json`（63 翻译字符串）；支持 locale 解析、prefix fallback、占位符替换、复数辅助、线程安全；31 个测试。
+- v1.4.0：完整 release 检查 + CHANGELOG.md + sprint-board 更新。
+- 累计：**390/390 测试通过**。
+
+## 2026-06-26 v1.5.0 Bug + 仓库整理
+
+- 实际运行 `python main.py --serve --mock` 发现 4 个 bug：
+  - **Bug #1** `/api/settings/runtime-info` 返回 404（待修复）
+  - **Bug #2** `main.py --serve --port X` 报 "unrecognized arguments: --port"（**已修复**：新增 `--port` argparse 参数 + `create_default_app_server` port 参数）
+  - **Bug #3** `--mock` 选项可能未生效（待进一步调试）
+  - **Bug #4** main.py 在 Windows 下 GBK 编码读取问题（**已修复**：添加 UTF-8 文件头声明）
+- 仓库整理：
+  - 删除 `docs/llm-feedback/*.json`（22 个 v0.4.x 测试记录）
+  - 删除 `docs/architecture/{llama-cpp-tuning, self-evolving-agent-compliance, code-review-roadmap, agent-ide-redesign, adr-0001, api-first-llm-runtime}.md`（被 v0.7.0+ 取代）
+  - 删除 `docs/design/ttmevolve-maker-cockpit.md`（设计稿过期）
+  - 删除 `docs/sessions/2026-06-{22,23,24}.md`（阶段性 session 笔记）
+  - 删除 `docs/roadmap-v0.4.md`（被 `next-steps-roadmap.md` 取代）
+  - 删除 `start-gui.bat/.ps1`、`start-practice.bat/.ps1`（旧 Electron 启动器）
+  - 删除 `config.embedded.json`（旧 config）
+
+## Last updated: 2026-06-26 08:42
+
+## Last updated: 2026-06-26 08:43

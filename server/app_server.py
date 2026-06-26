@@ -2446,6 +2446,7 @@ class AppServer:
             def do_GET(self) -> None:
                 parsed = urlparse(self.path)
                 path = parsed.path
+                import traceback as _tb
 
                 if path == "/" or path == "/index.html":
                     self._serve_static("index.html")
@@ -3128,6 +3129,12 @@ class AppServer:
                     self._json_response(200, server.skill_sync_registry.status(force=force))
                     return
 
+                # 兜底：未匹配的请求 → 404
+                # 提示：当 path 是 /api/settings/* 但仍 404，说明前一个 if 块
+                # 在调用 build_* 时抛了异常，被 Python 异常机制吞掉。
+                import sys as _dbg_sys
+                _dbg_sys.stderr.write(f"[do_GET-404] path={path!r}\n")
+                _dbg_sys.stderr.flush()
                 self.send_error(404, "Not found")
 
             def do_POST(self) -> None:
@@ -3446,7 +3453,11 @@ class AppServer:
             self._httpd.shutdown()
 
 
-def create_default_app_server(config_path: Optional[str] = None, provider: Optional[str] = None) -> AppServer:
+def create_default_app_server(
+    config_path: Optional[str] = None,
+    provider: Optional[str] = None,
+    port: Optional[int] = None,
+) -> AppServer:
     """使用默认配置创建 App Server。"""
     cfg = Config(config_path) if config_path else Config()
     try:
@@ -3469,7 +3480,10 @@ def create_default_app_server(config_path: Optional[str] = None, provider: Optio
         config=cfg,
         human_confirm_callback=None,
     )
-    return AppServer(agent, approval_bridge=bridge)
+    server = AppServer(agent, approval_bridge=bridge)
+    if port is not None:
+        server.port = port
+    return server
 
 
 if __name__ == "__main__":
