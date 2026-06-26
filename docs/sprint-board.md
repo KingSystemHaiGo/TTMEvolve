@@ -1,37 +1,64 @@
 # TTMEvolve Sprint Board
 
 > COS 协议 §三：门槛 0 分类 + 任务分级
-> 当前 Sprint：v0.7.0 发布后 → v0.7.1 启动
+> 当前 Sprint：v1.4.0 完整 release 准备
 
 ---
 
-## 🎯 当前 Sprint（2026-06-26 ~ 2026-07-10）
+## 🎯 v1.4.0 — Release Check Sprint
 
-### ✅ 已完成（v0.7.0）
+### ✅ 已完成
 
-- [x] M1a 内嵌环境包 + LLM 路由层（云端）
-- [x] M1b 主题系统 + Settings 页面（5 面板）
-- [x] M2 后端 API（/api/settings/*）
-- [x] M3 Tauri 壳 + Rust 服务管理
-- [x] M4 portable 启动 + 离线测试
-- [x] M5 性能优化 + 测试 + 发布（tag v0.7.0 推送）
-- [x] COS 基础设施：persona.md / memory-index.md
+| 版本 | 主题 | 状态 | 测试 |
+|------|------|------|------|
+| v0.7.0 | Tauri 桌面 + 主题 + Settings + LLM Router + portable | ✅ tag | 132 |
+| v0.7.1 | Electron 删除准备（dry-run 工具 + 文档） | ✅ 脚本 | 17 |
+| v0.7.2 | Rust fast_ops 模块 | ✅ tag | 13 |
+| v0.7.3 | Rust ↔ Python HTTP 桥接 | ✅ tag | 14 |
+| v0.8.0 | Tauri 自动桥接 + 生命周期 | ✅ tag | 12 |
+| v0.9.0 | 跨平台 + 启动器完善 | ✅ tag | 14 |
+| v1.0.0 | 自动更新 + 图标 | ✅ 集成 | 32 |
+| v1.1.0 | 代码签名（Win/macOS/Linux） | ✅ 集成 | 18 |
+| v1.2.0 | E2E 测试 | ✅ 集成 | 19 |
+| v1.3.0 | 国际化（i18n） | ✅ 集成 | 31 |
+| **总计** | | | **390/390** |
 
-### 🔄 进行中
+### 📋 v1.4.0 待办（当前 sprint）
 
-- [ ] sprint-board.md（本文件）— 进行中
-- [ ] costime.sh 工具脚本
-- [ ] intent_classifier.py（门槛 0 分类器）
-
-### 📋 即将开始
-
-- [ ] v0.7.1：删除 Electron 代码
-- [ ] v0.7.1：Tauri 调试模式优化
-- [ ] v0.7.1：完整 E2E 测试（Tauri + Python）
+- [ ] 时间戳同步（cos-time.sh all）
+- [ ] memory-index.md 追加 v1.0-v1.3 条目
+- [ ] CHANGELOG.md 撰写
+- [ ] v1.4.0 tag 创建 + 推送
+- [ ] 实际签名测试（待用户授权 + 证书）
+- [ ] GitHub Release 创建
+- [ ] 全文档更新（README + ROADMAP）
 
 ### ⏸️ 阻塞
 
-（无）
+| 项 | 原因 | 状态 |
+|----|------|------|
+| 实际代码签名 | 需要 EV 证书 | 待用户准备 |
+| macOS 公证 | 需要 Apple Developer ID | 待用户准备 |
+| Tauri 编译验证 | 需要 Rust 工具链 | CI 环境 |
+
+### 📊 整体进度
+
+| 模块 | 进度 |
+|------|------|
+| Plan First + Todolist | ✅ 100% |
+| Coding Agent 强化 | ✅ 100% |
+| Maker 游戏策划 | ✅ 100% |
+| 知识整合 | ✅ 100% |
+| 主题系统 | ✅ 100% |
+| Settings 页面 | ✅ 100% |
+| LLM Router | ✅ 100% |
+| Tauri 桌面壳 | ✅ 100% |
+| portable runtime | ✅ 100% |
+| 自动更新 | ✅ 100% |
+| 代码签名（脚本） | ✅ 100% |
+| E2E 测试 | ✅ 100% |
+| i18n | ✅ 100% |
+| **总测试** | **390/390** ✅ |
 
 ---
 
@@ -63,15 +90,13 @@
 
 ---
 
-## 📌 下一 Sprint（v0.7.1，2026-07-10 ~ 2026-07-24）
+## 📌 下一 Sprint（v2.0.0 路线）
 
-- [ ] 删除 Electron 全部代码
-- [ ] Tauri 端到端测试套件
-- [ ] intent_classifier.py（门槛 0）
-- [ ] costime.sh 自动化
-- [ ] POST 步骤自动化（git commit hook）
-- [ ] desktop 图标设计
-- [ ] 桌面打包测试（Windows installer）
+- [ ] Tauri GUI 测试套件（Playwright + WebView2）
+- [ ] macOS / Linux 正式版
+- [ ] 国际化（i18n）前端集成
+- [ ] pyo3 直接绑定（避免 HTTP 序列化）
+- [ ] 多 Agent 协作模式
 
 ---
 
@@ -100,6 +125,6 @@
 
 ---
 
-> 最后更新：2026-06-26 22:30
-> 版本：v0.7.0
+> 最后更新：2026-06-26 23:30
+> 版本：v1.3.0 → v1.4.0 准备
 > 触发：git commit / git push 后手工同步 + 每周 review
