@@ -221,6 +221,92 @@ def test_executor_project_status_reports_git_and_top_level():
         assert any(item["name"] == "package.json" for item in result["top_level"])
 
 
+def test_coding_agent_minimal_programming_smoke():
+    """Prove the local agent core can do basic programming work end-to-end.
+
+    This covers the user-visible baseline for a coding agent: inspect project
+    state, create a source file, run a command against it, and finish with a
+    useful answer.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tools = ToolRegistry(root / "skills")
+        executor = _make_executor(root)
+        for name, description, parameters in [
+            ("project_status", "查看当前项目概况、Git 状态、主要目录和运行配置", {"type": "object", "properties": {}}),
+            (
+                "modify_file",
+                "新建或修改项目内文件",
+                {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "content": {"type": "string"},
+                    },
+                    "required": ["path", "content"],
+                },
+            ),
+            (
+                "execute_shell",
+                "执行允许的 shell 命令",
+                {
+                    "type": "object",
+                    "properties": {"command": {"type": "string"}},
+                    "required": ["command"],
+                },
+            ),
+        ]:
+            tools.register(
+                name=name,
+                description=description,
+                parameters=parameters,
+                handler=executor.propose_action,
+            )
+
+        events = []
+        llm = MockLLM([
+            {"tool": "project_status", "params": {}},
+            {
+                "tool": "modify_file",
+                "params": {
+                    "path": "hello_agent.py",
+                    "content": "print('TTMEVOLVE_AGENT_OK')\n",
+                },
+            },
+            {"tool": "execute_shell", "params": {"command": "python hello_agent.py"}},
+            {"done": True, "output": "已创建并运行 hello_agent.py，输出 TTMEVOLVE_AGENT_OK。"},
+        ])
+        loop = ReActLoop(
+            llm=llm,
+            tools=tools,
+            executor=executor,
+            event_log=EventLog(root / "events.jsonl"),
+            max_iterations=6,
+            event_sink=events.append,
+        )
+
+        result = loop.run("新建一个 Python 文档并运行验证", session_id="coding-smoke")
+        observations = [step.get("observation", {}) for step in result["trajectory"]]
+        event_types = [event.get("type") for event in events]
+
+        assert result["output"].startswith("已创建并运行")
+        assert (root / "hello_agent.py").read_text(encoding="utf-8") == "print('TTMEVOLVE_AGENT_OK')\n"
+        assert [step["action"]["tool"] for step in result["trajectory"][:3]] == [
+            "project_status",
+            "modify_file",
+            "execute_shell",
+        ]
+        assert observations[0]["ok"] is True
+        assert observations[1]["ok"] is True
+        assert observations[1]["committed"] is True
+        assert observations[2]["ok"] is True
+        assert "TTMEVOLVE_AGENT_OK" in observations[2]["stdout"]
+        assert "tool_selection" in event_types
+        assert "context_sync" in event_types
+        assert result["plan_validation"]["counts"]["pass"] >= 3
+        assert result["goal_checklist"]["overall"] in {"active", "done"}
+
+
 def test_tool_registry_preflight_returns_alternatives():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -777,6 +863,9 @@ if __name__ == "__main__":
     test_tool_registry_validate_unknown_tool()
     test_tool_registry_validate_builtin_tool()
     test_tool_registry_ranks_and_limits_relevant_tools()
+    test_tool_registry_prioritizes_project_status_for_project_questions()
+    test_executor_project_status_reports_git_and_top_level()
+    test_coding_agent_minimal_programming_smoke()
     test_tool_registry_preflight_returns_alternatives()
     test_react_loop_repairs_invalid_tool_call()
     test_react_loop_rejects_unknown_tool()

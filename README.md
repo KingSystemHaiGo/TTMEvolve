@@ -83,6 +83,13 @@ flowchart TB
     Memory --> Docs["docs/ persistent knowledge"]
 ```
 
+Agent core audit:
+
+Agent 核心审计：
+
+- [Agent Core Health Audit 2026-06-26](docs/architecture/agent-core-health-audit-2026-06-26.md) documents the verified coding-agent loop, layered runtime evidence, safety boundaries, and the remaining gap before any Claude Code/Codex parity claim.
+- [Agent Core Health Audit 2026-06-26](docs/architecture/agent-core-health-audit-2026-06-26.md) 记录已验证的编程 Agent 闭环、分层运行证据、安全边界，以及距离 Claude Code/Codex 级别仍需补齐的差距。
+
 ## Repository Map / 目录结构
 
 | Path | English | 中文 |
@@ -152,6 +159,8 @@ The latest full sync validated these paths:
 
 - `npm.cmd --prefix frontend run build` -> passed after history/tool-status UI fixes
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_sandbox.py -q` -> `25 passed`
+- `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_coding_agent_minimal_programming_smoke -q` -> `1 passed`
+- `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_sandbox.py tests\test_tool_timeouts.py tests\test_plan_first.py tests\test_plan_first_integration.py tests\test_plan_validation.py tests\test_coding_agent_v060.py tests\test_runtime_events.py tests\test_runtime_contract.py -q` -> `82 passed`
 - `.venv\Scripts\python.exe -m pytest -q` -> `598 passed, 14 skipped`
 - `npm.cmd --prefix frontend run build` -> passed
 - `npm.cmd --prefix electron run build` -> passed
