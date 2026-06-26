@@ -152,3 +152,10 @@
 - Added fresh Maker MCP stdio initialize/tools-list probe surfaced through `/mcp/probe`, `/mcp/status?probe=true`, and Maker setup evidence.
 - GUI now shows package update evidence and real probe result, while normal polling uses cached checks.
 - Verified: focused Python MCP/setup diagnostics and frontend build.
+
+## 2026-06-26 Desktop Visual Rhythm Polish
+
+- Status: done.
+- Unified titlebar, Maker action topbar, chat context cards, conversation bar, input row, and tool buttons around shared radius/control-height tokens.
+- Reduced mismatched mint panels and aligned the shell into one desktop surface.
+- Verified: frontend build and browser screenshot check at 1600x900.

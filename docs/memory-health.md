@@ -111,3 +111,5 @@
 2026-06-26: Rebalanced cockpit status placement after user feedback. Important lesson: project/model/config are current-context data and belong at the upper-left of the chat surface; Maker MCP is global runtime status and belongs in the top bar; token and latency are per-answer evidence and should render below assistant replies.
 
 2026-06-26: Added MakerMCP automatic update detection and real MCP probe evidence. Important lesson: setup/status must not treat cached integration state as proof; use cached npm latest checks for routine polling, but expose a fresh stdio initialize/tools-list probe via `/mcp/status?probe=true` and `/mcp/probe` for real detection.
+
+2026-06-26: Unified desktop shell visual rhythm after screenshot review. Important lesson: TTMEvolve should use a single desktop design system for titlebar/topbar/chat/input/preview chrome: 32px titlebar, 44px topbar, 34-36px controls, 8/10px panel radii, shared teal/neutral tokens, and no mismatched card-like strips.
