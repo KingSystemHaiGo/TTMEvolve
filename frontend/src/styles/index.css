@@ -315,10 +315,9 @@ button {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 46px;
-  padding: 8px 10px;
+  justify-content: flex-start;
+  min-height: 44px;
+  padding: 5px 10px;
   background: var(--tm-surface-panel-strong);
   border-bottom: 1px solid var(--tm-border);
   box-shadow: 0 8px 22px rgba(6, 10, 38, 0.04);
@@ -370,14 +369,16 @@ button {
 .status-pill {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
-  min-height: 28px;
-  max-width: 210px;
-  padding: 4px 9px;
+  height: 32px;
+  max-width: 220px;
+  padding: 0 11px;
   border: 1px solid var(--tm-border);
   border-radius: 999px;
   background: var(--tm-surface);
   color: var(--tm-text-muted);
+  line-height: 1;
   white-space: nowrap;
   box-shadow: var(--tm-shadow-soft);
 }
@@ -387,6 +388,7 @@ button {
 }
 
 .status-pill strong {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--tm-text);
@@ -412,23 +414,27 @@ button {
 .cockpit-actions {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
-  flex-shrink: 0;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
 }
 
 .cockpit-link-button,
 .topbar-button,
 .status-action-button {
   flex-shrink: 0;
-  min-height: 28px;
-  padding: 0 10px;
+  height: 32px;
+  padding: 0 11px;
   border: 1px solid var(--tm-primary-border);
   border-radius: var(--tm-radius-sm);
   background: var(--tm-primary-surface);
   color: var(--tm-primary-deep);
   font-size: 12px;
   font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .topbar-button.primary,
@@ -6211,13 +6217,20 @@ select:disabled {
 }
 
 @media (max-width: 1180px) {
-  .cockpit-status {
-    display: flex;
-    flex: 0 1 auto;
+  .cockpit-actions {
+    gap: 6px;
   }
 
-  .cockpit-status .status-pill {
-    max-width: 190px;
+  .topbar-button,
+  .status-action-button,
+  .status-pill {
+    height: 30px;
+    padding-inline: 9px;
+    font-size: 11px;
+  }
+
+  .status-pill {
+    max-width: 170px;
   }
 
   .brand-lockup {
@@ -6231,10 +6244,8 @@ select:disabled {
   }
 
   .cockpit-header {
-    align-items: flex-start;
-    flex-direction: column;
-    height: auto;
-    padding: 10px 12px;
+    min-height: 42px;
+    padding: 5px 8px;
   }
 
   .brand-lockup {
