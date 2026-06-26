@@ -77,14 +77,21 @@ def test_layer_event_contract_normalizes_payload():
 def test_agent_run_emits_ordered_layer_handoff_events():
     with tempfile.TemporaryDirectory() as tmp:
         agent = _make_agent(Path(tmp))
+        bus_events = []
+        agent.event_bus.subscribe(bus_events.append, session_id="layer-test")
         result = agent.run("make a tiny scene", session_id="layer-test")
         events = [
             event["payload"]
             for event in agent.get_events("layer-test")
             if event.get("type") == "layer"
         ]
+        bus_types = [event.get("type") for event in bus_events]
 
         assert result["output"] == "ok"
+        assert "status" in bus_types
+        assert "output" in bus_types
+        assert [event.get("type") for event in agent.get_events("layer-test")] == bus_types
+        assert all(event.get("meta", {}).get("channel") == "session" for event in bus_events)
         assert [event["event"] for event in events] == [
             "agent.run.started",
             "agent.run.finished",
@@ -99,6 +106,23 @@ def test_agent_run_emits_ordered_layer_handoff_events():
         assert events[3]["target_layer"] == "learning"
         assert events[3]["metrics"]["health_status"] in {"healthy", "degraded", "stalled", "crashed"}
         assert result["learning_job"]["status"] == "skipped"
+
+
+def test_agent_event_bus_replays_layer_events_without_direct_queue_access():
+    with tempfile.TemporaryDirectory() as tmp:
+        agent = _make_agent(Path(tmp))
+        agent.run("make a tiny scene", session_id="replay-layer")
+
+        replay = agent.event_bus.replay(session_id="replay-layer", event_type="layer", limit=0)
+
+        assert [event["payload"]["event"] for event in replay] == [
+            "agent.run.started",
+            "agent.run.finished",
+            "runtime.audit.started",
+            "runtime.audit.finished",
+            "learning.reflection.skipped",
+        ]
+        assert all(event["meta"]["correlation_id"] == "replay-layer" for event in replay)
 
 
 def test_agent_learning_layer_runs_async_after_result():

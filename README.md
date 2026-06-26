@@ -101,6 +101,8 @@ Agent 核心审计：
 - [Agent Core Health Audit 2026-06-26](docs/architecture/agent-core-health-audit-2026-06-26.md) 记录已验证的编程 Agent 闭环、分层运行证据、安全边界，以及距离 Claude Code/Codex 级别仍需补齐的差距。
 - `core/runtime_events.py` now contains a lightweight in-process Runtime Event Bus for typed envelopes, filtered subscribers, bounded replay, and non-breaking observers. It is wired into AppServer sessions while keeping the existing SSE/SQLite event shape compatible.
 - `core/runtime_events.py` 现在提供轻量级进程内 Runtime Event Bus，支持统一事件 envelope、过滤订阅、有界回放和观察者异常隔离；它已接入 AppServer 会话，同时保持现有 SSE/SQLite 事件形状兼容。
+- `TapMakerAgent` now publishes ReAct and layer events into its own Runtime Event Bus while preserving `get_events()` and AppServer `event_sink` compatibility, so future observers can attach without reading private queues.
+- `TapMakerAgent` 现在会把 ReAct 与 layer 事件发布到自身 Runtime Event Bus，同时保持 `get_events()` 和 AppServer `event_sink` 兼容，后续观察者不必读取私有队列。
 
 ## Repository Map / 目录结构
 
@@ -173,6 +175,7 @@ The latest full sync validated these paths:
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_tool_registry_prioritizes_project_status_for_project_questions tests\test_tool_call_validation.py::test_tool_registry_keeps_project_and_shell_tools_for_basic_project_work tests\test_tool_call_validation.py::test_tool_registry_keeps_shell_tool_for_cmd_and_terminal_requests tests\test_tool_call_validation.py::test_tool_registry_does_not_let_maker_tools_crowd_out_basic_project_work -q` -> `4 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_shared_memory_policy.py tests\test_app_server_resume.py::test_app_server_evidence_bundle_endpoint -q` -> `37 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_runtime_events.py tests\test_app_server_resume.py::test_session_emit_publishes_to_runtime_event_bus_and_store tests\test_app_server_resume.py::test_app_server_sessions_share_runtime_event_bus -q` -> `7 passed`
+- `.venv\Scripts\python.exe -m pytest tests\test_runtime_events.py tests\test_layer_events.py tests\test_app_server_resume.py::test_session_emit_publishes_to_runtime_event_bus_and_store tests\test_app_server_resume.py::test_app_server_sessions_share_runtime_event_bus tests\test_app_server_resume.py::test_app_server_evidence_bundle_endpoint -q` -> `13 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_sandbox.py -q` -> `25 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_coding_agent_minimal_programming_smoke -q` -> `1 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_coding_agent_can_create_user_document -q` -> `1 passed`

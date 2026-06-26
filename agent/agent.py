@@ -32,6 +32,7 @@ from core.sandbox import SandboxMode
 from core.approval import ApprovalPolicy
 from core.cancellation import TaskCancelled
 from core.layer_events import make_layer_event
+from core.runtime_events import RuntimeEventBus
 from core.resource_registry import ResourceRegistry
 from core.evolution_protocol import EvolutionProtocol
 from core.runtime_contract import build_maker_briefing, build_runtime_contract
@@ -75,6 +76,7 @@ class TapMakerAgent:
         self.human_confirm_callback = human_confirm_callback
         self.cancel_check = cancel_check
         self.event_sink: Optional[Callable[[Dict[str, Any]], None]] = None
+        self.event_bus = RuntimeEventBus()
         self._event_queues: Dict[str, List[Dict[str, Any]]] = {}
         self._learning_jobs: Dict[str, Dict[str, Any]] = {}
         self._learning_jobs_lock = threading.Lock()
@@ -507,9 +509,31 @@ class TapMakerAgent:
         sid = event.get("session_id")
         if not sid:
             return
-        q = self._event_queues.get(sid)
+        self._record_event(sid, event, notify_sink=False)
+
+    def _record_event(
+        self,
+        session_id: str,
+        event: Dict[str, Any],
+        *,
+        sink: Optional[Callable[[Dict[str, Any]], None]] = None,
+        notify_sink: bool = True,
+    ) -> Dict[str, Any]:
+        recorded = self.event_bus.publish(
+            event,
+            default_source=str(event.get("source") or "agent"),
+            correlation_id=session_id,
+        )
+        q = self._event_queues.get(session_id)
         if q is not None:
-            q.append(event)
+            q.append(recorded)
+        target_sink = sink or self.event_sink
+        if notify_sink and callable(target_sink):
+            try:
+                target_sink(recorded)
+            except Exception:
+                pass
+        return recorded
 
     def _emit_layer_event(
         self,
@@ -538,15 +562,7 @@ class TapMakerAgent:
             cause=cause,
             metrics=metrics,
         ).to_turn_event()
-        q = self._event_queues.get(session_id)
-        if q is not None:
-            q.append(event_payload)
-        target_sink = sink or self.event_sink
-        if callable(target_sink):
-            try:
-                target_sink(event_payload)
-            except Exception:
-                pass
+        self._record_event(session_id, event_payload, sink=sink)
 
     def run(self, task: str, session_id: Optional[str] = None) -> Dict[str, Any]:
         """执行一个开发任务。"""

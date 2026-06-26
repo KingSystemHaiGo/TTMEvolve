@@ -178,3 +178,11 @@
 - Wired AppServer sessions through the shared server event bus while preserving existing SQLite/SSE event shape.
 - Verified focused runtime-event and AppServer session bus tests.
 - Next: migrate more Agent/Core/Learning producers and project-management observers onto the bus instead of direct event queues.
+
+## 2026-06-26 Agent Event Bus Migration
+
+- Status: verifying.
+- TapMakerAgent now publishes ReAct and layer events through an Agent-owned RuntimeEventBus before keeping the compatibility session queue.
+- Agent event replay no longer requires direct _event_queues access for consumers that can subscribe to the bus.
+- Verified layer-event tests plus runtime/AppServer bus focused tests.
+- Next: expose bus stats/evidence in runtime readiness and move project-management observers onto subscriptions.

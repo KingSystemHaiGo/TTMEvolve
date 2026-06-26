@@ -186,3 +186,10 @@ pm.cmd --prefix frontend run build passed; focused tool-routing pytest for proje
 - AppServer sessions now publish through a shared AppServer.event_bus before writing SQLite/SSE queues, so future runtime metrics, learning, and project-management components can subscribe without direct coupling to Session internals.
 - Added focused tests for bus filtering/replay/history bounds/error isolation and for Session/AppServer bus integration.
 - This is a decoupling foundation, not a claim that every producer/consumer has been migrated to the bus yet.
+## 2026-06-26 Agent Event Bus Migration POST
+
+- TapMakerAgent now owns a RuntimeEventBus and records ReActLoop events through the bus before appending to the existing per-session compatibility queue.
+- Layer events now use the same _record_event path, so Agent/Core Runtime/Learning transition events are replayable through agent.event_bus without direct queue access.
+- Existing get_events() and AppServer event_sink behavior remain compatible, but future observers can subscribe to the bus instead of coupling to _event_queues.
+- Added tests proving ReAct status/output and layer events appear on the Agent bus, preserving event order and envelope metadata.
+- This continues the event-bus migration; AppServer still receives session events through event_sink to avoid double-publishing during this incremental step.
