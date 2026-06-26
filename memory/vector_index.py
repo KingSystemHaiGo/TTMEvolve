@@ -76,6 +76,7 @@ class VectorIndex:
         self._dim: Optional[int] = None
         self._index: Optional[Any] = None
         self._id_map: Dict[str, int] = {}
+        self._reverse_id_map: Dict[int, str] = {}
         self._chunks: Dict[str, TextChunk] = {}
         self._faiss_available = False
         self._st_available = False
@@ -189,10 +190,11 @@ class VectorIndex:
 
         texts = [c.text for c in new_chunks]
         vectors = self._encode(texts)
-        ids = np.array([self._next_id() for _ in new_chunks], dtype=np.int64)
+        ids = np.array(self._allocate_ids(len(new_chunks)), dtype=np.int64)
         self._index.add_with_ids(vectors, ids)  # type: ignore[union-attr]
         for chunk, idx in zip(new_chunks, ids):
             self._id_map[chunk.id] = int(idx)
+            self._reverse_id_map[int(idx)] = chunk.id
         self.save()
 
     def update(self, chunk: TextChunk) -> None:
@@ -205,6 +207,8 @@ class VectorIndex:
             return
         del self._chunks[chunk_id]
         internal_id = self._id_map.pop(chunk_id, None)
+        if internal_id is not None:
+            self._reverse_id_map.pop(internal_id, None)
         if internal_id is None or self._index is None:
             self.save()
             return
@@ -219,6 +223,7 @@ class VectorIndex:
 
     def clear(self) -> None:
         self._id_map.clear()
+        self._reverse_id_map.clear()
         self._chunks.clear()
         self._index = None
         self._dim = None
@@ -238,6 +243,7 @@ class VectorIndex:
         ids = np.arange(len(texts), dtype=np.int64)
         self._index.add_with_ids(vectors, ids)  # type: ignore[union-attr]
         self._id_map = {cid: int(i) for cid, i in zip(self._chunks.keys(), ids)}
+        self._reverse_id_map = {internal: cid for cid, internal in self._id_map.items()}
 
     def search(
         self,
@@ -258,12 +264,12 @@ class VectorIndex:
                 for dist, idx in zip(distances[0], indices[0]):
                     if idx < 0:
                         continue
-                    for cid, internal in self._id_map.items():
-                        if internal == idx:
-                            chunk = self._chunks.get(cid)
-                            if chunk and (chunk not in [c for _, c in candidates]):
-                                candidates.append((float(dist), chunk))
-                            break
+                    cid = self._reverse_id_map.get(int(idx))
+                    if not cid:
+                        continue
+                    chunk = self._chunks.get(cid)
+                    if chunk and (chunk not in [c for _, c in candidates]):
+                        candidates.append((float(dist), chunk))
             except Exception:
                 pass
 
@@ -300,7 +306,21 @@ class VectorIndex:
         return scored[:top_k]
 
     def _next_id(self) -> int:
-        return int(time.time() * 1_000_000) % (2 ** 63)
+        candidate = int(time.time() * 1_000_000) % (2 ** 63)
+        while candidate in self._reverse_id_map:
+            candidate = (candidate + 1) % (2 ** 63)
+        return candidate
+
+    def _allocate_ids(self, count: int) -> List[int]:
+        allocated: List[int] = []
+        seen = set(self._reverse_id_map)
+        candidate = self._next_id()
+        while len(allocated) < count:
+            if candidate not in seen:
+                allocated.append(candidate)
+                seen.add(candidate)
+            candidate = (candidate + 1) % (2 ** 63)
+        return allocated
 
     # ------------------------------------------------------------------
     # 持久化
@@ -337,6 +357,7 @@ class VectorIndex:
                 self._id_map = {k: int(v) for k, v in json.loads(id_map_path.read_text(encoding="utf-8")).items()}
             except Exception:
                 self._id_map = {}
+        self._reverse_id_map = {internal: cid for cid, internal in self._id_map.items()}
 
         if self._faiss_available and index_path.exists():
             try:

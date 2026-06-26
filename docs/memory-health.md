@@ -226,3 +226,12 @@ pm.cmd --prefix frontend run build passed; focused tool-routing pytest for proje
 - Confirmed `project_status` and `execute_shell` routing remains available for "查看项目状态 / 了解项目 / cmd / git status" requests through focused ToolRegistry regression tests.
 - README remains bilingual for GitHub, but the app's normal user-facing surface is now Chinese-first with Workbench retaining technical diagnostics.
 - Verification: `npm.cmd --prefix frontend run build` passed; focused project-status/cmd ToolRegistry pytest passed (`4 passed`); `git diff --check` passed.
+
+## 2026-06-26 Vector Index Fast Path POST
+
+- Continued the long-term RAG/vector-memory performance objective with a narrow but real hot-path fix in `memory/vector_index.py`.
+- `VectorIndex.search()` previously resolved each FAISS result id by scanning `self._id_map.items()`, making vector result materialization O(k*n) for k returned ids and n indexed chunks.
+- Added `_reverse_id_map: Dict[int, str]` and maintain it across add, delete, clear, rebuild, and load, so FAISS internal ids resolve to chunk ids in O(1).
+- Fixed batch internal-id allocation at the same boundary: ids are now allocated as a unique sequence for each add batch instead of repeatedly sampling the same microsecond timestamp.
+- Added tests for reverse-map maintenance, unique batch ids, and a fake FAISS search path that fails if search tries to linearly scan `_id_map.items()`.
+- Verification: `.venv\Scripts\python.exe -m pytest tests\test_vector_index.py tests\test_cold_memory_vector.py tests\test_memory_manager_recall.py -q` -> `18 passed, 2 skipped`. Skips are FAISS-availability guarded; the fast-path logic is still covered with a fake index.

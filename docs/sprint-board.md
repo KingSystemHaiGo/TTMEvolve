@@ -222,3 +222,11 @@
 - Fixed: primary chat/input/topbar labels are Chinese-first; GitHub README remains bilingual.
 - Fixed: topbar/chat context/history surfaces share the same control heights, radii, shadows, and theme tokens.
 - Verified: `npm.cmd --prefix frontend run build`, focused project-status/cmd ToolRegistry pytest (`4 passed`), and `git diff --check`.
+
+## 2026-06-26 22:46 Vector Index Fast Path
+
+- Status: verified.
+- Fixed: FAISS search result materialization now uses `_reverse_id_map` for O(1) internal-id lookup instead of scanning every chunk id.
+- Fixed: batch vector add now allocates unique internal ids even when many chunks are added in the same timestamp window.
+- Preserved: keyword fallback and profile-aware cold-memory recall behavior.
+- Verified: `tests/test_vector_index.py tests/test_cold_memory_vector.py tests/test_memory_manager_recall.py` -> `18 passed, 2 skipped`.

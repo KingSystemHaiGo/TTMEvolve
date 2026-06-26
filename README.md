@@ -66,6 +66,7 @@ The launcher prefers embedded runtimes under `portable/`, then `.venv/`, then sy
 | Search performance | `search_files` skips heavy/runtime directories and large/binary files, then returns scan metrics. | `search_files` 默认跳过重目录、运行时目录、大文件和二进制文件，并返回扫描指标。 |
 | Workspace profile | Tool ranking infers `coding/docs/maker/browser/general` and uses it to narrow candidate tools. | 工具排序会推断 `coding/docs/maker/browser/general` 工作面，并用它收敛候选工具。 |
 | Memory context | Workspace profile is passed into memory/context budgeting so RAG can become profile-aware. | 工作面信号已进入记忆/上下文预算，为 RAG 按 profile 加速打基础。 |
+| Vector memory speed | FAISS internal ids resolve through a reverse map instead of scanning every chunk id during search. | 向量记忆检索通过反向映射解析 FAISS 内部 id，不再在搜索时线性扫描全部 chunk id。 |
 
 ## Architecture / 架构
 
@@ -182,6 +183,7 @@ The latest full sync validated these paths:
 - `npm.cmd --prefix frontend run build` -> passed after history close affordance and Workbench label polish
 - `npm.cmd --prefix frontend run build` -> passed after Chinese-first desktop UI polish and hidden candidate-tool chat filtering
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_tool_registry_prioritizes_project_status_for_project_questions tests\test_tool_call_validation.py::test_tool_registry_keeps_project_and_shell_tools_for_basic_project_work tests\test_tool_call_validation.py::test_tool_registry_keeps_shell_tool_for_cmd_and_terminal_requests tests\test_tool_call_validation.py::test_tool_registry_does_not_let_maker_tools_crowd_out_basic_project_work -q` -> `4 passed`
+- `.venv\Scripts\python.exe -m pytest tests\test_vector_index.py tests\test_cold_memory_vector.py tests\test_memory_manager_recall.py -q` -> `18 passed, 2 skipped`
 - `npm run build` from `frontend/` -> passed after bilingual chat/history/input cleanup
 - `.venv\Scripts\python.exe -m pytest tests\test_app_server_resume.py::test_app_server_runtime_readiness_endpoint tests\test_app_server_resume.py::test_app_server_evidence_bundle_endpoint -q` -> `2 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_runtime_events.py tests\test_app_server_resume.py::test_app_server_runtime_metrics_endpoint_uses_bus_observer tests\test_app_server_resume.py::test_app_server_runtime_readiness_endpoint tests\test_app_server_resume.py::test_app_server_evidence_bundle_endpoint -q` -> `9 passed`
