@@ -51,4 +51,12 @@ export async function openDevtools(): Promise<void> {
   await invoke<void>("open_devtools");
 }
 
+export async function openExternalUrl(url: string): Promise<void> {
+  if (!isTauri()) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  await invoke<void>("open_external_url", { url });
+}
+
 export { isTauri };

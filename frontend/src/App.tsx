@@ -7,6 +7,7 @@ import FileTree from './components/FileTree'
 import IdeLayout from './components/IdeLayout'
 import ProviderSelector from './components/ProviderSelector'
 import { useFs } from './hooks/useFs'
+import { openExternalUrl } from './lib/tauri'
 import './styles/index.css'
 
 export type MessageRole = 'user' | 'assistant' | 'system' | 'event'
@@ -441,7 +442,7 @@ export default function App() {
       setMakerDestination('maker')
       return
     }
-    window.open(MAKER_HOME_URL, '_blank')
+    await openExternalUrl(MAKER_HOME_URL)
     setMakerDestination('maker')
   }, [])
 
@@ -452,7 +453,7 @@ export default function App() {
       setMakerDestination('forum')
       return
     }
-    window.open(MAKER_FORUM_URL, '_blank')
+    await openExternalUrl(MAKER_FORUM_URL)
     setMakerDestination('forum')
   }, [])
 
@@ -556,7 +557,7 @@ export default function App() {
       await makerBrowser.navigate(authUrl)
       return
     }
-    window.open(authUrl, '_blank')
+    await openExternalUrl(authUrl)
   }, [])
 
   useEffect(() => {

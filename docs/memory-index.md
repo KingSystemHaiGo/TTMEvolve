@@ -1152,3 +1152,24 @@
 - Lesson: Windows terminal output can display Chinese UTF-8 as mojibake even when file bytes are correct; for GitHub-facing docs, validate by decoding bytes/API response and make the bilingual structure visually explicit.
 
 ## Last updated: 2026-06-26 12:04
+
+## 2026-06-26 Tauri Usability Fix: Window Controls + Maker Preview
+
+- User reported from screenshot: Maker preview says access/refused, and desktop window close/maximize controls appear missing.
+- Root causes:
+  - `src-tauri/tauri.conf.json` had `"decorations": false`, removing native Windows titlebar controls.
+  - Tauri preview attempted to load `maker.taptap.cn` in an iframe; TapTap Maker refuses embedding, so WebView2 showed a blocked page.
+- Fixes:
+  - Restored native Tauri window decorations.
+  - Added Rust `open_external_url` command with http/https validation and a unit test.
+  - Wired frontend Maker/forum/auth open actions through the Tauri external-open command.
+  - Reworked Tauri `BrowserPreview` to default to diagnostic preview, explain Maker iframe blocking, and expose `外部打开` plus optional `尝试内嵌`.
+  - Cleaned the affected preview Chinese copy.
+- Verification:
+  - `npm.cmd --prefix frontend run build` passed.
+  - `npm.cmd --prefix electron run build` passed before final noise cleanup and the shared frontend build remains green.
+  - `cargo build --manifest-path src-tauri/Cargo.toml` passed.
+  - `cargo test --manifest-path src-tauri/Cargo.toml` -> 33 passed.
+  - Real debug Tauri launch showed a TTMEvolve window with native titlebar and a nonblank diagnostic preview notice instead of the refused iframe page.
+
+## Last updated: 2026-06-26 12:25

@@ -1,13 +1,12 @@
 //! Tauri command layer — exposed to the webview via tauri.invoke.
 
+use std::process::Command;
 use std::sync::Arc;
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State, Window};
 
-use crate::fast_ops::{
-    self, DirSizeResult, FileEntry, LogTail, PortProbeResult,
-};
+use crate::fast_ops::{self, DirSizeResult, FileEntry, LogTail, PortProbeResult};
 use crate::server_manager::{ServerManager, ServerStatus};
 
 #[derive(Serialize)]
@@ -28,8 +27,16 @@ pub struct BridgeStatusDto {
 impl From<&ServerStatus> for ServerStatusDto {
     fn from(status: &ServerStatus) -> Self {
         match status {
-            ServerStatus::Idle => Self { status: "idle".into(), port: None, pid: None },
-            ServerStatus::Starting => Self { status: "starting".into(), port: None, pid: None },
+            ServerStatus::Idle => Self {
+                status: "idle".into(),
+                port: None,
+                pid: None,
+            },
+            ServerStatus::Starting => Self {
+                status: "starting".into(),
+                port: None,
+                pid: None,
+            },
             ServerStatus::Running { port, pid } => Self {
                 status: "running".into(),
                 port: Some(*port),
@@ -79,6 +86,48 @@ pub fn open_devtools<R: Runtime>(window: Window<R>) -> Result<(), String> {
     Ok(())
 }
 
+fn is_allowed_external_url(url: &str) -> bool {
+    let trimmed = url.trim();
+    if trimmed.chars().any(|ch| ch.is_control()) {
+        return false;
+    }
+    trimmed.starts_with("https://") || trimmed.starts_with("http://")
+}
+
+#[tauri::command]
+pub fn open_external_url(url: String) -> Result<(), String> {
+    let url = url.trim().to_string();
+    if !is_allowed_external_url(&url) {
+        return Err("only http/https URLs can be opened externally".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut command = Command::new("rundll32");
+        command.args(["url.dll,FileProtocolHandler", &url]);
+        command
+    };
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.arg(&url);
+        command
+    };
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = {
+        let mut command = Command::new("xdg-open");
+        command.arg(&url);
+        command
+    };
+
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|err| format!("failed to open URL externally: {err}"))
+}
+
 // ---------- fast_ops: hot path commands ----------
 
 #[tauri::command]
@@ -118,9 +167,7 @@ pub fn fast_format_bytes(bytes: u64) -> String {
 }
 
 #[tauri::command]
-pub fn bridge_status<R: Runtime>(
-    app: AppHandle<R>,
-) -> BridgeStatusDto {
+pub fn bridge_status<R: Runtime>(app: AppHandle<R>) -> BridgeStatusDto {
     let bridge_running = app
         .try_state::<crate::fast_ops_http::BridgeHandle>()
         .map(|handle| handle.is_running())
@@ -133,14 +180,13 @@ pub fn bridge_status<R: Runtime>(
     }
 }
 
-pub fn register<R: Runtime>(
-    builder: tauri::Builder<R>,
-) -> tauri::Builder<R> {
+pub fn register<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
     builder.invoke_handler(tauri::generate_handler![
         server_status,
         server_start,
         server_stop,
         open_devtools,
+        open_external_url,
         fast_probe_port,
         fast_find_available_port,
         fast_tail_log,
@@ -149,4 +195,18 @@ pub fn register<R: Runtime>(
         fast_format_bytes,
         bridge_status,
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_allowed_external_url;
+
+    #[test]
+    fn external_url_validation_allows_http_and_https_only() {
+        assert!(is_allowed_external_url("https://maker.taptap.cn/"));
+        assert!(is_allowed_external_url("http://127.0.0.1:7345/health"));
+        assert!(!is_allowed_external_url("file:///C:/secret.txt"));
+        assert!(!is_allowed_external_url("javascript:alert(1)"));
+        assert!(!is_allowed_external_url("https://maker.taptap.cn/\ncalc"));
+    }
 }

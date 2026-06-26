@@ -5517,6 +5517,7 @@ select:disabled {
 }
 
 .tauri-browser-preview {
+  min-height: 0;
   background: var(--tm-surface);
 }
 
@@ -5557,6 +5558,34 @@ select:disabled {
   min-height: 0;
   border: 0;
   background: #ffffff;
+}
+
+.tauri-diagnostic-preview {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tauri-preview-notice {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--tm-warning-border);
+  background: var(--tm-warning-soft);
+  color: var(--tm-text);
+}
+
+.tauri-preview-notice strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.tauri-preview-notice span {
+  color: var(--tm-text-muted);
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .browser-eval-result {
