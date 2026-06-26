@@ -313,6 +313,8 @@ class ToolRegistry:
             if name == "execute_shell" and any(k in query_l for k in ("测试", "运行", "构建", "npm", "python", "命令", "git status", "状态", "检查")):
                 score += 5
 
+            score += _workspace_profile_score(workspace_profile, name, source)
+
             # Stable fallback: built-ins remain visible when there is no match.
             if score == 0 and source == "builtin":
                 score = 1
@@ -423,6 +425,44 @@ def _infer_workspace_profile(query_l: str) -> str:
     if any(k in query_l for k in ("代码", "修复", "实现", "bug", "测试", "python", "npm", "node", "git", "文件", "项目")):
         return "coding"
     return "general"
+
+
+def _workspace_profile_score(profile: str, name: str, source: str) -> int:
+    is_maker = source == "maker_mcp" or str(name).startswith("maker_")
+    is_browser = str(name).startswith("browser_")
+    if profile == "maker":
+        if is_maker:
+            return 8
+        if is_browser:
+            return 3
+        if name in {"project_status", "read_file", "list_directory", "search_files"}:
+            return 2
+        return -1
+    if profile == "browser":
+        if is_browser:
+            return 8
+        if name in {"read_file", "create_document"}:
+            return 1
+        if is_maker:
+            return -3
+        return -1
+    if profile == "docs":
+        if name in {"create_document", "read_file", "search_files", "list_directory"}:
+            return 8
+        if name in {"modify_file", "project_status"}:
+            return 3
+        if is_maker or is_browser:
+            return -4
+        return -1
+    if profile == "coding":
+        if name in {"project_status", "read_file", "search_files", "list_directory", "modify_file", "create_document", "execute_shell", "git_commit"}:
+            return 6
+        if is_maker:
+            return -4
+        if is_browser:
+            return -2
+        return 0
+    return 0
 
 
 def _closest_tool_name(name: str, available: List[str]) -> Optional[str]:

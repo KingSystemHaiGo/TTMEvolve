@@ -256,6 +256,36 @@ def test_tool_registry_reports_workspace_profile_for_coding_tasks():
         assert second["cache_hit"] is True
 
 
+def test_tool_registry_workspace_profile_reduces_irrelevant_tools():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tools = ToolRegistry(root / "skills")
+        executor = _make_executor(root)
+        for name, source in [
+            ("create_document", "builtin"),
+            ("read_file", "builtin"),
+            ("modify_file", "builtin"),
+            ("execute_shell", "builtin"),
+            ("browser_navigate", "builtin"),
+            ("maker_build", "maker_mcp"),
+        ]:
+            tools.register(
+                name=name,
+                description=name,
+                parameters={"type": "object", "properties": {}},
+                handler=executor.propose_action,
+                source=source,
+            )
+
+        docs_ranked = [tool["name"] for tool in tools.rank_tools("新建文档，写 README markdown 说明", limit=3)]
+        assert docs_ranked == ["create_document", "read_file", "modify_file"]
+        assert tools.last_rank_stats()["workspace_profile"] == "docs"
+
+        maker_ranked = [tool["name"] for tool in tools.rank_tools("构建 TapTap Maker 游戏并打开预览", limit=3)]
+        assert maker_ranked[:2] == ["maker_build", "browser_navigate"]
+        assert tools.last_rank_stats()["workspace_profile"] == "maker"
+
+
 def test_executor_project_status_reports_git_and_top_level():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -1026,6 +1056,7 @@ if __name__ == "__main__":
     test_tool_registry_prioritizes_project_status_for_project_questions()
     test_tool_registry_prioritizes_create_document_for_document_tasks()
     test_tool_registry_reports_workspace_profile_for_coding_tasks()
+    test_tool_registry_workspace_profile_reduces_irrelevant_tools()
     test_executor_project_status_reports_git_and_top_level()
     test_executor_search_files_skips_heavy_dirs_and_large_files()
     test_executor_create_document_formats_markdown_and_json()

@@ -22,7 +22,7 @@ It should not yet claim full Claude Code or Codex parity. The remaining gaps are
 | File creation/editing | `modify_file`, `VersionManager` snapshot before write, commit-state recording | 能新建/修改项目内文件，并对副作用工具记录提交状态。 |
 | Shell execution | `execute_shell`, sandbox prefix checks, timeout handling | 能运行受控命令，超时会杀进程树并返回机器可读观察。 |
 | Search performance guard | `search_files` skips heavy/runtime dirs and large/binary files, `tests/test_tool_call_validation.py::test_executor_search_files_skips_heavy_dirs_and_large_files` | 搜索默认跳过 `.git`、`node_modules`、`.venv`、运行时日志和大文件，并返回扫描指标。 |
-| Workspace profile signal | Inspired by Zleap-Agent's workspace-first design, `ToolRegistry.last_rank_stats().workspace_profile` reports `coding/docs/maker/browser/general` | 工具排序会标记当前任务工作面，后续可用于更严格的上下文/工具隔离。 |
+| Workspace-aware tool narrowing | Inspired by Zleap-Agent's workspace-first design, `ToolRegistry` infers `coding/docs/maker/browser/general` and uses it to boost relevant tools and demote unrelated ones | 工具排序会标记当前任务工作面，并用它收敛候选工具。 |
 | Minimal coding loop | `tests/test_tool_call_validation.py::test_coding_agent_minimal_programming_smoke` | ReAct 可在临时项目里看状态、新建 Python 文件、运行文件并总结结果。 |
 | Multi-layer observability | `tests/test_app_server_resume.py::test_app_server_persists_layer_and_learning_events` | Agent/Runtime/Learning 层事件可持久化并进入 Evidence Bundle。 |
 | Runtime readiness/evidence | `tests/test_runtime_contract.py`, `/runtime/readiness`, `/sessions/{id}/evidence` | 外部或任意 LLM 可拉取紧凑证据，而不是读原始日志。 |
@@ -47,7 +47,7 @@ Commands run on 2026-06-26:
 # 28 passed
 
 .venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_sandbox.py tests\test_tool_timeouts.py tests\test_plan_first.py tests\test_plan_first_integration.py tests\test_plan_validation.py tests\test_coding_agent_v060.py tests\test_runtime_events.py tests\test_runtime_contract.py -q
-# 88 passed
+# 89 passed
 ```
 
 ## Zleap-Agent Learning / Zleap-Agent 学习结论
@@ -61,11 +61,12 @@ The useful architectural lesson is workspace-first context control: the agent sh
 Applied now:
 
 - `ToolRegistry.rank_tools()` now records `workspace_profile` in rank stats.
+- The inferred profile now affects tool ranking: docs tasks prefer document/read tools, maker tasks prefer Maker/browser tools, and coding tasks prefer project/read/write/shell/git tools.
 - `search_files` now uses performance guards so coding workspaces do not spend time scanning dependency/runtime trees.
 
 Next:
 
-- Use `workspace_profile` to cap tool schemas more aggressively.
+- Use `workspace_profile` to drive memory retrieval policy, not only tool ranking.
 - Add per-profile memory retrieval policies.
 - Show profile-level runtime evidence in Workbench/debug surfaces, not in the main chat.
 
@@ -76,7 +77,7 @@ Next:
 | Core coding actions | Ready for controlled local use | 读文件、写文件、新建文档、命令执行、项目状态已经可测。 |
 | Architecture layering | Healthy but still young | 三层事件已存在；需要更多用户任务级可视化诊断。 |
 | Safety | Baseline ready | 沙箱、审批、超时、提交状态存在；还需要更细的命令策略和用户可理解解释。 |
-| Performance | Baseline guarded, not fully optimized | 已有 latency/runtime metrics；本地搜索已跳过重目录/大文件并返回指标；工具排序已输出 workspace profile；仍缺少持续性能基准和大仓库压力测试。 |
+| Performance | Baseline guarded, not fully optimized | 已有 latency/runtime metrics；本地搜索已跳过重目录/大文件并返回指标；工具排序已按 workspace profile 收敛；仍缺少持续性能基准和大仓库压力测试。 |
 | Product usability | Improving | GUI 越来越像应用；Agent 能力解释和失败恢复还要更“用户语言”。 |
 | Claude Code/Codex parity | Not proven | 不能只靠小烟测声称达到，需要真实 benchmark 和大型任务成功率。 |
 

@@ -123,3 +123,5 @@
 2026-06-26: Added a performance guard to local file search. Important lesson: a coding Agent that recursively scans `.git`, `node_modules`, `.venv`, runtime logs, or large files will feel broken on real repositories; `search_files` must skip heavy/runtime paths, cap file size, normalize hit paths, and return scan metrics.
 
 2026-06-26: Reviewed Zleap-Agent for Agent-core improvement ideas. Important lesson: the most useful pattern is workspace-first context control, not exposing every tool/memory/history item every turn; TTMEvolve now records a `workspace_profile` in tool-ranking stats as the first step toward profile-scoped tools and memory.
+
+2026-06-26: Turned workspace profile from telemetry into ranking behavior. Important lesson: workspace-first should change the prompt surface, not only label it; docs tasks should see document/read tools first, Maker tasks should see Maker/browser tools first, and coding tasks should see project/read/write/shell/git tools first.
