@@ -131,10 +131,11 @@ function eventSummary(type: string, content: string, isFail?: boolean): string {
   if (isFail) return `${eventLabel(type)}失败`
   if (type === 'tool_call') {
     const firstLine = content.split('\n').map((line) => line.trim()).find(Boolean)
-    return firstLine ? `正在调用工具：${firstLine}` : '正在调用工具'
+    return firstLine ? `正在执行：${userFacingToolName(firstLine)}` : '正在执行工具'
   }
   if (type === 'observation') return '工具调用完成'
-  if (type === 'action') return compactLine(content) || '准备下一步'
+  if (type === 'action') return userFacingAction(content) || '准备下一步'
+  if (type === 'status') return userFacingStatus(content) || eventLabel(type)
   return compactLine(content) || eventLabel(type)
 }
 
@@ -143,6 +144,43 @@ function compactLine(content: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 72)
+}
+
+function userFacingAction(content: string): string {
+  const text = compactLine(content)
+  if (!text) return ''
+  if (/tool[_\s-]?selection|candidate|候选工具|Tool context ranked/i.test(text)) {
+    return '正在判断下一步'
+  }
+  return text
+}
+
+function userFacingStatus(content: string): string {
+  const text = compactLine(content)
+  if (!text) return ''
+  if (/tool[_\s-]?selection|candidate|候选工具|Tool context ranked/i.test(text)) {
+    return '正在判断下一步'
+  }
+  if (text === 'Session created') return '会话已创建'
+  if (text === 'Task finished') return '任务已完成'
+  if (text === 'Canceling task') return '正在停止任务'
+  return text
+}
+
+function userFacingToolName(value: string): string {
+  const text = value.replace(/^\s*(tool|工具)\s*[:：]\s*/i, '').trim()
+  const tool = text.split(/\s|\(|{|:/)[0]
+  const labels: Record<string, string> = {
+    project_status: '查看项目状态',
+    execute_shell: '执行系统命令',
+    read_file: '读取文件',
+    list_directory: '查看目录',
+    search_files: '搜索文件',
+    modify_file: '修改文件',
+    create_document: '创建文档',
+    git_commit: '提交版本',
+  }
+  return labels[tool] || text
 }
 
 function renderMarkdown(content: string): string {

@@ -119,7 +119,7 @@ export function SettingsView(props: SettingsViewProps) {
               marginBottom: 4,
             }}
           >
-            ⚙ Settings
+            设置
           </span>
           <h1
             style={{
@@ -183,7 +183,7 @@ export function SettingsView(props: SettingsViewProps) {
 
       {/* Runtime Error */}
       {runtime?.lastError && (
-        <Panel title="Runtime Error" icon="⚠">
+        <Panel title="运行错误" icon="⚠">
           <pre
             style={{
               margin: 0,

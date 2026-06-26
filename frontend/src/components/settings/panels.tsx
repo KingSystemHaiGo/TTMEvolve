@@ -56,8 +56,8 @@ export function ProjectInfoPanel({ project }: { project?: ProjectInfo }) {
     <Panel title="当前项目" icon="📁">
       <SettingRow label="项目名" value={project?.name ?? "-"} />
       <SettingRow label="项目路径" value={project?.rootPath ?? "-"} mono />
-      <SettingRow label="project_id" value={project?.makerProjectId ?? "-"} mono />
-      <SettingRow label="config.json" value={project?.configPath ?? "-"} mono />
+      <SettingRow label="Maker 项目 ID" value={project?.makerProjectId ?? "-"} mono />
+      <SettingRow label="配置文件" value={project?.configPath ?? "-"} mono />
     </Panel>
   );
 }
@@ -74,28 +74,28 @@ export function McpRuntimePanel({ runtime }: { runtime?: RuntimeInfo }) {
       : "var(--color-text-subtle)";
 
   return (
-    <Panel title="MCP Runtime" icon="⚡">
+    <Panel title="MCP 运行状态" icon="⚡">
       <SettingRow
         label="状态"
         value={
           <span style={{ color: statusColor, fontWeight: 700 }}>
-            ● {status}
+            ● {runtimeStatusLabel(status)}
           </span>
         }
       />
       <SettingRow
-        label="processId"
+        label="进程 ID"
         value={runtime?.processId ? String(runtime.processId) : "-"}
       />
-      <SettingRow label="cwd" value={runtime?.cwd ?? "-"} mono />
+      <SettingRow label="运行目录" value={runtime?.cwd ?? "-"} mono />
       <SettingRow
-        label="tools/list 时间"
+        label="工具列表更新时间"
         value={runtime?.toolsListUpdatedAt ?? "-"}
       />
       <SettingRow label="启动命令" value={runtime?.launchCommand ?? "-"} mono />
       {runtime?.lastError && (
         <SettingRow
-          label="Last Error"
+          label="最近错误"
           value={
             <span style={{ color: "var(--color-error)" }}>
               {runtime.lastError}
@@ -107,18 +107,31 @@ export function McpRuntimePanel({ runtime }: { runtime?: RuntimeInfo }) {
   );
 }
 
+function runtimeStatusLabel(status: string): string {
+  switch (status) {
+    case "running":
+      return "运行中";
+    case "error":
+      return "异常";
+    case "idle":
+      return "空闲";
+    default:
+      return status || "未知";
+  }
+}
+
 // ---------- 3. 真实 MCP Schema ----------
 
 export function McpSchemaPanel({ schema }: { schema?: SchemaSummary }) {
   return (
-    <Panel title="MCP Schema" icon="🧩">
+    <Panel title="MCP 工具结构" icon="🧩">
       <SettingRow label="工具总数" value={schema?.total ?? 0} />
       {schema &&
         Object.entries(schema.categories).map(([category, count]) => (
           <SettingRow
             key={category}
             label={category}
-            value={`${count} tools`}
+            value={`${count} 个工具`}
           />
         ))}
       <SettingRow label="表单来源" value={schema?.formSource ?? "-"} />
@@ -149,13 +162,13 @@ export function WorkbenchCapabilitiesPanel({
         : portable?.node.path,
     },
     {
-      label: "Maker MCP runtime",
+      label: "Maker MCP 运行环境",
       ok: portable?.makerMcp.embedded ?? false,
       detail: portable?.makerMcp.path,
     },
-    { label: "HTTP API", ok: true, detail: "FastAPI / 127.0.0.1:8765" },
+    { label: "本地接口", ok: true, detail: "FastAPI / 127.0.0.1:8765" },
     { label: "前端", ok: true, detail: "React + Vite + 自定义主题" },
-    { label: "LLM Router", ok: true, detail: "云端多 Provider + 故障转移" },
+    { label: "模型路由", ok: true, detail: "云端多供应商 + 故障转移" },
   ];
   return (
     <Panel title="本地工作台能力" icon="🛠">

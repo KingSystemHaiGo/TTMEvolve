@@ -210,6 +210,32 @@ def test_tool_registry_prioritizes_project_status_for_project_questions():
         assert [tool["name"] for tool in ranked] == ["project_status", "execute_shell"]
 
 
+def test_tool_registry_keeps_project_and_shell_tools_for_basic_project_work():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tools = ToolRegistry(root / "skills")
+        executor = _make_executor(root)
+        for name, description in [
+            ("project_status", "查看当前项目概况、Git 状态、主要目录和运行配置"),
+            ("execute_shell", "执行允许的 shell/cmd 命令，用于运行测试、查看系统输出和项目命令"),
+            ("read_file", "读取项目文件"),
+            ("maker_status_lite", "Maker MCP status"),
+        ]:
+            tools.register(
+                name=name,
+                description=description,
+                parameters={"type": "object", "properties": {}},
+                handler=executor.propose_action,
+                source="maker_mcp" if name.startswith("maker_") else "builtin",
+            )
+
+        ranked = [tool["name"] for tool in tools.rank_tools("查看项目状态，了解项目，并运行正常的 cmd 指令", limit=3)]
+
+        assert "project_status" in ranked
+        assert "execute_shell" in ranked
+        assert ranked.index("project_status") < ranked.index("execute_shell")
+
+
 def test_tool_registry_prioritizes_create_document_for_document_tasks():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

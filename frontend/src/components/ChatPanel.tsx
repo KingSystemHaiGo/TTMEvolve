@@ -208,10 +208,10 @@ export default function ChatPanel({
           <div className="chat-history-head">
             <div>
               <strong>历史对话</strong>
-              <span>选择一条历史记录可查看摘要；按 Esc 或点外部关闭。</span>
+              <span>选择一条记录可带回当前对话；按 Esc 或点击空白处也能关闭。</span>
             </div>
             <button type="button" onClick={() => setHistoryOpen(false)} aria-label="收起历史对话">
-              收起
+              关闭
             </button>
           </div>
           <div className="chat-history-list">
@@ -389,7 +389,7 @@ function currentActivityLabel(
   if (status === '正在选择合适能力' || status.includes('Tool context ranked')) {
     return {
       title: '正在选择合适能力',
-      detail: 'Agent 正在选择下一步，不会把内部候选列表打扰你。',
+      detail: '正在判断下一步该怎么做。',
     }
   }
   if (status.includes('创建会话') || status.includes('连接') || status.includes('验证')) {

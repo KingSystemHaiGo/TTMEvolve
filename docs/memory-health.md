@@ -127,3 +127,5 @@
 2026-06-26: Turned workspace profile from telemetry into ranking behavior. Important lesson: workspace-first should change the prompt surface, not only label it; docs tasks should see document/read tools first, Maker tasks should see Maker/browser tools first, and coding tasks should see project/read/write/shell/git tools first.
 
 2026-06-26: Passed workspace profile into MemoryManager context budgeting. Important lesson: RAG/vector-memory optimization needs a routing signal before retrieval can be safely narrowed; emit `workspace_profile` through context text and `context_budget` stats first, then use it to filter vector memory in later work.
+
+2026-06-26: Polished the normal-user desktop UI after screenshot review. Important lesson: the main chat must translate tool activity into user intent such as `查看项目状态` or `执行系统命令`, never expose candidate/ranking internals; history must be an obvious dismissible popover with a clear close action; primary settings labels should be Chinese-first; and basic project/cmd work needs tests proving `project_status` and `execute_shell` stay selectable for ordinary "查看项目状态/了解项目/运行 cmd" requests.
