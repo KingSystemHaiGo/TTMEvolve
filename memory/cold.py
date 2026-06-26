@@ -15,6 +15,13 @@ import time
 from .vector_index import TextChunk, VectorIndex
 
 _KNOWN_WORKSPACE_PROFILES = {"coding", "docs", "maker", "browser", "general"}
+_DEFAULT_PROFILE_POLICIES: Dict[str, Dict[str, Any]] = {
+    "general": {"include_general": True, "allow_fallback": False},
+    "coding": {"include_general": True, "allow_fallback": True},
+    "docs": {"include_general": True, "allow_fallback": True},
+    "maker": {"include_general": True, "allow_fallback": True},
+    "browser": {"include_general": True, "allow_fallback": True},
+}
 
 
 class ColdMemory:
@@ -33,6 +40,7 @@ class ColdMemory:
 
         vi_cfg = vector_index_config or {}
         self._fallback_to_keyword = vi_cfg.get("fallback_to_keyword", True)
+        self._profile_policies = _resolve_profile_policies(vi_cfg.get("profile_policies"))
         self._vector_index = VectorIndex(
             namespace="cold_memory",
             storage_dir=self.storage_path,
@@ -72,27 +80,44 @@ class ColdMemory:
         query: str,
         top_k: int = 5,
         workspace_profile: str = "general",
-        allow_profile_fallback: bool = True,
+        allow_profile_fallback: Optional[bool] = None,
     ) -> List[Dict[str, Any]]:
         profile = _normalize_workspace_profile(workspace_profile)
-        filter_fn = _profile_filter(profile)
+        policy = self.profile_policy(profile, top_k=top_k)
+        effective_top_k = policy["top_k"]
+        filter_fn = _profile_filter(profile, include_general=policy["include_general"])
 
-        results = self._vector_index.search(query, top_k=top_k, filter_fn=filter_fn)
+        results = self._vector_index.search(query, top_k=effective_top_k, filter_fn=filter_fn)
         if results:
             return [chunk.meta for _, chunk in results if chunk.meta]
 
         if self._fallback_to_keyword:
-            keyword_hits = self._keyword_search(query, top_k, workspace_profile=profile)
+            keyword_hits = self._keyword_search(
+                query,
+                effective_top_k,
+                workspace_profile=profile,
+                include_general=policy["include_general"],
+            )
             if keyword_hits:
                 return keyword_hits
 
-        if allow_profile_fallback and profile != "general":
-            fallback_results = self._vector_index.search(query, top_k=top_k)
+        should_fallback = policy["allow_fallback"] if allow_profile_fallback is None else bool(allow_profile_fallback)
+        if should_fallback and profile != "general":
+            fallback_results = self._vector_index.search(query, top_k=effective_top_k)
             if fallback_results:
                 return [chunk.meta for _, chunk in fallback_results if chunk.meta]
             if self._fallback_to_keyword:
-                return self._keyword_search(query, top_k)
+                return self._keyword_search(query, effective_top_k)
         return []
+
+    def profile_policy(self, workspace_profile: str = "general", top_k: int = 5) -> Dict[str, Any]:
+        profile = _normalize_workspace_profile(workspace_profile)
+        policy = dict(self._profile_policies.get(profile) or self._profile_policies["general"])
+        policy["profile"] = profile
+        policy["top_k"] = _positive_int(policy.get("top_k"), top_k)
+        policy["include_general"] = bool(policy.get("include_general", profile != "general"))
+        policy["allow_fallback"] = bool(policy.get("allow_fallback", profile != "general"))
+        return policy
 
     def rebuild(self) -> None:
         """从 JSON 源文件重建向量索引。"""
@@ -113,12 +138,13 @@ class ColdMemory:
         query: str,
         top_k: int,
         workspace_profile: str = "general",
+        include_general: bool = True,
     ) -> List[Dict[str, Any]]:
         query_lower = query.lower()
         profile = _normalize_workspace_profile(workspace_profile)
         hits = []
         for entry in self._index:
-            if not _profile_matches_entry(entry, profile):
+            if not _profile_matches_entry(entry, profile, include_general=include_general):
                 continue
             score = 0
             if query_lower in entry.get("summary", "").lower():
@@ -154,20 +180,54 @@ def _normalize_workspace_profile(value: Any) -> str:
     return profile if profile in _KNOWN_WORKSPACE_PROFILES else "general"
 
 
-def _profile_matches_entry(entry: Dict[str, Any], profile: str) -> bool:
+def _profile_matches_entry(
+    entry: Dict[str, Any],
+    profile: str,
+    include_general: bool = True,
+) -> bool:
     if profile == "general":
         return True
     entry_profile = _normalize_workspace_profile(
         entry.get("workspace_profile") or entry.get("profile")
     )
-    return entry_profile in {profile, "general"}
+    if entry_profile == profile:
+        return True
+    return include_general and entry_profile == "general"
 
 
-def _profile_filter(profile: str):
+def _profile_filter(profile: str, include_general: bool = True):
     if profile == "general":
         return None
 
     def matches(chunk: TextChunk) -> bool:
-        return _profile_matches_entry(chunk.meta or {}, profile)
+        return _profile_matches_entry(
+            chunk.meta or {},
+            profile,
+            include_general=include_general,
+        )
 
     return matches
+
+
+def _resolve_profile_policies(raw: Any) -> Dict[str, Dict[str, Any]]:
+    policies = {profile: dict(policy) for profile, policy in _DEFAULT_PROFILE_POLICIES.items()}
+    if not isinstance(raw, dict):
+        return policies
+    for key, value in raw.items():
+        profile = _normalize_workspace_profile(key)
+        if not isinstance(value, dict):
+            continue
+        next_policy = dict(policies.get(profile, policies["general"]))
+        for field in ("top_k", "include_general", "allow_fallback"):
+            if field in value:
+                next_policy[field] = value[field]
+        policies[profile] = next_policy
+    return policies
+
+
+def _positive_int(value: Any, default: int) -> int:
+    try:
+        number = int(value)
+    except Exception:
+        number = int(default)
+    return max(1, number)

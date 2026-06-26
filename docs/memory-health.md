@@ -149,3 +149,10 @@ pm.cmd --prefix frontend run build passed; focused tool-routing pytest for proje
 - MemoryManager.prepare_think_payload() now passes its normalized profile into recall(), and archive_session() can persist profile metadata for future session summaries.
 - Added focused tests for profile filtering, general-memory inclusion, global fallback, keyword fallback behavior, and prompt injection behavior.
 - Architecture audit updated: the previous next step Use workspace_profile to filter vector memory retrieval is now implemented; next work should move to per-profile retrieval policy and multi-agent shared-memory policy surfaces.
+## 2026-06-26 Per-Profile RAG Policy POST
+
+- Added configurable cold-memory profile policies under memory.vector_index.profile_policies. Each profile can now control top_k, include_general, and allow_fallback without changing call sites.
+- Defaults preserve the previous safe behavior: non-general profiles include general memory and can globally fallback when narrowed recall has no hits; general has no extra global fallback.
+- MemoryManager now asks ColdMemory.profile_policy() for the effective recall size, so docs/maker/coding can use different recall budgets.
+- Added tests for excluding general memory, disabling global fallback, top_k overrides, and Manager-level policy use in prepare_think_payload().
+- Architecture next step moves from per-profile retrieval policy to multi-agent shared-memory policy surfaces and profile evidence visibility.

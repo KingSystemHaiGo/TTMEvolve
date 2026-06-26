@@ -134,9 +134,10 @@ class MemoryManager:
         cold_recall_ms = 0.0
         cold_started_at = time.perf_counter()
         try:
+            cold_top_k = self._cold_recall_top_k(profile)
             cold_hits = self.recall(
                 task,
-                top_k=self.config.get("memory.vector_index.top_k", 3),
+                top_k=cold_top_k,
                 workspace_profile=profile,
             )
             if cold_hits:
@@ -202,6 +203,12 @@ class MemoryManager:
             top_k=top_k,
             workspace_profile=_normalize_workspace_profile(workspace_profile),
         )
+
+    def _cold_recall_top_k(self, workspace_profile: str) -> int:
+        default_top_k = self.config.get("memory.vector_index.top_k", 3)
+        if hasattr(self.cold, "profile_policy"):
+            return int(self.cold.profile_policy(workspace_profile, top_k=default_top_k)["top_k"])
+        return int(default_top_k)
 
     def _summarize_turns(self, turns: List[Dict[str, Any]]) -> str:
         """把一组旧 turn 摘要成一句话。优先用 LLM reflect，否则 rule-based。"""

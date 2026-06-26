@@ -23,7 +23,7 @@ It should not yet claim full Claude Code or Codex parity. The remaining gaps are
 | Shell execution | `execute_shell`, sandbox prefix checks, timeout handling | 能运行受控命令，超时会杀进程树并返回机器可读观察。 |
 | Search performance guard | `search_files` skips heavy/runtime dirs and large/binary files, `tests/test_tool_call_validation.py::test_executor_search_files_skips_heavy_dirs_and_large_files` | 搜索默认跳过 `.git`、`node_modules`、`.venv`、运行时日志和大文件，并返回扫描指标。 |
 | Workspace-aware tool narrowing | Inspired by Zleap-Agent's workspace-first design, `ToolRegistry` infers `coding/docs/maker/browser/general` and uses it to boost relevant tools and demote unrelated ones | 工具排序会标记当前任务工作面，并用它收敛候选工具。 |
-| Workspace-aware memory retrieval | `ColdMemory.search(..., workspace_profile=...)`, `MemoryManager.recall(..., workspace_profile=...)` | 冷记忆/RAG 召回先按当前工作面 + general 过滤，无命中时再回退全局，降低无关历史进入上下文的概率。 |
+| Workspace-aware memory retrieval | `ColdMemory.search(..., workspace_profile=...)`, `MemoryManager.recall(..., workspace_profile=...)`, `memory.vector_index.profile_policies` | 冷记忆/RAG 召回可按工作面配置 top_k、是否包含 general、是否允许全局回退，降低无关历史进入上下文的概率。 |
 | Minimal coding loop | `tests/test_tool_call_validation.py::test_coding_agent_minimal_programming_smoke` | ReAct 可在临时项目里看状态、新建 Python 文件、运行文件并总结结果。 |
 | Multi-layer observability | `tests/test_app_server_resume.py::test_app_server_persists_layer_and_learning_events` | Agent/Runtime/Learning 层事件可持久化并进入 Evidence Bundle。 |
 | Runtime readiness/evidence | `tests/test_runtime_contract.py`, `/runtime/readiness`, `/sessions/{id}/evidence` | 外部或任意 LLM 可拉取紧凑证据，而不是读原始日志。 |
@@ -54,7 +54,7 @@ Commands run on 2026-06-26:
 # 95 passed
 
 .venv\Scripts\python.exe -m pytest tests\test_cold_memory_vector.py tests\test_memory_manager_recall.py tests\test_memory_manager.py -q
-# profile-aware cold memory retrieval focused suite passed
+# profile-aware cold memory retrieval and per-profile policy focused suite passed
 ```
 
 ## Zleap-Agent Learning / Zleap-Agent 学习结论
@@ -71,11 +71,11 @@ Applied now:
 - The inferred profile now affects tool ranking: docs tasks prefer document/read tools, maker tasks prefer Maker/browser tools, and coding tasks prefer project/read/write/shell/git tools.
 - `MemoryManager.prepare_think_payload()` now receives the profile, includes it in the context, and emits it through `context_budget`.
 - `ColdMemory` stores `workspace_profile` metadata and filters vector/keyword recall by exact profile plus `general`, with a global fallback when the narrowed search would return nothing.
+- `memory.vector_index.profile_policies` can tune per-profile `top_k`, `include_general`, and `allow_fallback`, while preserving safe defaults.
 - `search_files` now uses performance guards so coding workspaces do not spend time scanning dependency/runtime trees.
 
 Next:
 
-- Add per-profile memory retrieval policies.
 - Add shared-memory policy surfaces for multi-agent collaboration.
 - Show profile-level runtime evidence in Workbench/debug surfaces, not in the main chat.
 

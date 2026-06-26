@@ -16,6 +16,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from memory.manager import MemoryManager
 from llm.context_budget import ContextBudgetManager
+from core.config import Config
 
 
 def _mock_encoder(texts):
@@ -125,6 +126,54 @@ def test_prepare_think_payload_filters_cold_recall_by_workspace_profile():
         assert stats.cold_recall_hits >= 1
 
 
+def test_prepare_think_payload_uses_profile_policy_top_k():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        cfg = Config()
+        cfg.data = {
+            "llm": {"n_ctx": 8192, "reserve_tokens": 256},
+            "memory": {
+                "vector_index": {
+                    "enabled": False,
+                    "fallback_to_keyword": True,
+                    "top_k": 5,
+                    "profile_policies": {
+                        "docs": {"top_k": 1},
+                    },
+                }
+            },
+        }
+        cfg._profiles = {}
+        manager = MemoryManager(
+            project_root=tmp_path / "project",
+            storage_root=tmp_path / "storage",
+            skills_dir=tmp_path / "skills",
+            budget_manager=ContextBudgetManager(n_ctx=8192, reserve_tokens=256),
+            config=cfg,
+        )
+        manager.cold.index(
+            {"id": "docs1", "type": "session_summary", "workspace_profile": "docs"},
+            "policy-topk unique-token first",
+        )
+        manager.cold.index(
+            {"id": "docs2", "type": "session_summary", "workspace_profile": "docs"},
+            "policy-topk unique-token second",
+        )
+
+        context, stats = manager.prepare_think_payload(
+            task="policy-topk unique-token",
+            context="当前正在整理文档",
+            trajectory=[],
+            tools_description="工具列表",
+            max_tokens=2048,
+            workspace_profile="docs",
+        )
+
+        assert stats.cold_recall_hits == 1
+        assert "policy-topk unique-token first" in context
+        assert "policy-topk unique-token second" not in context
+
+
 if __name__ == "__main__":
     test_prepare_think_payload_includes_cold_recall()
     print("OK test_prepare_think_payload_includes_cold_recall")
@@ -132,4 +181,6 @@ if __name__ == "__main__":
     print("OK test_cold_recall_silently_fails_when_no_hits")
     test_prepare_think_payload_filters_cold_recall_by_workspace_profile()
     print("OK test_prepare_think_payload_filters_cold_recall_by_workspace_profile")
+    test_prepare_think_payload_uses_profile_policy_top_k()
+    print("OK test_prepare_think_payload_uses_profile_policy_top_k")
     print("\nAll MemoryManager recall tests passed.")

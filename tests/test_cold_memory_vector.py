@@ -154,6 +154,57 @@ def test_keyword_fallback_respects_workspace_profile_then_global_fallback():
         assert [hit["id"] for hit in fallback_hits] == ["maker1"]
 
 
+def test_profile_policy_can_exclude_general_and_disable_global_fallback():
+    with tempfile.TemporaryDirectory() as tmp:
+        cold = ColdMemory(
+            Path(tmp),
+            vector_index_config={
+                "enabled": True,
+                "embedding_dim": 8,
+                "profile_policies": {
+                    "docs": {"include_general": False, "allow_fallback": False, "top_k": 4},
+                },
+            },
+            encoder=_mock_encoder,
+        )
+        cold.index(
+            {"id": "general1", "type": "session_summary", "workspace_profile": "general"},
+            "policy-only shared lesson",
+        )
+        cold.index(
+            {"id": "maker1", "type": "session_summary", "workspace_profile": "maker"},
+            "maker-only sprite policy lesson",
+        )
+
+        assert cold.profile_policy("docs", top_k=2)["top_k"] == 4
+        assert cold.search("policy-only", top_k=2, workspace_profile="docs") == []
+        assert cold.search("maker-only", top_k=2, workspace_profile="docs") == []
+
+
+def test_profile_policy_overrides_top_k():
+    with tempfile.TemporaryDirectory() as tmp:
+        cold = ColdMemory(
+            Path(tmp),
+            vector_index_config={
+                "enabled": False,
+                "fallback_to_keyword": True,
+                "profile_policies": {
+                    "coding": {"top_k": 2},
+                },
+            },
+            encoder=_mock_encoder,
+        )
+        for index in range(4):
+            cold.index(
+                {"id": f"coding{index}", "type": "session_summary", "workspace_profile": "coding"},
+                "bounded-policy recall shared-key",
+            )
+
+        hits = cold.search("shared-key", top_k=5, workspace_profile="coding")
+
+        assert len(hits) == 2
+
+
 if __name__ == "__main__":
     test_vector_search()
     print("OK test_vector_search")
@@ -167,4 +218,8 @@ if __name__ == "__main__":
     print("OK test_profile_search_falls_back_when_no_profile_hits")
     test_keyword_fallback_respects_workspace_profile_then_global_fallback()
     print("OK test_keyword_fallback_respects_workspace_profile_then_global_fallback")
+    test_profile_policy_can_exclude_general_and_disable_global_fallback()
+    print("OK test_profile_policy_can_exclude_general_and_disable_global_fallback")
+    test_profile_policy_overrides_top_k()
+    print("OK test_profile_policy_overrides_top_k")
     print("\nAll ColdMemory vector tests passed.")
