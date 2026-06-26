@@ -107,6 +107,8 @@ Agent 核心审计：
 - Runtime Event Bus 证据现在已经暴露到 `/runtime/readiness`、`/sessions/{id}/evidence` 和 `/agent/onboarding`，包含总线统计、会话事件计数，以及兼容性标记 `sse_sqlite_shape_preserved`。
 - `server/runtime_observer.py` adds a bus-subscribed Runtime Metrics Observer, so live runtime-metrics surfaces can read session metrics from Runtime Event Bus snapshots while SQLite remains the durable replay fallback.
 - `server/runtime_observer.py` 新增了订阅 Runtime Event Bus 的运行指标观察者；实时 runtime-metrics 界面可以从总线快照读取会话指标，同时 SQLite 继续作为持久化回放兜底。
+- `server/project_observer.py` adds a bus-subscribed Project Management Observer for next action, goal state, plan verdict, continuation readiness, latest tool, artifacts, and risk flags.
+- `server/project_observer.py` 新增了订阅 Runtime Event Bus 的项目管理观察者，用于生成下一步动作、目标状态、计划校验、连续性准备度、最近工具、产物和风险标记。
 - The normal-user chat surface keeps history dismissible, uses Chinese/English visible labels, and keeps candidate-tool ranking in Workbench instead of the main conversation.
 - 普通用户聊天界面现在提供明确的历史关闭入口，用户可见标签采用中英双语，并把候选工具排序留在 Workbench，而不是显示在主对话里。
 
@@ -181,6 +183,7 @@ The latest full sync validated these paths:
 - `npm run build` from `frontend/` -> passed after bilingual chat/history/input cleanup
 - `.venv\Scripts\python.exe -m pytest tests\test_app_server_resume.py::test_app_server_runtime_readiness_endpoint tests\test_app_server_resume.py::test_app_server_evidence_bundle_endpoint -q` -> `2 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_runtime_events.py tests\test_app_server_resume.py::test_app_server_runtime_metrics_endpoint_uses_bus_observer tests\test_app_server_resume.py::test_app_server_runtime_readiness_endpoint tests\test_app_server_resume.py::test_app_server_evidence_bundle_endpoint -q` -> `9 passed`
+- `.venv\Scripts\python.exe -m pytest tests\test_runtime_events.py tests\test_app_server_resume.py::test_app_server_project_state_endpoint_uses_bus_observer tests\test_app_server_resume.py::test_app_server_evidence_bundle_endpoint tests\test_runtime_contract.py::test_runtime_contract_summarizes_maker_and_communication_surfaces -q` -> `10 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_tool_registry_prioritizes_project_status_for_project_questions tests\test_tool_call_validation.py::test_tool_registry_keeps_project_and_shell_tools_for_basic_project_work tests\test_tool_call_validation.py::test_tool_registry_keeps_shell_tool_for_cmd_and_terminal_requests tests\test_tool_call_validation.py::test_tool_registry_does_not_let_maker_tools_crowd_out_basic_project_work -q` -> `4 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_shared_memory_policy.py tests\test_app_server_resume.py::test_app_server_evidence_bundle_endpoint -q` -> `37 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_runtime_events.py tests\test_app_server_resume.py::test_session_emit_publishes_to_runtime_event_bus_and_store tests\test_app_server_resume.py::test_app_server_sessions_share_runtime_event_bus -q` -> `7 passed`

@@ -74,6 +74,7 @@ def test_runtime_contract_summarizes_maker_and_communication_surfaces():
     assert contract["communication"]["evidence_bundle"] == "/sessions/s1/evidence?steps=20"
     assert contract["communication"]["context_sync"] == "/sessions/s1/context-sync?steps=3"
     assert contract["communication"]["runtime_metrics"] == "/sessions/s1/runtime-metrics?steps=20"
+    assert contract["communication"]["project_state"] == "/sessions/s1/project-state"
     assert contract["communication"]["learning_status"] == "/sessions/s1/learning?steps=20"
     assert contract["communication"]["maker_guard"] == "/sessions/s1/maker-guard?steps=20"
     assert contract["communication"]["runtime_advice"] == "/sessions/s1/runtime-advice?steps=20"
@@ -88,8 +89,9 @@ def test_runtime_contract_summarizes_maker_and_communication_surfaces():
     assert contract["external_agents"]["attach_sequence"][2] == "GET /runtime/readiness?session_id=s1 for the fastest provider/Maker/layer readiness check"
     assert contract["external_agents"]["attach_sequence"][3] == "GET /agent/quickstart?session_id=s1&steps=3"
     assert contract["external_agents"]["attach_sequence"][4] == "GET /sessions/s1/evidence?steps=20 for compact current evidence"
-    assert contract["external_agents"]["attach_sequence"][5] == "GET /agent/handoff?session_id=s1&steps=3"
-    assert contract["external_agents"]["attach_sequence"][7] == "GET /agent/maker-briefing?session_id=s1 before the first Maker action"
+    assert contract["external_agents"]["attach_sequence"][5] == "GET /sessions/s1/project-state for bus-derived next action and project control state"
+    assert contract["external_agents"]["attach_sequence"][6] == "GET /agent/handoff?session_id=s1&steps=3"
+    assert contract["external_agents"]["attach_sequence"][8] == "GET /agent/maker-briefing?session_id=s1 before the first Maker action"
     assert "GET /sessions/s1/runtime-metrics?steps=20 when diagnosing latency/token cost" in contract["external_agents"]["attach_sequence"]
     assert "GET /sessions/s1/maker-guard?steps=20 when checking first-action Maker alignment" in contract["external_agents"]["attach_sequence"]
     assert "GET /sessions/s1/runtime-advice?steps=20 for the next diagnostic action" in contract["external_agents"]["attach_sequence"]

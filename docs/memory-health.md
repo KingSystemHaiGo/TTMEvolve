@@ -209,3 +209,11 @@ pm.cmd --prefix frontend run build passed; focused tool-routing pytest for proje
 - `/sessions/{id}/runtime-metrics` now prefers the bus observer when live metrics exist, while returning store counts and observer counts so fallback behavior is explicit.
 - Runtime Readiness and Evidence now expose `runtime_metrics_source`, `runtime_metrics_observer`, and observer stats under `runtime_event_bus`.
 - Verified focused bus observer and AppServer endpoint tests; this moves the bus from passive evidence to an actual consumer path.
+
+## 2026-06-26 Project Management Observer POST
+
+- Added `server/project_observer.py` as a Runtime Event Bus subscriber for engineering-control/project-management state.
+- The observer derives next action, next focus, goal status/counts, plan verdict, latest tool, continuation readiness, artifacts, and risk flags from public bus events, especially `context_sync`.
+- Added `/sessions/{id}/project-state` and exposed `project_state` in Runtime Readiness, Session Evidence JSON/Markdown, and LLM Onboarding JSON/Markdown.
+- Runtime Contract now includes the project-state endpoint in both communication surfaces and external-agent attach sequence.
+- Verified unit and AppServer tests for bus-derived project state plus Evidence/Runtime Contract assertions.

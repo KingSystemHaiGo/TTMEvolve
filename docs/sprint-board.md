@@ -204,3 +204,12 @@
 - Runtime Readiness/Evidence expose observer status so attached agents can tell whether metrics came from bus snapshots or persisted replay.
 - Verified: bus observer unit test plus AppServer runtime-metrics/readiness/evidence focused tests.
 - Next: add project-management task state observers on the same bus path.
+
+## 2026-06-26 Project Management Observer
+
+- Status: verified.
+- Added a live ProjectManagementObserver that subscribes to Runtime Event Bus session events and derives next action, goal status, plan verdict, continuation readiness, artifacts, and risk flags.
+- Added `/sessions/{id}/project-state` plus Evidence/Onboarding/Readiness project-state fields so external agents and the GUI can inspect project control state directly.
+- Runtime Contract now advertises project-state in communication endpoints and external-agent attach sequence.
+- Verified: runtime event observer tests, AppServer project-state endpoint, Evidence bundle, and Runtime Contract focused tests.
+- Next: wire this project-state snapshot into the Workbench UI and use it to drive proactive next-step recommendations.

@@ -58,6 +58,7 @@ from server.maker_setup import (
     render_maker_setup_markdown,
 )
 from server.maker_practice import MakerPracticeRunner
+from server.project_observer import ProjectManagementObserver
 from server.protocol import ApprovalResponse, SessionRequest, TurnEvent
 from server.runtime_observer import RuntimeMetricsObserver
 from server.session_store import SessionStore
@@ -138,6 +139,49 @@ def runtime_metrics_from_server(server: Any, session_id: str, *, limit: int = 10
         "store_count": len(store_metrics),
         "observer_count": len(observer_metrics),
     }
+
+
+def project_state_from_server(server: Any, session_id: str) -> Dict[str, Any]:
+    observer = getattr(server, "project_observer", None)
+    if observer is None:
+        return {"status": "missing", "source": "runtime_event_bus_project_observer", "session_id": session_id}
+    try:
+        snapshot = observer.snapshot(session_id)
+    except Exception as exc:
+        return {
+            "status": "error",
+            "source": "runtime_event_bus_project_observer",
+            "session_id": session_id,
+            "error": str(exc),
+        }
+    if snapshot.get("status") == "missing":
+        context_history = []
+        try:
+            context_history = server.session_store.get_context_sync_history(session_id, limit=1)
+        except Exception:
+            context_history = []
+        if context_history:
+            latest = context_history[-1]
+            checkpoint = latest.get("continuation_checkpoint") if isinstance(latest.get("continuation_checkpoint"), dict) else {}
+            return {
+                "status": "replay",
+                "source": "session_store_context_sync",
+                "session_id": session_id,
+                "task": (latest.get("snapshot") or {}).get("task") if isinstance(latest.get("snapshot"), dict) else None,
+                "workspace_profile": latest.get("workspace_profile"),
+                "goal_overall": latest.get("goal_overall"),
+                "next_focus": checkpoint.get("goal_next_focus"),
+                "last_tool": latest.get("last_tool"),
+                "plan_verdict": latest.get("plan_verdict"),
+                "continuation": {
+                    "status": "ready" if latest.get("resume_ready") else "partial",
+                    "resume_ready": latest.get("resume_ready"),
+                    "resume_mode": latest.get("resume_mode"),
+                    "open_plan_count": latest.get("open_plan_count"),
+                },
+                "next_action": checkpoint.get("goal_next_focus") or "Resume from latest context_sync checkpoint.",
+            }
+    return snapshot
 
 
 def summarize_layer_events(events: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -614,6 +658,7 @@ def build_runtime_readiness(
     layer_summary = summarize_layer_events(layer_history)
     runtime_summary = summarize_runtime_metrics(runtime_metrics)
     event_bus_summary = build_runtime_event_bus_summary(server=server, session_id=session_id)
+    project_state = project_state_from_server(server, session_id) if session_id != "{session_id}" else {"status": "not_requested"}
     issues: List[Dict[str, str]] = []
     next_actions: List[str] = []
 
@@ -714,6 +759,7 @@ def build_runtime_readiness(
             "last_call_endpoint": last_call_stats.get("endpoint"),
             "call_proof": llm_call_proof.get("conclusion"),
             "event_bus": event_bus_summary.get("status"),
+            "project_state": project_state.get("status"),
         },
         "issues": issues,
         "next_actions": next_actions,
@@ -739,6 +785,7 @@ def build_runtime_readiness(
         "runtime_metrics_source": runtime_metrics_evidence.get("source") if runtime_metrics_evidence else "session_store",
         "runtime_metrics_observer": runtime_metrics_evidence.get("observer") if runtime_metrics_evidence else {"status": "not_requested"},
         "runtime_metrics_summary": runtime_summary,
+        "project_state": project_state,
         "latest_context_sync": context_history[-1] if context_history else None,
         "learning_latest": learning_history[-1] if learning_history else None,
         "maker_guard_latest": maker_guard_history[-1] if maker_guard_history else None,
@@ -863,6 +910,11 @@ def build_runtime_event_bus_summary(*, server: Any, session_id: str = "{session_
             if getattr(server, "runtime_metrics_observer", None) is not None
             else {"status": "missing"}
         ),
+        "project_observer": (
+            getattr(server.project_observer, "stats", lambda: {"status": "missing"})()
+            if getattr(server, "project_observer", None) is not None
+            else {"status": "missing"}
+        ),
         "session_id": session_id,
         "session_events": 0,
         "session_layer_events": 0,
@@ -930,6 +982,7 @@ def build_session_evidence_bundle(
     maker_setup = server.maker_setup_status(check_latest=False)
     shared_memory = build_shared_memory_policy_summary(server=server)
     event_bus_summary = build_runtime_event_bus_summary(server=server, session_id=session_id)
+    project_state = project_state_from_server(server, session_id)
 
     endpoint_keys = [
         "onboarding_bundle",
@@ -942,6 +995,7 @@ def build_session_evidence_bundle(
         "evidence_bundle",
         "runtime_advice",
         "runtime_metrics",
+        "project_state",
         "learning_status",
         "maker_guard",
         "context_sync",
@@ -993,6 +1047,7 @@ def build_session_evidence_bundle(
         "runtime_metrics_source": runtime_metrics_evidence.get("source") if runtime_metrics_evidence else "session_store",
         "runtime_metrics_observer": runtime_metrics_evidence.get("observer") if runtime_metrics_evidence else {"status": "not_requested"},
         "runtime_metrics_summary": runtime_summary,
+        "project_state": project_state,
         "shared_memory": shared_memory,
         "learning_latest": learning_latest,
         "maker_guard_latest": maker_guard_latest,
@@ -1075,6 +1130,7 @@ def render_session_evidence_markdown(bundle: Dict[str, Any]) -> str:
         else {}
     )
     shared_memory = bundle.get("shared_memory") if isinstance(bundle.get("shared_memory"), dict) else {}
+    project_state = bundle.get("project_state") if isinstance(bundle.get("project_state"), dict) else {}
     latest_feedback_run = (
         feedback_summary.get("latest_run")
         if isinstance(feedback_summary.get("latest_run"), dict)
@@ -1144,6 +1200,16 @@ def render_session_evidence_markdown(bundle: Dict[str, Any]) -> str:
         lines.append(f"- mcp_top_tools: {', '.join(top_tool_names)}")
     if suggested_tools:
         lines.append(f"- suggested_tools: {', '.join(str(tool) for tool in suggested_tools[:4])}")
+
+    lines.extend([
+        "",
+        "## Project State",
+        f"- status: `{project_state.get('status') or '-'}` source=`{project_state.get('source') or '-'}`",
+        f"- next_action: {project_state.get('next_action') or '-'}",
+        f"- next_focus: {project_state.get('next_focus') or '-'}",
+        f"- goal: `{project_state.get('goal_overall') or '-'}` plan=`{project_state.get('plan_verdict') or '-'}` last_tool=`{project_state.get('last_tool') or '-'}`",
+        f"- risks: {', '.join(project_state.get('risk_flags') or []) or '-'}",
+    ])
 
     lines.extend(["", "## Layer Communication"])
     for layer in ["agent", "runtime", "learning"]:
@@ -1277,6 +1343,11 @@ def build_llm_onboarding_bundle(
         if isinstance(evidence.get("runtime_event_bus"), dict)
         else {}
     )
+    project_state = (
+        evidence.get("project_state")
+        if isinstance(evidence.get("project_state"), dict)
+        else {}
+    )
     continuation = (
         evidence.get("continuation")
         if isinstance(evidence.get("continuation"), dict)
@@ -1295,6 +1366,7 @@ def build_llm_onboarding_bundle(
             "maker_guard",
             "context_sync",
             "runtime_metrics",
+            "project_state",
             "learning_status",
             "llm_probe",
             "llm_probe_history",
@@ -1373,6 +1445,16 @@ def build_llm_onboarding_bundle(
             ),
         },
         {
+            "id": "project_management_state",
+            "status": "ready" if project_state.get("status") in {"ready", "replay"} else "instrumented",
+            "evidence": [endpoints.get("evidence_bundle"), endpoints.get("context_sync")],
+            "summary": (
+                "Project observer state is "
+                f"{project_state.get('status') or 'unknown'} with next action: "
+                f"{project_state.get('next_action') or 'not observed'}"
+            ),
+        },
+        {
             "id": "frontend_backend_loop",
             "status": "ready" if endpoints.get("onboarding_bundle") and endpoints.get("evidence_bundle") else "warn",
             "evidence": ["AgentWorkbench", endpoints.get("onboarding_bundle")],
@@ -1434,6 +1516,7 @@ def build_llm_onboarding_bundle(
             "layer_events": layer_summary.get("event_count", 0),
             "runtime_events": runtime_summary.get("event_count", 0),
             "event_bus": event_bus_summary.get("status") or "missing",
+            "project_state": project_state.get("status") or "missing",
             "learning": learning_latest.get("event") or learning_latest.get("state") or "not_observed",
             "maker_setup": maker_setup.get("readiness"),
             "maker_tool_audit": "ok" if maker_tool_audit.get("ok") else "needs_review",
@@ -1460,6 +1543,7 @@ def build_llm_onboarding_bundle(
         "continuation": continuation,
         "shared_memory": shared_memory,
         "runtime_event_bus": event_bus_summary,
+        "project_state": project_state,
         "layer_summary": layer_summary,
         "runtime_metrics_summary": runtime_summary,
         "learning_latest": learning_latest or None,
@@ -1479,6 +1563,7 @@ def build_llm_onboarding_bundle(
                 "Long tasks expose continuation checkpoints before raw transcript replay.",
                 "Shared-memory policy is explicit before multi-agent memory reuse.",
                 "Runtime Event Bus status is exposed before observers rely on decoupled event streams.",
+                "Project-management state is derived from bus/context evidence before asking the user to decide next steps.",
                 "Workbench and backend expose the same compact evidence path.",
             ],
         },
@@ -1528,6 +1613,7 @@ def render_llm_onboarding_markdown(bundle: Dict[str, Any]) -> str:
     )
     event_bus = bundle.get("runtime_event_bus") if isinstance(bundle.get("runtime_event_bus"), dict) else {}
     server_bus = event_bus.get("server_bus") if isinstance(event_bus.get("server_bus"), dict) else {}
+    project_state = bundle.get("project_state") if isinstance(bundle.get("project_state"), dict) else {}
     call_proof = bundle.get("llm_call_proof") if isinstance(bundle.get("llm_call_proof"), dict) else {}
     surface = bundle.get("surface") if isinstance(bundle.get("surface"), dict) else {}
     endpoints = bundle.get("endpoints") if isinstance(bundle.get("endpoints"), dict) else {}
@@ -1562,6 +1648,7 @@ def render_llm_onboarding_markdown(bundle: Dict[str, Any]) -> str:
         f"- layer_events: `{summary.get('layer_events') or layer_summary.get('event_count') or 0}`",
         f"- runtime_events: `{summary.get('runtime_events') or runtime_summary.get('event_count') or 0}`",
         f"- event_bus: `{summary.get('event_bus') or event_bus.get('status') or '-'}` server_history=`{server_bus.get('history_size', '-')}`",
+        f"- project_state: `{summary.get('project_state') or project_state.get('status') or '-'}` next=`{project_state.get('next_action') or '-'}`",
         f"- learning: `{summary.get('learning') or '-'}`",
         f"- continuation: `{summary.get('continuation') or continuation.get('status') or '-'}` resume_ready=`{continuation.get('resume_ready')}`",
         "",
@@ -1977,6 +2064,7 @@ class AppServer:
         self._session_llm_overrides: Dict[str, Dict[str, Optional[str]]] = {}
         self.event_bus = RuntimeEventBus()
         self.runtime_metrics_observer = RuntimeMetricsObserver(self.event_bus)
+        self.project_observer = ProjectManagementObserver(self.event_bus)
         self._lock = threading.Lock()
         self.ide_service = IdeService(agent)
         storage_root = Path(agent.config.storage_root())
@@ -2998,6 +3086,17 @@ class AppServer:
                         })
                         return
 
+                if path.startswith("/sessions/") and path.endswith("/project-state"):
+                    parts = path.split("/")
+                    if len(parts) >= 4:
+                        sid = parts[2]
+                        stored = server.session_store.get_session(sid)
+                        if not stored and not server.get_session(sid):
+                            self.send_error(404, "Session not found")
+                            return
+                        self._json_response(200, project_state_from_server(server, sid))
+                        return
+
                 if path.startswith("/sessions/") and path.endswith("/learning"):
                     parts = path.split("/")
                     if len(parts) >= 4:
@@ -3788,6 +3887,9 @@ class AppServer:
         observer = getattr(self, "runtime_metrics_observer", None)
         if observer is not None:
             observer.close()
+        project_observer = getattr(self, "project_observer", None)
+        if project_observer is not None:
+            project_observer.close()
         self.browser_service.stop()
         if hasattr(self, "_httpd"):
             self._httpd.shutdown()

@@ -171,6 +171,59 @@ def test_app_server_runtime_metrics_endpoint_uses_bus_observer():
             server.stop()
 
 
+def test_app_server_project_state_endpoint_uses_bus_observer():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        port = 17375
+        server = _make_server(tmp_path, port)
+        sid = server.create_session(SessionRequest(task="control project", session_id="projectstate1"))
+        session = server.get_session(sid)
+        assert session is not None
+        session.emit({
+            "type": "context_sync",
+            "session_id": sid,
+            "payload": {
+                "snapshot": {
+                    "task": "control project",
+                    "iteration": 3,
+                    "workspace_profile": "coding",
+                    "last_tool": "modify_file",
+                    "plan_validation": {"verdict": "pass", "summary": "checked", "issues_count": 0},
+                    "goal_checklist": {
+                        "overall": "active",
+                        "counts": {"done": 1, "pending": 1},
+                        "next_focus": "Verify project observer",
+                    },
+                    "continuation_checkpoint": {
+                        "resume_ready": True,
+                        "resume_mode": "context_handoff",
+                        "open_plan_steps": [
+                            {"id": "verify", "title": "Verify project observer", "status": "pending"}
+                        ],
+                        "artifact_count": 1,
+                        "artifact_refs": [{"path": "server/project_observer.py"}],
+                    },
+                },
+            },
+        })
+        thread = threading.Thread(target=server.start, daemon=True)
+        thread.start()
+        time.sleep(1)
+
+        try:
+            data = _get_json(f"http://127.0.0.1:{port}/sessions/projectstate1/project-state")
+
+            assert data["status"] == "ready"
+            assert data["source"] == "runtime_event_bus_project_observer"
+            assert data["task"] == "control project"
+            assert data["next_action"] == "Verify project observer"
+            assert data["goal_overall"] == "active"
+            assert data["plan_verdict"] == "pass"
+            assert data["continuation"]["resume_ready"] is True
+        finally:
+            server.stop()
+
+
 def _make_slow_server(tmp_path: Path, port: int) -> AppServer:
     config_path = tmp_path / "config.json"
     config_path.write_text(
@@ -1333,6 +1386,9 @@ def test_app_server_evidence_bundle_endpoint():
             assert data["runtime_event_bus"]["runtime_metrics_observer"]["status"] == "ready"
             assert data["runtime_metrics_source"] == "session_store"
             assert data["runtime_metrics_observer"]["status"] == "ready"
+            assert data["project_state"]["status"] == "replay"
+            assert data["project_state"]["source"] == "session_store_context_sync"
+            assert data["project_state"]["next_action"] == "Run Maker build"
             assert data["runtime_advice"]["status"] == "needs_action"
             assert data["runtime_advice"]["priority"] == "maker_mcp_connection"
             assert data["counts"]["context_sync"] == 1
@@ -1354,6 +1410,8 @@ def test_app_server_evidence_bundle_endpoint():
             assert "mcp_readiness: `disconnected`" in markdown
             assert "mcp_connected: `False`" in markdown
             assert "mcp_tool_count: `0`" in markdown
+            assert "## Project State" in markdown
+            assert "next_action: Run Maker build" in markdown
             assert "## Layer Communication" in markdown
             assert "## Runtime Event Bus" in markdown
             assert "compatibility=`sse_sqlite_shape_preserved`" in markdown
@@ -1383,9 +1441,11 @@ def test_app_server_evidence_bundle_endpoint():
             assert onboarding["summary"]["api_call_proof"] == "api_call_observed"
             assert onboarding["summary"]["continuation"] == "ready"
             assert onboarding["summary"]["event_bus"] in {"ready", "partial"}
+            assert onboarding["summary"]["project_state"] == "replay"
             assert onboarding["shared_memory"]["boundary"] == "owner_private_plus_explicit_shared"
             assert onboarding["shared_memory"]["default_visibility"] == "private"
             assert onboarding["runtime_event_bus"]["status"] in {"ready", "partial"}
+            assert onboarding["project_state"]["next_action"] == "Run Maker build"
             assert onboarding["continuation"]["workspace_profile"] == "maker"
             assert onboarding["continuation"]["open_plan_steps"][0]["id"] == "build"
             assert onboarding["startup_order"][0] == "/agent/onboarding?session_id=evidence1&steps=20"
@@ -1394,6 +1454,7 @@ def test_app_server_evidence_bundle_endpoint():
             assert any(check["id"] == "long_task_continuation" and check["status"] == "ready" for check in onboarding["closure_gate"]["checks"])
             assert any(check["id"] == "shared_memory_policy" and check["status"] == "ready" for check in onboarding["closure_gate"]["checks"])
             assert any(check["id"] == "runtime_event_bus" and check["status"] == "ready" for check in onboarding["closure_gate"]["checks"])
+            assert any(check["id"] == "project_management_state" and check["status"] == "ready" for check in onboarding["closure_gate"]["checks"])
             assert "maker_mcp_remote_authority" in onboarding["closure_gate"]["live_validation_gaps"]
             assert onboarding["token_strategy"]["metrics"]["tool_ranking"]["selected_count"] == 6
             assert "TapTap Maker Plus" in onboarding["reference_principles"][0]
@@ -1404,6 +1465,7 @@ def test_app_server_evidence_bundle_endpoint():
             assert "release: `v0.4.2-onboarding-closure`" in onboarding_markdown
             assert "surface: `codex`" in onboarding_markdown
             assert "event_bus: `" in onboarding_markdown
+            assert "project_state: `" in onboarding_markdown
             assert "## Continuation" in onboarding_markdown
             assert "workspace=`maker`" in onboarding_markdown
             assert "onboarding_bundle: `/agent/onboarding?session_id=evidence1&steps=20`" in onboarding_markdown

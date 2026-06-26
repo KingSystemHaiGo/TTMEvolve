@@ -13,6 +13,7 @@ from core.runtime_events import (
     envelope_event,
     feedback_event,
 )
+from server.project_observer import ProjectManagementObserver
 from server.runtime_observer import RuntimeMetricsObserver
 
 
@@ -133,6 +134,54 @@ def test_runtime_metrics_observer_subscribes_to_bus_without_store():
     assert summary["source"] == "runtime_event_bus_observer"
     assert summary["event_count"] == 2
     assert summary["latest_by_kind"]["tool_selection"]["candidate_count"] == 12
+    assert observer.stats()["observed_session_count"] == 1
+
+    observer.close()
+
+
+def test_project_management_observer_derives_next_action_from_context_sync():
+    bus = RuntimeEventBus()
+    observer = ProjectManagementObserver(bus)
+
+    bus.publish({
+        "type": "context_sync",
+        "session_id": "project-bus",
+        "payload": {
+            "snapshot": {
+                "task": "ship project controls",
+                "iteration": 4,
+                "workspace_profile": "coding",
+                "last_tool": "modify_file",
+                "plan_validation": {"verdict": "warn", "summary": "needs proof", "issues_count": 1},
+                "goal_checklist": {
+                    "overall": "active",
+                    "counts": {"done": 2, "pending": 1},
+                    "next_focus": "Run focused observer tests",
+                },
+                "continuation_checkpoint": {
+                    "resume_ready": True,
+                    "resume_mode": "context_handoff",
+                    "open_plan_steps": [
+                        {"id": "verify", "title": "Run focused observer tests", "status": "pending"}
+                    ],
+                    "artifact_count": 1,
+                    "artifact_refs": [{"path": "server/project_observer.py"}],
+                    "compression": {"needed": True},
+                },
+            },
+        },
+    })
+
+    snapshot = observer.snapshot("project-bus")
+
+    assert snapshot["status"] == "ready"
+    assert snapshot["source"] == "runtime_event_bus_project_observer"
+    assert snapshot["task"] == "ship project controls"
+    assert snapshot["next_action"] == "Run focused observer tests"
+    assert snapshot["plan_verdict"] == "warn"
+    assert snapshot["continuation"]["resume_ready"] is True
+    assert "plan_warn" in snapshot["risk_flags"]
+    assert "compression_needed" in snapshot["risk_flags"]
     assert observer.stats()["observed_session_count"] == 1
 
     observer.close()
