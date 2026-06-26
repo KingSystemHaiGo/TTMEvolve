@@ -71,6 +71,30 @@ class Executor:
         *MAKER_PROXY_TOOLS,
     }
 
+    DEFAULT_SEARCH_EXCLUDED_DIRS = {
+        ".git",
+        ".hg",
+        ".svn",
+        ".venv",
+        "venv",
+        "node_modules",
+        "dist",
+        "build",
+        ".next",
+        ".turbo",
+        ".pytest_cache",
+        "__pycache__",
+        "storage",
+        "portable",
+        "vendor",
+        "versions",
+    }
+
+    DEFAULT_SEARCH_EXCLUDED_FILES = {
+        "events.jsonl",
+        "commit_state.jsonl",
+    }
+
     def __init__(
         self,
         project_root: Path,
@@ -343,13 +367,82 @@ class Executor:
             items.append({"name": p.name, "is_dir": p.is_dir()})
         return {"ok": True, "items": items}
 
-    def _search_files(self, pattern: str, path: str = ".", **kwargs) -> Dict[str, Any]:
+    def _search_files(
+        self,
+        pattern: str,
+        path: str = ".",
+        max_results: int = 20,
+        max_file_bytes: int = 1_000_000,
+        **kwargs,
+    ) -> Dict[str, Any]:
         target = self.project_root / path
+        if not target.exists():
+            return {"ok": False, "error": "搜索路径不存在", "hits": []}
+
+        limit = max(1, min(int(max_results or 20), 200))
+        file_limit = max(1024, min(int(max_file_bytes or 1_000_000), 10_000_000))
         hits = []
-        for p in target.rglob("*"):
-            if p.is_file() and pattern in p.read_text(encoding="utf-8", errors="ignore"):
-                hits.append(str(p.relative_to(self.project_root)))
-        return {"ok": True, "hits": hits[:20]}
+        metrics = {"skipped_dirs": 0}
+        scanned_files = 0
+        skipped_large_files = 0
+        skipped_binary_files = 0
+
+        for p in self._iter_search_files(target, metrics):
+            try:
+                stat = p.stat()
+            except OSError:
+                continue
+            if stat.st_size > file_limit:
+                skipped_large_files += 1
+                continue
+            try:
+                data = p.read_bytes()
+            except OSError:
+                continue
+            if b"\x00" in data[:4096]:
+                skipped_binary_files += 1
+                continue
+            scanned_files += 1
+            text = data.decode("utf-8", errors="ignore")
+            if pattern in text:
+                hits.append(p.relative_to(self.project_root).as_posix())
+                if len(hits) >= limit:
+                    break
+
+        return {
+            "ok": True,
+            "hits": hits,
+            "metrics": {
+                "scanned_files": scanned_files,
+                "skipped_dirs": metrics["skipped_dirs"],
+                "skipped_large_files": skipped_large_files,
+                "skipped_binary_files": skipped_binary_files,
+                "max_results": limit,
+                "max_file_bytes": file_limit,
+            },
+        }
+
+    def _iter_search_files(self, root: Path, metrics: Dict[str, int]):
+        if root.is_file():
+            yield root
+            return
+        stack = [root]
+        while stack:
+            current = stack.pop()
+            try:
+                entries = sorted(current.iterdir(), key=lambda item: (not item.is_dir(), item.name.lower()))
+            except OSError:
+                continue
+            for entry in entries:
+                if entry.is_dir():
+                    if entry.name in self.DEFAULT_SEARCH_EXCLUDED_DIRS:
+                        metrics["skipped_dirs"] += 1
+                        continue
+                    stack.append(entry)
+                elif entry.is_file():
+                    if entry.name in self.DEFAULT_SEARCH_EXCLUDED_FILES:
+                        continue
+                    yield entry
 
     def _execute_shell(self, command: str, **kwargs) -> Dict[str, Any]:
         timeout_seconds = self._resolve_timeout(

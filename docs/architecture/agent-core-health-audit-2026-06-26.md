@@ -21,6 +21,8 @@ It should not yet claim full Claude Code or Codex parity. The remaining gaps are
 | User document creation | `create_document` tool, `tests/test_tool_call_validation.py::test_coding_agent_can_create_user_document` | 能新建 Markdown/text/JSON 文档，默认不覆盖已有文件。 |
 | File creation/editing | `modify_file`, `VersionManager` snapshot before write, commit-state recording | 能新建/修改项目内文件，并对副作用工具记录提交状态。 |
 | Shell execution | `execute_shell`, sandbox prefix checks, timeout handling | 能运行受控命令，超时会杀进程树并返回机器可读观察。 |
+| Search performance guard | `search_files` skips heavy/runtime dirs and large/binary files, `tests/test_tool_call_validation.py::test_executor_search_files_skips_heavy_dirs_and_large_files` | 搜索默认跳过 `.git`、`node_modules`、`.venv`、运行时日志和大文件，并返回扫描指标。 |
+| Workspace profile signal | Inspired by Zleap-Agent's workspace-first design, `ToolRegistry.last_rank_stats().workspace_profile` reports `coding/docs/maker/browser/general` | 工具排序会标记当前任务工作面，后续可用于更严格的上下文/工具隔离。 |
 | Minimal coding loop | `tests/test_tool_call_validation.py::test_coding_agent_minimal_programming_smoke` | ReAct 可在临时项目里看状态、新建 Python 文件、运行文件并总结结果。 |
 | Multi-layer observability | `tests/test_app_server_resume.py::test_app_server_persists_layer_and_learning_events` | Agent/Runtime/Learning 层事件可持久化并进入 Evidence Bundle。 |
 | Runtime readiness/evidence | `tests/test_runtime_contract.py`, `/runtime/readiness`, `/sessions/{id}/evidence` | 外部或任意 LLM 可拉取紧凑证据，而不是读原始日志。 |
@@ -38,12 +40,34 @@ Commands run on 2026-06-26:
 .venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_coding_agent_can_create_user_document -q
 # 1 passed
 
+.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_executor_search_files_skips_heavy_dirs_and_large_files -q
+# 1 passed
+
 .venv\Scripts\python.exe -m pytest tests\test_e2e_runtime.py tests\test_runtime_contract.py tests\test_app_server_resume.py::test_app_server_persists_layer_and_learning_events -q
 # 28 passed
 
 .venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_sandbox.py tests\test_tool_timeouts.py tests\test_plan_first.py tests\test_plan_first_integration.py tests\test_plan_validation.py tests\test_coding_agent_v060.py tests\test_runtime_events.py tests\test_runtime_contract.py -q
-# 86 passed
+# 88 passed
 ```
+
+## Zleap-Agent Learning / Zleap-Agent 学习结论
+
+Reviewed: <https://github.com/Zleap-AI/Zleap-Agent>
+
+The useful architectural lesson is workspace-first context control: the agent should not blindly expose every tool, memory, and history item on every turn. A workspace/profile boundary should decide which tools and memories are relevant before the LLM sees them.
+
+有价值的架构启发是 workspace-first：Agent 不应该每轮都暴露全部工具、记忆和历史。应先判断当前任务属于 coding/docs/maker/browser/general 哪个工作面，再决定工具与上下文范围。
+
+Applied now:
+
+- `ToolRegistry.rank_tools()` now records `workspace_profile` in rank stats.
+- `search_files` now uses performance guards so coding workspaces do not spend time scanning dependency/runtime trees.
+
+Next:
+
+- Use `workspace_profile` to cap tool schemas more aggressively.
+- Add per-profile memory retrieval policies.
+- Show profile-level runtime evidence in Workbench/debug surfaces, not in the main chat.
 
 ## 健康度判断 / Health Assessment
 
@@ -52,7 +76,7 @@ Commands run on 2026-06-26:
 | Core coding actions | Ready for controlled local use | 读文件、写文件、新建文档、命令执行、项目状态已经可测。 |
 | Architecture layering | Healthy but still young | 三层事件已存在；需要更多用户任务级可视化诊断。 |
 | Safety | Baseline ready | 沙箱、审批、超时、提交状态存在；还需要更细的命令策略和用户可理解解释。 |
-| Performance | Instrumented, not fully optimized | 已有 latency/runtime metrics；缺少持续性能基准和大仓库压力测试。 |
+| Performance | Baseline guarded, not fully optimized | 已有 latency/runtime metrics；本地搜索已跳过重目录/大文件并返回指标；工具排序已输出 workspace profile；仍缺少持续性能基准和大仓库压力测试。 |
 | Product usability | Improving | GUI 越来越像应用；Agent 能力解释和失败恢复还要更“用户语言”。 |
 | Claude Code/Codex parity | Not proven | 不能只靠小烟测声称达到，需要真实 benchmark 和大型任务成功率。 |
 
@@ -74,7 +98,7 @@ Commands run on 2026-06-26:
    三层架构继续保留证据，但普通用户界面只展示“正在规划/执行/验证/学习”这类可理解状态。
 
 6. Add performance baselines.
-   记录工具排序耗时、首 token/首响应、上下文构建、文件搜索、大目录扫描、Maker MCP 调用延迟。
+   文件搜索已有基础扫描指标；下一步记录首 token/首响应、上下文构建、大目录压力、Maker MCP 调用延迟和持续趋势。
 
 7. Verify real GUI coding task loop.
    从桌面 GUI 发起一个真实任务，证明它能在用户可见体验里完成读写文件、跑测试、显示结果。

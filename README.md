@@ -61,6 +61,8 @@ The launcher prefers embedded runtimes under `portable/`, then `.venv/`, then sy
 | Product polish | History is a dismissible popover; normal users see action progress, not internal tool candidate lists. | 历史记录是可关闭浮层；普通用户只看到动作进度，不看到内部候选工具列表。 |
 | Project status | `project_status` gives the Agent a first-class read-only way to inspect the current project, Git state, and top-level files. | `project_status` 让 Agent 可以用一等只读工具查看当前项目、Git 状态和顶层文件。 |
 | Document creation | `create_document` lets the Agent create Markdown/text/JSON documents through the same sandbox, approval, and event pipeline as code edits. | `create_document` 让 Agent 可以通过和代码编辑相同的沙箱、审批、事件链路新建 Markdown/text/JSON 文档。 |
+| Search performance | `search_files` skips heavy/runtime directories and large/binary files, then returns scan metrics. | `search_files` 默认跳过重目录、运行时目录、大文件和二进制文件，并返回扫描指标。 |
+| Workspace profile | Tool ranking reports `coding/docs/maker/browser/general` so future context/tool scopes can be workspace-aware. | 工具排序会输出 `coding/docs/maker/browser/general` 工作面信号，后续上下文和工具范围可按工作面收敛。 |
 
 ## Architecture / 架构
 
@@ -162,7 +164,8 @@ The latest full sync validated these paths:
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_sandbox.py -q` -> `25 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_coding_agent_minimal_programming_smoke -q` -> `1 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_coding_agent_can_create_user_document -q` -> `1 passed`
-- `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_sandbox.py tests\test_tool_timeouts.py tests\test_plan_first.py tests\test_plan_first_integration.py tests\test_plan_validation.py tests\test_coding_agent_v060.py tests\test_runtime_events.py tests\test_runtime_contract.py -q` -> `86 passed`
+- `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_executor_search_files_skips_heavy_dirs_and_large_files -q` -> `1 passed`
+- `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_sandbox.py tests\test_tool_timeouts.py tests\test_plan_first.py tests\test_plan_first_integration.py tests\test_plan_validation.py tests\test_coding_agent_v060.py tests\test_runtime_events.py tests\test_runtime_contract.py -q` -> `88 passed`
 - `.venv\Scripts\python.exe -m pytest -q` -> `598 passed, 14 skipped`
 - `npm.cmd --prefix frontend run build` -> passed
 - `npm.cmd --prefix electron run build` -> passed

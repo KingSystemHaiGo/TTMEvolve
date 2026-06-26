@@ -76,12 +76,14 @@ def _register_list_directory(tools: "ToolRegistry", executor: "Executor") -> Non
 def _register_search_files(tools: "ToolRegistry", executor: "Executor") -> None:
     tools.register(
         name="search_files",
-        description="在项目文件内容中搜索字符串",
+        description="在项目文本文件中搜索字符串，默认跳过 .git/node_modules/.venv/dist 等重目录和大文件。",
         parameters={
             "type": "object",
             "properties": {
                 "pattern": {"type": "string"},
                 "path": {"type": "string"},
+                "max_results": {"type": "integer", "minimum": 1, "description": "最多返回命中数量，默认 20"},
+                "max_file_bytes": {"type": "integer", "minimum": 1024, "description": "单文件最大读取字节数，默认 1MB"},
             },
             "required": ["pattern"],
         },

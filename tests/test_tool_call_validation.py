@@ -229,6 +229,31 @@ def test_tool_registry_prioritizes_create_document_for_document_tasks():
         ranked = tools.rank_tools("新建文档，写一份 README markdown 说明", limit=2)
 
         assert [tool["name"] for tool in ranked] == ["create_document", "modify_file"]
+        assert tools.last_rank_stats()["workspace_profile"] == "docs"
+
+
+def test_tool_registry_reports_workspace_profile_for_coding_tasks():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tools = ToolRegistry(root / "skills")
+        executor = _make_executor(root)
+        for name in ["read_file", "modify_file", "execute_shell"]:
+            tools.register(
+                name=name,
+                description=name,
+                parameters={"type": "object", "properties": {}},
+                handler=executor.propose_action,
+                source="builtin",
+            )
+
+        tools.rank_tools("修复 Python 代码并运行测试", limit=2)
+        first = tools.last_rank_stats()
+        tools.rank_tools("修复 Python 代码并运行测试", limit=2)
+        second = tools.last_rank_stats()
+
+        assert first["workspace_profile"] == "coding"
+        assert second["workspace_profile"] == "coding"
+        assert second["cache_hit"] is True
 
 
 def test_executor_project_status_reports_git_and_top_level():
@@ -242,6 +267,33 @@ def test_executor_project_status_reports_git_and_top_level():
         assert result["ok"] is True
         assert result["markers"]["package_json"] is True
         assert any(item["name"] == "package.json" for item in result["top_level"])
+
+
+def test_executor_search_files_skips_heavy_dirs_and_large_files():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "src").mkdir()
+        (root / "src" / "app.py").write_text("NEEDLE = True\n", encoding="utf-8")
+        (root / "node_modules" / "pkg").mkdir(parents=True)
+        (root / "node_modules" / "pkg" / "bad.js").write_text("NEEDLE in dependency\n", encoding="utf-8")
+        (root / ".git").mkdir()
+        (root / ".git" / "config").write_text("NEEDLE in git\n", encoding="utf-8")
+        (root / ".venv" / "Lib").mkdir(parents=True)
+        (root / ".venv" / "Lib" / "site.py").write_text("NEEDLE in env\n", encoding="utf-8")
+        (root / "large.txt").write_text("NEEDLE\n" + ("x" * 5000), encoding="utf-8")
+        executor = _make_executor(root)
+
+        result = executor.propose_action(
+            "search1",
+            "search_files",
+            {"pattern": "NEEDLE", "max_file_bytes": 1024},
+        )
+
+        assert result["ok"] is True
+        assert result["hits"] == ["src/app.py"]
+        assert result["metrics"]["skipped_dirs"] >= 3
+        assert result["metrics"]["skipped_large_files"] == 1
+        assert result["metrics"]["scanned_files"] == 1
 
 
 def test_executor_create_document_formats_markdown_and_json():
@@ -973,7 +1025,9 @@ if __name__ == "__main__":
     test_tool_registry_ranks_and_limits_relevant_tools()
     test_tool_registry_prioritizes_project_status_for_project_questions()
     test_tool_registry_prioritizes_create_document_for_document_tasks()
+    test_tool_registry_reports_workspace_profile_for_coding_tasks()
     test_executor_project_status_reports_git_and_top_level()
+    test_executor_search_files_skips_heavy_dirs_and_large_files()
     test_executor_create_document_formats_markdown_and_json()
     test_coding_agent_minimal_programming_smoke()
     test_coding_agent_can_create_user_document()

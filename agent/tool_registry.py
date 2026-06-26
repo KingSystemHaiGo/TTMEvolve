@@ -270,6 +270,7 @@ class ToolRegistry:
         started_at = time.perf_counter()
         query_l = (query or "").lower()
         query_terms = [term for term in re_split_query(query_l) if len(term) >= 2]
+        workspace_profile = _infer_workspace_profile(query_l)
         cache_key = self._rank_cache_key(query_l, limit)
         cached_names = self._rank_cache.get(cache_key)
         if cached_names is not None:
@@ -279,6 +280,7 @@ class ToolRegistry:
                 cache_hit=True,
                 query_terms=query_terms,
                 selected_count=len(tools),
+                workspace_profile=workspace_profile,
             )
             return tools
 
@@ -328,6 +330,7 @@ class ToolRegistry:
             cache_hit=False,
             query_terms=query_terms,
             selected_count=len(selected),
+            workspace_profile=workspace_profile,
         )
         return selected
 
@@ -361,11 +364,13 @@ class ToolRegistry:
         cache_hit: bool,
         query_terms: List[str],
         selected_count: int,
+        workspace_profile: str = "general",
     ) -> Dict[str, Any]:
         return {
             "candidate_count": len(self._tools),
             "selected_count": selected_count,
             "query_terms": len(query_terms),
+            "workspace_profile": workspace_profile,
             "ranking_ms": round((time.perf_counter() - started_at) * 1000, 2),
             "cache_hit": cache_hit,
             "cache_size": len(self._rank_cache),
@@ -406,6 +411,18 @@ def re_split_query(query: str) -> List[str]:
     import re
 
     return re.findall(r"[a-zA-Z0-9_.:/-]+|[\u4e00-\u9fff]{1,4}", query)
+
+
+def _infer_workspace_profile(query_l: str) -> str:
+    if any(k in query_l for k in ("maker", "taptap", "游戏", "素材", "构建", "发布", "预览")):
+        return "maker"
+    if any(k in query_l for k in ("网页", "浏览器", "url", "http://", "https://", "搜索网页")):
+        return "browser"
+    if any(k in query_l for k in ("新建文档", "创建文档", "写文档", "readme", "markdown", "笔记", "说明")):
+        return "docs"
+    if any(k in query_l for k in ("代码", "修复", "实现", "bug", "测试", "python", "npm", "node", "git", "文件", "项目")):
+        return "coding"
+    return "general"
 
 
 def _closest_tool_name(name: str, available: List[str]) -> Optional[str]:

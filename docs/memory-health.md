@@ -119,3 +119,7 @@
 2026-06-26: Audited the Agent core against the user's "can it really program?" question. Important lesson: prove coding-agent claims with an end-to-end smoke that inspects project state, writes a file, runs a command, records events, and validates layered evidence; do not claim Claude Code/Codex parity until real large-repo benchmarks, GUI task loops, terminal depth, patch review gates, and performance baselines prove it.
 
 2026-06-26: Promoted user document creation to a first-class Agent tool. Important lesson: user-facing OS/document abilities should not be hidden behind generic `modify_file`; expose `create_document` through the same ToolRegistry, Sandbox, Executor, approval, snapshot, and commit-state pipeline so "新建文档" is selectable, testable, and safe.
+
+2026-06-26: Added a performance guard to local file search. Important lesson: a coding Agent that recursively scans `.git`, `node_modules`, `.venv`, runtime logs, or large files will feel broken on real repositories; `search_files` must skip heavy/runtime paths, cap file size, normalize hit paths, and return scan metrics.
+
+2026-06-26: Reviewed Zleap-Agent for Agent-core improvement ideas. Important lesson: the most useful pattern is workspace-first context control, not exposing every tool/memory/history item every turn; TTMEvolve now records a `workspace_profile` in tool-ranking stats as the first step toward profile-scoped tools and memory.
