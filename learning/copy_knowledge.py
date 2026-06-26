@@ -31,6 +31,20 @@ VOICE_GUIDELINES = [
 ]
 
 
+# Banned player-facing words. Kept as a module-level constant so the list
+# is easy to audit and extend; tests assert against this same set.
+BANNED_WORDS: List[str] = ["菜鸟", "废物", "弱鸡"]
+
+
+# Length threshold (in characters) above which the copy is considered too long
+# for a short prompt.
+MAX_COPY_LENGTH: int = 80
+
+
+# Maximum number of exclamations (ASCII + full-width) before we flag spam.
+MAX_EXCLAMATIONS: int = 2
+
+
 COPY_TEMPLATES: Dict[str, List[Dict[str, Any]]] = {
     "onboarding": [
         {"slot": "title", "example": "欢迎来到 {game_name}", "pattern": "欢迎来到 {game_name}"},
@@ -102,34 +116,33 @@ def all_categories() -> List[str]:
 
 
 def critique_copy(text: str) -> List[Dict[str, Any]]:
-    """Lightweight, deterministic critique of a player-facing copy string."""
+    """Lightweight, deterministic critique of a player-facing copy string.
+
+    Returns a list of issue dicts. An empty list means the copy passed all
+    checks — callers should treat `len(result) == 0` as the success signal
+    rather than looking for an "ok" sentinel.
+    """
     issues: List[Dict[str, Any]] = []
     if not text:
         return [{"code": "empty", "message": "文案为空", "suggested_fix": "使用文案模板填充内容"}]
-    if len(text) > 80:
+    if len(text) > MAX_COPY_LENGTH:
         issues.append({
             "code": "too_long",
-            "message": "文案超过 80 字，玩家可能跳读",
+            "message": f"文案超过 {MAX_COPY_LENGTH} 字，玩家可能跳读",
             "suggested_fix": "拆分成 2-3 段，每段 ≤ 20 字",
         })
-    if text.count("!") + text.count("！") > 2:
+    exclamation_count = text.count("!") + text.count("！")
+    if exclamation_count > MAX_EXCLAMATIONS:
         issues.append({
             "code": "exclamation_spam",
             "message": "感叹号过多，会显得吵闹",
             "suggested_fix": "保留 1 个感叹号，其余改用句号",
         })
-    banned_words = ["菜鸟", "废物", "弱鸡"]
-    for word in banned_words:
+    for word in BANNED_WORDS:
         if word in text:
             issues.append({
                 "code": "insulting_word",
                 "message": f"文案包含冒犯性词汇「{word}」",
                 "suggested_fix": "改用鼓励或中性的描述",
             })
-    if not issues:
-        issues.append({
-            "code": "ok",
-            "message": "文案通过基础质量检查",
-            "suggested_fix": "",
-        })
     return issues

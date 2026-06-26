@@ -13,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 import hashlib
+import inspect
 import json
 import os
 import shutil
@@ -190,8 +191,13 @@ class Executor:
 
         started_at = time.perf_counter()
         try:
-            if tool_name in self.MAKER_PROXY_TOOLS or tool_name not in self.ALLOWED_LOCAL_TOOLS:
+            if tool_name in self.MAKER_PROXY_TOOLS:
                 result = handler(tool_name, **params)
+            elif tool_name in self._dynamic_tools:
+                call_params = dict(params)
+                if self._handler_accepts_session_id(handler):
+                    call_params["_session_id"] = session_id
+                result = handler(**call_params)
             else:
                 call_params = dict(params)
                 if tool_name == "execute_shell":
@@ -254,6 +260,22 @@ class Executor:
         self._tool_handlers["browser_click"] = self._browser_click
         self._tool_handlers["browser_evaluate"] = self._browser_evaluate
         self._tool_handlers["browser_screenshot"] = self._browser_screenshot
+
+    @staticmethod
+    def _handler_accepts_session_id(handler: Callable[..., Any]) -> bool:
+        try:
+            signature = inspect.signature(handler)
+        except (TypeError, ValueError):
+            return True
+        for param in signature.parameters.values():
+            if param.kind == inspect.Parameter.VAR_KEYWORD:
+                return True
+            if param.name == "_session_id" and param.kind in {
+                inspect.Parameter.KEYWORD_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            }:
+                return True
+        return False
 
     def _read_file(self, path: str, **kwargs) -> Dict[str, Any]:
         target = self.project_root / path

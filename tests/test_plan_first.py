@@ -75,11 +75,13 @@ def test_update_step_status_changes_only_target():
         },
         task="t",
     )
-    update_step_status(plan, "s1", "done", note="ok")
-    statuses = {s["id"]: s["status"] for s in plan["steps"]}
+    new_plan = update_step_status(plan, "s1", "done", note="ok")
+    statuses = {s["id"]: s["status"] for s in new_plan["steps"]}
     assert statuses["s1"] == "done"
     assert statuses["s2"] == "pending"
-    assert "ok" in plan["steps"][0]["notes"]
+    assert "ok" in new_plan["steps"][0]["notes"]
+    # Original plan must remain untouched (immutability).
+    assert plan["steps"][0]["status"] == "pending"
 
 
 def test_plan_progress_counts():
@@ -92,8 +94,8 @@ def test_plan_progress_counts():
         },
         task="t",
     )
-    update_step_status(plan, "s1", "done")
-    progress = plan_progress(plan)
+    new_plan = update_step_status(plan, "s1", "done")
+    progress = plan_progress(new_plan)
     assert progress["counts"]["done"] == 1
     assert progress["counts"]["pending"] == 1
     assert progress["current_step"] == "s2"
@@ -138,8 +140,8 @@ def test_review_detects_dependency_cycle():
         {
             "summary": "cycle",
             "steps": [
-                {"id": "s1", "tool": "shell", "params": {}, "expected_evidence": ["ok"], "depends_on": ["s2"]},
-                {"id": "s2", "tool": "shell", "params": {}, "expected_evidence": ["ok"], "depends_on": ["s1"]},
+                {"id": "s1", "tool": "read_file", "params": {}, "expected_evidence": ["ok"], "depends_on": ["s2"]},
+                {"id": "s2", "tool": "read_file", "params": {}, "expected_evidence": ["ok"], "depends_on": ["s1"]},
             ]
         },
         task="t",

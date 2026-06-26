@@ -10,7 +10,6 @@
  * 借鉴 taptap-maker-plus 的 SettingsView 设计。
  */
 
-import React from "react";
 import { Panel } from "../ui/Panel";
 import { Toggle } from "../ui/Toggle";
 import { SettingRow } from "./SettingRow";

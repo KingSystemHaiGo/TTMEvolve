@@ -209,7 +209,8 @@ def find_game_type(game_type_id: str) -> Dict[str, Any]:
 
 
 def search_game_knowledge(query: str, *, limit: int = 3) -> List[Dict[str, Any]]:
-    """Simple keyword search across labels, mechanics, and pitfalls."""
+    """Word-boundary keyword search across labels, mechanics, pitfalls, copy."""
+    import re
     lowered = (query or "").lower()
     if not lowered.strip():
         return []
@@ -220,7 +221,16 @@ def search_game_knowledge(query: str, *, limit: int = 3) -> List[Dict[str, Any]]
         haystacks.extend(entry.get("common_pitfalls") or [])
         haystacks.extend(entry.get("copy_anchors") or [])
         joined = "\n".join(str(item) for item in haystacks).lower()
-        score = sum(1 for word in lowered.split() if word in joined)
+        score = 0.0
+        for word in lowered.split():
+            if not word:
+                continue
+            if any("一" <= ch <= "鿿" for ch in word) or any(0x3400 <= ord(ch) <= 0x4DBF for ch in word):
+                if word in joined:
+                    score += 1.0
+                continue
+            if re.search(rf"\b{re.escape(word)}\b", joined):
+                score += 1.0
         if score > 0:
             scored.append({"entry": entry, "score": score})
     scored.sort(key=lambda item: item["score"], reverse=True)
@@ -262,15 +272,18 @@ def suggest_game_type_for(task: str) -> List[str]:
     """Heuristic suggestion of game type ids from a free-form task description."""
     lowered = (task or "").lower()
     suggestions: List[str] = []
-    keywords = {
-        "endless_runner": ["跑酷", "runner", "jump", "躲避"],
-        "tower_defense": ["塔防", "tower", "defense", "炮塔"],
-        "match_three": ["三消", "match", "消除", "方块"],
-        "shooting_2d": ["射击", "shoot", "弹幕", "战机"],
-        "idle_tycoon": ["放置", "经营", "idle", "tycoon"],
-        "puzzle_logic": ["解谜", "puzzle", "机关"],
-    }
-    for game_type_id, words in keywords.items():
+    for game_type_id, words in _SUGGEST_KEYWORDS.items():
         if any(word.lower() in lowered for word in words):
             suggestions.append(game_type_id)
     return suggestions
+
+
+# Module-level lookup table — built once instead of on every call.
+_SUGGEST_KEYWORDS: Dict[str, List[str]] = {
+    "endless_runner": ["跑酷", "runner", "jump", "躲避"],
+    "tower_defense": ["塔防", "tower", "defense", "炮塔"],
+    "match_three": ["三消", "match", "消除", "方块"],
+    "shooting_2d": ["射击", "shoot", "弹幕", "战机"],
+    "idle_tycoon": ["放置", "经营", "idle", "tycoon"],
+    "puzzle_logic": ["解谜", "puzzle", "机关"],
+}

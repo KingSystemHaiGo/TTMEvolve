@@ -39,7 +39,7 @@
 |----|------|------|
 | 实际代码签名 | 需要 EV 证书 | 待用户准备 |
 | macOS 公证 | 需要 Apple Developer ID | 待用户准备 |
-| Tauri 编译验证 | 需要 Rust 工具链 | CI 环境 |
+| Tauri 编译验证 | Rust 工具链已本机验证 | ✅ 32/32 |
 
 ### 📊 整体进度
 
@@ -58,7 +58,7 @@
 | 代码签名（脚本） | ✅ 100% |
 | E2E 测试 | ✅ 100% |
 | i18n | ✅ 100% |
-| **总测试** | **390/390** ✅ |
+| **总测试** | **598 Python + 32 Rust + frontend/Electron build** ✅ |
 
 ---
 
@@ -125,7 +125,7 @@
 
 ---
 
-> 最后更新：2026-06-26 23:30
-> 版本：v1.3.0 → v1.4.0 准备
-> 触发：git commit / git push 后手工同步 + 每周 review
+> 最后更新：2026-06-26 10:15
+> 版本：v1.5.1 全量运行 bugfix
+> 触发：全量 pytest / frontend build / Electron build / Cargo test
 ## Last updated: 2026-06-26 08:42

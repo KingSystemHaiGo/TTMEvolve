@@ -99,7 +99,10 @@ class LoopScheduler:
             "iterations": self._iterations,
             "running": bool(self._thread and self._thread.is_alive()),
             "stop_requested": self._stop_event.is_set(),
-            "last_iteration_at": (self._last_result or {}).get("started_at"),
+            # Use wall-clock seconds (time.time()) so this field is meaningful
+            # as a timestamp; `started_at` in each payload remains a perf-counter
+            # value for elapsed-time math.
+            "last_iteration_at": (self._last_result or {}).get("wall_clock_at"),
         }
 
     # ------------------------------------------------------------------
@@ -135,8 +138,14 @@ class LoopScheduler:
         result_payload["output"] = output
         result_payload["ok"] = bool(output.get("ok", False))
         result_payload["elapsed_ms"] = round((time.perf_counter() - started_at) * 1000, 1)
+        result_payload["wall_clock_at"] = time.time()
         self._last_result = result_payload
         self._iterations = iteration + 1
+        # The stop_predicate is consulted AFTER the iteration completes; the
+        # stop_event is then set, which both the threaded loop (`_run`) and
+        # `run_blocking` observe at the top of the next iteration. The current
+        # iteration's payload is still recorded — callers can inspect it via
+        # `status()` even after a predicate-triggered stop.
         if self._stop_predicate and self._stop_predicate(output):
             self._stop_event.set()
             result_payload["stop_reason"] = "predicate"

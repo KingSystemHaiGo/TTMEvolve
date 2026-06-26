@@ -6,6 +6,7 @@ tests/conftest.py — 共享测试 fixtures
 
 from __future__ import annotations
 import json
+import os
 import tempfile
 from pathlib import Path
 from typing import Any, Dict
@@ -15,6 +16,26 @@ import pytest
 from agent.agent import TapMakerAgent
 from core.config import Config
 from llm.mock_llm import MockLLM
+
+
+@pytest.fixture(autouse=True)
+def stable_temp_dir() -> None:
+    """Keep process-global tempfile state valid after portable-env tests."""
+    temp_root = Path(__file__).resolve().parent.parent / "portable" / "tmp"
+    temp_root.mkdir(parents=True, exist_ok=True)
+    tempfile.tempdir = str(temp_root)
+    for key in ("TMP", "TEMP", "TMPDIR"):
+        os.environ[key] = str(temp_root)
+    try:
+        yield
+    finally:
+        # Some tests call apply_portable_env() with a TemporaryDirectory root.
+        # If that root is deleted, the process-wide tempfile cache must not
+        # keep pointing at the dead path for later tests or background servers.
+        temp_root.mkdir(parents=True, exist_ok=True)
+        tempfile.tempdir = str(temp_root)
+        for key in ("TMP", "TEMP", "TMPDIR"):
+            os.environ[key] = str(temp_root)
 
 
 @pytest.fixture

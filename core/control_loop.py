@@ -30,16 +30,24 @@ class ControlLoop:
         kd: float = 0.1,
         history_window: int = 6,
         repeat_threshold: int = 2,
+        integral_decay: float = 0.9,
+        integral_max: float = 20.0,
     ) -> None:
         if history_window <= 0:
             raise ValueError("history_window must be > 0")
         if repeat_threshold <= 0:
             raise ValueError("repeat_threshold must be > 0")
+        if not (0.0 <= integral_decay <= 1.0):
+            raise ValueError("integral_decay must be in [0, 1]")
+        if integral_max <= 0:
+            raise ValueError("integral_max must be > 0")
         self.kp = float(kp)
         self.ki = float(ki)
         self.kd = float(kd)
         self.history_window = int(history_window)
         self.repeat_threshold = int(repeat_threshold)
+        self.integral_decay = float(integral_decay)
+        self.integral_max = float(integral_max)
         self._integral = 0.0
         self._last_error = 0.0
 
@@ -61,7 +69,10 @@ class ControlLoop:
         """
         window = trajectory[-self.history_window:] if trajectory else []
         error = self._error(window)
-        self._integral += error
+        # Apply decay before adding so transient failures bleed off; clamp to
+        # integral_max so the controller never "ratchets" to diverging forever.
+        self._integral = self._integral * self.integral_decay + error
+        self._integral = max(-self.integral_max, min(self.integral_max, self._integral))
         derivative = error - self._last_error
         self._last_error = error
         signal = self.kp * error + self.ki * self._integral + self.kd * derivative
@@ -86,7 +97,7 @@ class ControlLoop:
             return 0.0
         repeats = 0
         failures = 0
-        verdicts: Dict[str, int] = {}
+        tool_count: Dict[str, int] = {}
         for step in window:
             action = step.get("action") if isinstance(step.get("action"), dict) else {}
             observation = step.get("observation") if isinstance(step.get("observation"), dict) else {}
@@ -96,8 +107,8 @@ class ControlLoop:
             if ok is False:
                 failures += 1
             if tool:
-                verdicts[tool] = verdicts.get(tool, 0) + 1
-        repeats = sum(count for count in verdicts.values() if count >= self.repeat_threshold)
+                tool_count[tool] = tool_count.get(tool, 0) + 1
+        repeats = sum(count for count in tool_count.values() if count >= self.repeat_threshold)
         # Error score: failures + repeats, weighted
         return float(failures) + 0.5 * float(repeats)
 
@@ -154,4 +165,6 @@ class ControlLoop:
                 counts[tool] = counts.get(tool, 0) + 1
         if not counts:
             return ""
-        return max(counts.items(), key=lambda item: item[1])[0]
+        # Sort by (-count, name) so ties resolve deterministically to the
+        # lexicographically smallest tool name.
+        return sorted(counts.items(), key=lambda item: (-item[1], item[0]))[0][0]

@@ -122,7 +122,7 @@ def test_critique_copy_flags_insulting_words():
 
 def test_critique_copy_passes_short_kind_copy():
     issues = critique_copy("差一点！再试一次")
-    assert issues[0]["code"] == "ok"
+    assert issues == []
 
 
 def test_render_category_card_includes_examples():

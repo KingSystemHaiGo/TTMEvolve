@@ -27,8 +27,9 @@ use std::time::Duration;
 
 use crate::fast_ops;
 
-const BRIDGE_VERSION: &str = "fast-ops-http-bridge.v1";
-const DEFAULT_PORT: u16 = 8766;
+pub const BRIDGE_VERSION: &str = "fast-ops-http-bridge.v1";
+pub const DEFAULT_HOST: &str = "127.0.0.1";
+pub const DEFAULT_PORT: u16 = 8766;
 const READ_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_REQUEST_BYTES: usize = 64 * 1024;
 
@@ -53,8 +54,19 @@ pub struct BridgeHandle {
 }
 
 impl BridgeHandle {
+    pub fn stopped() -> Self {
+        Self {
+            addr: std::net::SocketAddr::from(([0, 0, 0, 0], 0)),
+            stop: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+        }
+    }
+
     pub fn stop(&self) {
         self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub fn is_running(&self) -> bool {
+        !self.stop.load(std::sync::atomic::Ordering::SeqCst)
     }
 }
 
@@ -91,7 +103,11 @@ pub fn start_background(config: BridgeConfig) -> Result<BridgeHandle, String> {
 fn handle_client(stream: TcpStream) {
     let _ = stream.set_read_timeout(Some(READ_TIMEOUT));
     let _ = stream.set_write_timeout(Some(READ_TIMEOUT));
-    let mut reader = BufReader::new(stream.try_clone().ok());
+    let reader_stream = match stream.try_clone() {
+        Ok(stream) => stream,
+        Err(_) => return,
+    };
+    let mut reader = BufReader::new(reader_stream);
     let request_line = match reader.by_ref().lines().next() {
         Some(Ok(line)) => line,
         _ => return,

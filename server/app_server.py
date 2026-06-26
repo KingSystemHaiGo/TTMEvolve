@@ -30,7 +30,7 @@ from agent.agent import TapMakerAgent
 from agent.mcp_integration import MCPIntegration
 from core.cancellation import TaskCancelled
 from core.config import Config
-from core.portable_env import portable_diagnostics
+from core.portable_env import apply_portable_env, portable_diagnostics
 from core.runtime_events import envelope_event
 from ecosystem.skill_sync import SkillSyncRegistry
 from llm.llm_factory import LLMFactory
@@ -3460,6 +3460,8 @@ def create_default_app_server(
 ) -> AppServer:
     """使用默认配置创建 App Server。"""
     cfg = Config(config_path) if config_path else Config()
+    if cfg.base_dir.resolve() == APP_ROOT.resolve():
+        apply_portable_env(cfg.base_dir, force=True)
     try:
         config_sync = ensure_internal_maker_mcp_latest_config(cfg, cfg.project_root())
         if config_sync.get("changed"):

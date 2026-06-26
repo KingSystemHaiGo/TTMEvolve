@@ -579,8 +579,6 @@ class TapMakerAgent:
             return [dict(job) for job in self._learning_jobs.values()]
 
     def _run_internal(self, task: str, sid: str) -> Dict[str, Any]:
-        import time
-
         run_started_at = time.time()
         layer_correlation_id = sid
         self._check_cancelled()

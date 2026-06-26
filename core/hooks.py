@@ -55,12 +55,8 @@ class HookSystem:
         # Conditional hook filtering: only fire config hooks whose `when`
         # predicate matches the runtime context. Built-in hooks always run.
         ctx_for_predicate = dict(ctx)
-        applicable_config = select_applicable_hooks(self._config.get(phase, []), ctx_for_predicate)
-        applicable_builtins = select_applicable_hooks(
-            [{"when": getattr(hook, "_when", None)} for hook in hooks if hasattr(hook, "_when")],
-            ctx_for_predicate,
-        )
-        # Merge: built-in hooks first (always fire), then conditional config hooks.
+        # NOTE: built-in hooks intentionally always fire — they have no
+        # `when` clause. Config hooks are filtered by `select_applicable_hooks`.
         for hook in hooks:
             try:
                 text, ctx = hook(text, ctx)

@@ -90,13 +90,25 @@ def build_gdd(answers: Dict[str, str]) -> Dict[str, Any]:
 
 
 def _summary(answers: Dict[str, str]) -> str:
-    return (
-        f"面向{answers['target_player']}的{answers['art_style']}游戏。"
-        f"核心循环：{answers['core_loop']}。"
-        f"单局时长{answers['session_length']}。"
-        f"长期动力来自{answers['progression']}。"
-        f"变现方式：{answers['monetization']}。"
-    )
+    # Build the summary dynamically so adding a new SOCRATIC_QUESTION
+    # does not require updating this helper. Each question contributes one
+    # sentence keyed by its id.
+    sentence_map = {
+        "core_loop": lambda v: f"核心循环：{v}。",
+        "target_player": lambda v: f"面向{v}的玩家。",
+        "session_length": lambda v: f"单局时长{v}。",
+        "progression": lambda v: f"长期动力来自{v}。",
+        "art_style": lambda v: f"美术风格：{v}。",
+        "monetization": lambda v: f"变现方式：{v}。",
+    }
+    parts: List[str] = []
+    for question in SOCRATIC_QUESTIONS:
+        qid = question["id"]
+        value = answers.get(qid, "")
+        formatter = sentence_map.get(qid)
+        if formatter and value:
+            parts.append(formatter(value))
+    return "".join(parts)
 
 
 def render_question_card(question: Dict[str, Any]) -> str:

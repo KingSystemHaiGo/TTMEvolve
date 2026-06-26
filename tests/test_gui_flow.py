@@ -83,13 +83,13 @@ class _TestServerHelper:
         self.thread = threading.Thread(target=self.server.start, daemon=True)
         self.thread.start()
         last_error = None
-        for _ in range(80):
+        for _ in range(160):
             try:
-                with urllib.request.urlopen(f"http://{self.host}:{self.port}/health", timeout=0.1):
+                with urllib.request.urlopen(f"http://{self.host}:{self.port}/health", timeout=0.5):
                     return
             except Exception as e:
                 last_error = e
-                time.sleep(0.05)
+                time.sleep(0.1)
         raise RuntimeError(f"Test server failed to start on port {self.port}: {last_error}")
 
     def stop(self):

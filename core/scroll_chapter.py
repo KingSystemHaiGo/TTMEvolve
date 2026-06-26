@@ -74,8 +74,12 @@ class ScrollChapterMemory:
     def append(self, chapter: Dict[str, Any]) -> None:
         if not isinstance(chapter, dict):
             raise ValueError("chapter must be a dict")
-        if "id" not in chapter or "title" not in chapter:
-            raise ValueError("chapter must contain id and title")
+        chapter_id = chapter.get("id")
+        chapter_title = chapter.get("title")
+        if not isinstance(chapter_id, str) or not chapter_id:
+            raise ValueError("chapter['id'] must be a non-empty string")
+        if not isinstance(chapter_title, str) or not chapter_title:
+            raise ValueError("chapter['title'] must be a non-empty string")
         self._chapters.append(chapter)
         if len(self._chapters) > self.max_chapters:
             # Trim oldest chapters once capacity is reached; never overwrite
@@ -156,14 +160,30 @@ class ScrollChapterMemory:
         return block + "\n[/scroll_memory]\n"
 
 
+def _is_cjk(ch: str) -> bool:
+    """Cover the CJK Unified Ideographs blocks + extensions + compatibility."""
+    code = ord(ch)
+    return (
+        0x4E00 <= code <= 0x9FFF          # CJK Unified Ideographs
+        or 0x3400 <= code <= 0x4DBF       # CJK Extension A
+        or 0x20000 <= code <= 0x2A6DF     # CJK Extension B
+        or 0x2A700 <= code <= 0x2B73F     # CJK Extension C
+        or 0x2B740 <= code <= 0x2B81F     # CJK Extension D
+        or 0xF900 <= code <= 0xFAFF       # CJK Compatibility Ideographs
+        or 0x2F800 <= code <= 0x2FA1F     # CJK Compatibility Supplement
+    )
+
+
 def _tokenize(text: str) -> List[str]:
     if not text:
         return []
-    # keep CJK characters as their own 1-char tokens; ASCII split by whitespace
+    # Each CJK ideograph becomes its own 1-char token; ASCII runs become
+    # whole-word tokens. This is more inclusive than the old "一".."鿿"
+    # range and covers the common Extension A/B blocks.
     out: List[str] = []
     buffer: List[str] = []
     for ch in text.lower():
-        if "一" <= ch <= "鿿":
+        if _is_cjk(ch):
             if buffer:
                 out.append("".join(buffer))
                 buffer = []
@@ -210,6 +230,22 @@ def _score_chapter(
 
 
 def fingerprint_chapter(chapter: Dict[str, Any]) -> str:
-    """Stable fingerprint for de-duplication."""
-    payload = f"{chapter.get('id')}|{chapter.get('title')}|{chapter.get('summary')}"
+    """Stable fingerprint for de-duplication.
+
+    Includes actions and tags so chapters that differ only in those fields
+    get distinct fingerprints.
+    """
+    import json as _json
+    payload = _json.dumps(
+        {
+            "id": chapter.get("id"),
+            "title": chapter.get("title"),
+            "summary": chapter.get("summary"),
+            "actions": chapter.get("actions") or [],
+            "tags": chapter.get("tags") or [],
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+        default=str,
+    )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]

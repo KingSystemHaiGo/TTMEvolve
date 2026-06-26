@@ -31,16 +31,19 @@ pub struct UpdateProgress {
 /// Pre-release tags (e.g. "1.0.0-rc.1") are considered lower than the
 /// release of the same base, which matches Tauri updater behavior.
 pub fn is_newer_version(latest: &str, current: &str) -> bool {
-    let parse = |v: &str| -> Vec<u32> {
-        v.split('.')
+    let parse = |v: &str| -> (Vec<u32>, bool) {
+        let has_prerelease = v.contains('-');
+        let base = v.split('-').next().unwrap_or(v);
+        let parts = base
+            .split('.')
             .map(|part| {
-                let trimmed = part.split('-').next().unwrap_or("0");
-                trimmed.parse::<u32>().unwrap_or(0)
+                part.parse::<u32>().unwrap_or(0)
             })
-            .collect()
+            .collect();
+        (parts, has_prerelease)
     };
-    let latest_parts = parse(latest);
-    let current_parts = parse(current);
+    let (latest_parts, latest_prerelease) = parse(latest);
+    let (current_parts, current_prerelease) = parse(current);
     let len = latest_parts.len().max(current_parts.len());
     for i in 0..len {
         let l = latest_parts.get(i).copied().unwrap_or(0);
@@ -52,7 +55,7 @@ pub fn is_newer_version(latest: &str, current: &str) -> bool {
             return false;
         }
     }
-    false
+    current_prerelease && !latest_prerelease
 }
 
 /// Pure helper used by the frontend update banner to render the changelog

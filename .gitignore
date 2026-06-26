@@ -31,3 +31,7 @@ config.json
 **/node_modules/
 **/dist/
 .tmp/
+
+# Rust / Tauri build output
+src-tauri/target/
+src-tauri/gen/

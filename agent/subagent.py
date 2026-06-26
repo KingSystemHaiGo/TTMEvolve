@@ -158,12 +158,18 @@ def register_subagent_batch_tool(
             if isinstance(item, dict)
         ]
         results = run_subagents_parallel(invocations, llm_generate=llm_generate)
+        invocation_ids = [r.get("invocation_id", "") for r in results]
         return {
             "ok": all(result.get("ok") for result in results),
             "tool": "spawn_subagent_batch",
             "count": len(results),
             "results": results,
-            "idempotency_key": f"subagent-batch:{hashlib.sha256(json.dumps([r['invocation_id'] for r in results], sort_keys=True).encode()).hexdigest()[:16]}",
+            "idempotency_key": (
+                "subagent-batch:"
+                + hashlib.sha256(
+                    json.dumps(invocation_ids, sort_keys=True, default=str).encode()
+                ).hexdigest()[:16]
+            ),
         }
 
     tools.register(

@@ -10,8 +10,11 @@ tests/test_local_llm.py — 本地模型底座冒烟测试
 """
 
 from __future__ import annotations
+import os
 import sys
 from pathlib import Path
+
+import pytest
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
@@ -80,22 +83,22 @@ def _make_mock_local_llm(tmp_dir: Path) -> LocalLLM:
 
 
 def test_local_llm_smoke():
+    if os.environ.get("TTMEVOLVE_RUN_REAL_LOCAL_LLM") != "1":
+        pytest.skip("set TTMEVOLVE_RUN_REAL_LOCAL_LLM=1 to run the real GGUF smoke")
+
     if not _LLAMA_AVAILABLE:
-        print("SKIP: llama-cpp-python 未安装")
-        return
+        pytest.skip("llama-cpp-python 未安装")
 
     config = Config(str(_PROJECT_ROOT / "config.json"))
     model_path = config.local_model_path()
 
     if not model_path.exists():
-        print(f"SKIP: 本地模型未找到 {model_path}，运行 python scripts/download_model.py 下载")
-        return
+        pytest.skip(f"本地模型未找到 {model_path}，运行 python scripts/download_model.py 下载")
 
     try:
         llm = LLMFactory.create("local", config)
     except ImportError as e:
-        print(f"SKIP: 无法创建 LocalLLM：{e}")
-        return
+        pytest.skip(f"无法创建 LocalLLM：{e}")
 
     thought = llm.think(
         task="列出项目文件",

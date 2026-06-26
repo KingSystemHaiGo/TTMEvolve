@@ -77,7 +77,7 @@ INPUT_RULES: List[Dict[str, Any]] = [
         "id": "input.keyboard_repeat",
         "subsystem": "input",
         "rule": "Keyboard key events fire on press and repeat — gate actions on edge detection unless continuous motion is intended.",
-        "severity": "best_practice",
+        "severity": "gotcha",
     },
     {
         "id": "input.gamepad_axis_deadzone",
@@ -156,18 +156,45 @@ def rules_for_subsystem(subsystem: str) -> List[Dict[str, Any]]:
 
 
 def search_rules(query: str, *, limit: int = 5) -> List[Dict[str, Any]]:
-    """Deterministic keyword search across engine rule text."""
+    """Deterministic keyword search across engine rule text.
+
+    Uses word-boundary regex on ASCII tokens and substring matching on CJK
+    tokens (since CJK has no whitespace boundaries).
+    """
+    import re
     lowered = (query or "").lower().strip()
     if not lowered:
         return []
     scored: List[Dict[str, Any]] = []
     for rule in ALL_RULES:
         text = (rule.get("rule") or "").lower()
-        score = sum(1 for word in lowered.split() if word in text)
+        score = _keyword_score(text, lowered)
         if score > 0:
             scored.append({"rule": rule, "score": score})
     scored.sort(key=lambda item: item["score"], reverse=True)
     return [item["rule"] for item in scored[:limit]]
+
+
+def _keyword_score(text: str, lowered_query: str) -> float:
+    """Word-boundary-aware keyword score.
+
+    ASCII tokens are matched with re.search(rf"\\b{re.escape(word)}\\b").
+    CJK tokens are matched as substring since CJK has no word boundary.
+    """
+    import re
+    score = 0.0
+    for word in lowered_query.split():
+        if not word:
+            continue
+        # CJK token: substring match.
+        if any("一" <= ch <= "鿿" for ch in word) or any(0x3400 <= ord(ch) <= 0x4DBF for ch in word):
+            if word in text:
+                score += 1.0
+            continue
+        # ASCII token: word-boundary match.
+        if re.search(rf"\b{re.escape(word)}\b", text):
+            score += 1.0
+    return score
 
 
 def render_subsystem_card(subsystem: str) -> str:

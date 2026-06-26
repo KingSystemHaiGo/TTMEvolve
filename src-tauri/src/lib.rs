@@ -77,10 +77,7 @@ pub fn run() {
                 );
                 eprintln!("[ttmevolve] bridge start failed: {err}");
                 // Continue without the bridge — Python fallback still works.
-                BridgeHandle {
-                    addr: std::net::SocketAddr::from(([0, 0, 0, 0], 0)),
-                    stop: Arc::new(std::sync::atomic::AtomicBool::new(true)),
-                }
+                BridgeHandle::stopped()
             }
         };
 

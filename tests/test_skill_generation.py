@@ -9,6 +9,7 @@ from __future__ import annotations
 import shutil
 import sys
 import tempfile
+import time
 import uuid
 from pathlib import Path
 
@@ -51,6 +52,11 @@ def test_skill_generation_flow():
         )
 
         result = agent.run("列出项目文件")
+        deadline = time.time() + 5
+        while agent.get_learning_job(result["session_id"]).get("status") in {"queued", "running"}:
+            if time.time() > deadline:
+                break
+            time.sleep(0.05)
         agent.close()
 
         # 1. 任务成功且迭代数 >=2

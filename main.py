@@ -185,8 +185,15 @@ def _run_task(task: str, profile: Optional[str] = None, provider: Optional[str] 
 
 
 def main():
+    global APP_SERVER_HOST, APP_SERVER_PORT, APP_SERVER_URL
+
     parser = argparse.ArgumentParser(description="TTMEvolve CLI")
     parser.add_argument("--config", default="config.json", help="Config file path")
+    parser.add_argument(
+        "--host",
+        default=APP_SERVER_HOST,
+        help="Server host when running with --serve/--embedded",
+    )
     parser.add_argument(
         "--port",
         type=int,
@@ -202,6 +209,7 @@ def main():
     parser.add_argument("--profile", default=None, help="Active profile (default/safe/autonomous)")
     parser.add_argument("--mock", action="store_true", help="Same as --provider mock")
     parser.add_argument("--serve", action="store_true", help="Start App Server and block")
+    parser.add_argument("--embedded", action="store_true", help="Run as embedded desktop backend")
     parser.add_argument("--gui", action="store_true", help="Open desktop GUI window")
     parser.add_argument("--rescue-test", action="store_true", help="Run a mini rescue loop benchmark locally")
     parser.add_argument("task", nargs="?", help="Task to execute")
@@ -211,6 +219,10 @@ def main():
         sys.stdout.reconfigure(encoding="utf-8")
 
     config = Config(args.config)
+    APP_SERVER_HOST = args.host
+    if args.port is not None:
+        APP_SERVER_PORT = args.port
+    APP_SERVER_URL = f"http://{APP_SERVER_HOST}:{APP_SERVER_PORT}"
 
     provider = args.provider
     if args.mock:
@@ -218,8 +230,9 @@ def main():
     if not provider:
         provider = config.llm_provider()
 
-    if args.serve:
+    if args.serve or args.embedded:
         server = create_default_app_server(args.config, provider, port=args.port)
+        server.host = args.host
         try:
             server.start()
         except KeyboardInterrupt:

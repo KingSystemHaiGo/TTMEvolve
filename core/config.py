@@ -37,10 +37,13 @@ class Config:
         """Return an in-memory copy that can be safely mutated per session."""
         cloned = Config.__new__(Config)
         cloned.path = self.path
-        cloned.base_dir = self.base_dir
+        cloned.base_dir = getattr(self, "base_dir", Path(self.path).resolve().parent)
         cloned.data = deepcopy(self.data)
-        cloned._profiles = cloned.data.get("profiles", {})
-        cloned._active_profile = cloned.data.get("active_profile", self._active_profile)
+        cloned._profiles = cloned.data.get("profiles", getattr(self, "_profiles", {}))
+        cloned._active_profile = cloned.data.get(
+            "active_profile",
+            getattr(self, "_active_profile", "default"),
+        )
         return cloned
 
     def active_profile(self) -> str:

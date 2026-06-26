@@ -12,6 +12,9 @@ from __future__ import annotations
 from typing import Any, Dict, List, Set
 
 
+# NOTE: KNOWN_TOOLS is a base set used when the host loop doesn't supply
+# its own tool list. The host should pass `known_tools=self.tools.list_tools()`
+# via the `known_tools` parameter to review_plan() to avoid drift.
 KNOWN_TOOLS = {
     "modify_file", "write_file", "delete_file", "read_file", "list_files",
     "git_commit", "git_push", "git_status",
@@ -28,8 +31,8 @@ DESTRUCTIVE_TOOLS = {"delete_file", "git_push", "shell"}
 REVIEW_VERSION = "plan-review.v1"
 
 
-def review_plan(plan: Dict[str, Any], known_tools: Set[str] = None) -> Dict[str, Any]:
-    known = set(known_tools or KNOWN_TOOLS)
+def review_plan(plan: Dict[str, Any], known_tools: Optional[Set[str]] = None) -> Dict[str, Any]:
+    known = set(known_tools if known_tools is not None else KNOWN_TOOLS)
     issues: List[Dict[str, Any]] = []
     steps = plan.get("steps") if isinstance(plan.get("steps"), list) else []
     seen_ids: Set[str] = set()
@@ -97,28 +100,54 @@ def review_plan(plan: Dict[str, Any], known_tools: Set[str] = None) -> Dict[str,
 
 
 def _find_cycles(edges: Dict[str, List[str]]) -> List[List[str]]:
+    """Return all unique dependency cycles as ordered node lists.
+
+    Iterative DFS — avoids RecursionError on long dependency chains and
+    deduplicates cycles that are reachable from multiple start nodes.
+    """
     cycles: List[List[str]] = []
-    visited: Set[str] = set()
-    path: List[str] = []
-    path_set: Set[str] = set()
+    seen_cycles: Set[frozenset] = set()
 
-    def dfs(node: str) -> None:
-        if node in path_set:
-            cycle_start = path.index(node)
-            cycles.append(path[cycle_start:] + [node])
+    def _record(cycle_path: List[str]) -> None:
+        canonical = frozenset(cycle_path[:-1])  # last == first, drop it
+        if canonical in seen_cycles:
             return
-        if node in visited:
-            return
-        path.append(node)
-        path_set.add(node)
-        for child in edges.get(node, []):
-            dfs(child)
-        path.pop()
-        path_set.remove(node)
-        visited.add(node)
+        seen_cycles.add(canonical)
+        cycles.append(cycle_path)
 
-    for node in edges:
-        dfs(node)
+    # visited markers per start: WHITE=0 (unvisited), GRAY=1 (in current path), BLACK=2 (done)
+    color: Dict[str, int] = {node: 0 for node in edges}
+
+    for start in list(edges.keys()):
+        if color[start] != 0:
+            continue
+        # Each stack frame holds (node, child_iterator)
+        path: List[str] = []
+        stack: List[Any] = [(start, iter(edges.get(start, [])))]
+        while stack:
+            node, children = stack[-1]
+            if color[node] == 1:
+                # Already on the path — we won't re-enter from this frame.
+                # If the iterator is exhausted, the next iteration handles unwinding.
+                pass
+            color[node] = 1
+            advanced = False
+            for child in children:
+                if child in color and color[child] == 1:
+                    # Back-edge: cycle from `child` to current `node`.
+                    cycle_start = path.index(child) if child in path else 0
+                    _record(path[cycle_start:] + [node, child])
+                elif child in color and color[child] == 0:
+                    path.append(node)
+                    stack.append((child, iter(edges.get(child, []))))
+                    advanced = True
+                    break
+            if not advanced:
+                # Done with this node.
+                color[node] = 2
+                stack.pop()
+                if path and path[-1] == node:
+                    path.pop()
     return cycles
 
 

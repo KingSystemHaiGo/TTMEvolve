@@ -62,7 +62,10 @@ def test_plan_lists_existing_targets():
     actions = module.plan()
     paths = {a["path"] for a in actions}
     assert "electron" in paths  # we know electron/ exists in this project
-    assert any(p.endswith(".bat") or p.endswith(".ps1") for p in paths)
+    # Old Electron launchers may already be gone in cleaned repositories.
+    for target in module.TARGETS:
+        if target.endswith((".bat", ".ps1")) and (_PROJECT_ROOT / target).exists():
+            assert target in paths
 
 
 def test_plan_action_shape():

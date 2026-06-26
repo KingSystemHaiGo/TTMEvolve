@@ -1065,3 +1065,27 @@
 ## Last updated: 2026-06-26 08:42
 
 ## Last updated: 2026-06-26 08:43
+
+## 2026-06-26 v1.5.1 全量运行 Bugfix + GitHub 同步准备
+
+- 用户目标：全量运行、记录 bug、修复 bug、同步 GitHub。
+- 全量验证发现并修复：
+  - `main.py` 不接受 Tauri 启动传入的 `--embedded --host`，导致桌面后端启动链断；已新增 `--host` / `--embedded`，并让 embedded 启动 AppServer。
+  - 前端 Settings 构建失败：type-only re-export、未使用 React import、缺少 `@tauri-apps/api`；已修复导出/import 并加入 frontend 依赖。
+  - 裸跑 `pytest` 会收集 `portable/home/.../INetCache` 并权限失败；新增 `pytest.ini` 限定 `tests/`，并在测试夹具中稳定 TEMP/TMPDIR。
+  - 动态工具执行路径把 AGENTS.md/generated tools 误按 Maker proxy 签名调用；Executor 现在只对 Maker proxy 传 `tool_name`，并按 handler 签名决定是否注入 `_session_id`。
+  - `Config.clone()` 对测试/脚本构造的轻量 Config 缺少 `base_dir` 不够防御；已补 fallback。
+  - Maker first-action guard 过度拦截普通本地文件任务；现在只在任务文本明显需要 Maker authority 时拦截本地副作用。
+  - AppServer portable env 强制策略污染临时测试 config；现在仅 app-root config 强制 portable env，避免临时 storage 被 teardown 后后台 session 断裂。
+  - `test_local_llm_smoke` 默认真实 GGUF 跑法不稳定且耗时；改为 `TTMEVOLVE_RUN_REAL_LOCAL_LLM=1` 显式开启。
+  - Tauri config `bundle.targets` schema 形状错误，并且 resources 打包整个 live `portable/` 导致锁文件失败；改为标准 targets 数组并移除运行态 `portable/` 整目录资源。
+  - Rust fast_ops bridge/commands 编译问题：私有常量、缺 `DEFAULT_HOST`、错误 Builder 泛型、devtools feature gate、BufReader 包装 `Option<TcpStream>`、BridgeHandle fallback 构造、prerelease 版本比较；均已修复。
+  - GUI flow 测试启动等待过短导致 Windows 下偶发 health timeout；放宽等待。
+- 最终验证：
+  - `.venv\Scripts\python.exe -m pytest -q` -> **598 passed, 14 skipped**。
+  - `npm.cmd --prefix frontend run build` -> passed。
+  - `npm.cmd --prefix electron run build` -> passed。
+  - `cargo test --manifest-path src-tauri/Cargo.toml` -> **32 passed**。
+- 重要经验：全量运行必须覆盖 Python/TS/Electron/Rust 四条链路；Tauri resources 不能包含 live runtime state（cache/home/tmp/electron profile），否则构建会扫描用户状态和锁文件。
+
+## Last updated: 2026-06-26 10:15

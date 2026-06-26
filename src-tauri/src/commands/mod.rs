@@ -71,7 +71,7 @@ pub fn server_stop<R: Runtime>(
 
 #[tauri::command]
 pub fn open_devtools<R: Runtime>(window: Window<R>) -> Result<(), String> {
-    #[cfg(debug_assertions)]
+    #[cfg(feature = "devtools")]
     {
         window.open_devtools();
     }
@@ -123,7 +123,7 @@ pub fn bridge_status<R: Runtime>(
 ) -> BridgeStatusDto {
     let bridge_running = app
         .try_state::<crate::fast_ops_http::BridgeHandle>()
-        .map(|handle| !handle.stop.load(std::sync::atomic::Ordering::SeqCst))
+        .map(|handle| handle.is_running())
         .unwrap_or(false);
     BridgeStatusDto {
         version: crate::fast_ops_http::BRIDGE_VERSION,
@@ -133,9 +133,9 @@ pub fn bridge_status<R: Runtime>(
     }
 }
 
-pub fn register<R: Runtime, T: tauri::Builder<R>>(
-    builder: T,
-) -> T {
+pub fn register<R: Runtime>(
+    builder: tauri::Builder<R>,
+) -> tauri::Builder<R> {
     builder.invoke_handler(tauri::generate_handler![
         server_status,
         server_start,

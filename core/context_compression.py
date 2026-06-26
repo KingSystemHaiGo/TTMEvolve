@@ -211,24 +211,35 @@ def extract_repeated_tool_warnings(trajectory: List[Dict[str, Any]], *, threshol
     if len(trajectory) < threshold:
         return []
     warnings: List[str] = []
-    streak_tool = None
+    streak_tool: Optional[str] = None
     streak_count = 0
     streak_start = -1
     for step in trajectory:
         action = step.get("action") if isinstance(step.get("action"), dict) else {}
         tool = action.get("tool")
+        # Steps without a real tool (e.g. a `done` action) break the streak
+        # so the next real tool starts fresh.
+        if not tool:
+            if streak_count >= threshold and streak_tool is not None:
+                warnings.append(
+                    f"Loop risk: tool '{streak_tool}' called {streak_count} times in a row "
+                    f"(starting at iteration {streak_start})."
+                )
+            streak_tool = None
+            streak_count = 0
+            continue
         if tool == streak_tool:
             streak_count += 1
             continue
-        if streak_count >= threshold:
+        if streak_count >= threshold and streak_tool is not None:
             warnings.append(
                 f"Loop risk: tool '{streak_tool}' called {streak_count} times in a row "
                 f"(starting at iteration {streak_start})."
             )
-        streak_tool = tool
+        streak_tool = str(tool)
         streak_count = 1
         streak_start = step.get("iteration", -1)
-    if streak_count >= threshold:
+    if streak_count >= threshold and streak_tool is not None:
         warnings.append(
             f"Loop risk: tool '{streak_tool}' called {streak_count} times in a row "
             f"(starting at iteration {streak_start})."

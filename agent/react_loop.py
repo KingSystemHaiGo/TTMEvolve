@@ -421,6 +421,14 @@ class ReActLoop:
         briefing = self._maker_briefing_snapshot if isinstance(self._maker_briefing_snapshot, dict) else {}
         if iteration != 0 or not briefing or not tool_name:
             return {"decision": "skip", "iteration": iteration}
+        if not self._task_needs_maker_authority():
+            return {
+                "decision": "skip",
+                "iteration": iteration,
+                "tool": tool_name,
+                "reason": "Task does not require Maker authority before local actions.",
+                "authority": briefing.get("authority"),
+            }
         if not briefing.get("connected"):
             return {
                 "decision": "pass",
@@ -526,6 +534,31 @@ class ReActLoop:
             key in params
             for key in ["content", "patch", "diff", "destination", "new_path", "target_path"]
         )
+
+    def _task_needs_maker_authority(self) -> bool:
+        text = (self._task or "").lower()
+        maker_keywords = (
+            "maker",
+            "taptap",
+            "tap maker",
+            "tapmaker",
+            "游戏",
+            "关卡",
+            "构建",
+            "预览",
+            "发布",
+            "素材",
+            "场景",
+            "精灵",
+            "脚本",
+            "地图",
+            "practice",
+            "build",
+            "preview",
+            "asset",
+            "scene",
+        )
+        return any(keyword in text for keyword in maker_keywords)
 
     def _maker_guard_observation(
         self,
@@ -1137,10 +1170,17 @@ class ReActLoop:
         return normalize_plan(parsed, task=task)
 
     def _known_tool_names(self) -> List[str]:
+        names: List[str] = []
         try:
-            names = [tool.name for tool in self.tools.list_tools()]
+            for tool in self.tools.list_tools():
+                if isinstance(tool, dict):
+                    name = tool.get("name")
+                else:
+                    name = getattr(tool, "name", None)
+                if isinstance(name, str) and name:
+                    names.append(name)
         except Exception:
-            names = []
+            return []
         return names
 
     def _build_plan_first_result(self, reason: str = "not_approved") -> Dict[str, Any]:

@@ -101,7 +101,8 @@ def plan_to_context_block(plan: Dict[str, Any], max_steps: int = 8) -> str:
     return (
         "\n[approved_plan]\n"
         + json.dumps(payload, ensure_ascii=False)
-        + "\nFollow the approved plan step by step. Mark the current step "
+        + "\n[/approved_plan]\n"
+        + "Follow the approved plan step by step. Mark the current step "
         "before executing it and update its status after verification.\n"
     )
 
@@ -131,6 +132,7 @@ def plan_progress(plan: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _first_open_step_id(steps: List[Dict[str, Any]]) -> Optional[str]:
+    """Return the first step id that is still pending or in_progress."""
     for step in steps:
         if str(step.get("status") or "pending") in {"pending", "in_progress"}:
             return step.get("id")
@@ -143,17 +145,21 @@ def update_step_status(
     status: str,
     note: str = "",
 ) -> Dict[str, Any]:
-    """Return a new plan with the given step status updated.
+    """Return a NEW plan with the given step status updated.
 
-    Status must be one of: pending, in_progress, done, skipped, failed.
+    The input plan is not mutated; callers receive a deep-copied plan so
+    downstream code can compare against the old version. Status must be one
+    of: pending, in_progress, done, skipped, failed.
     """
     if status not in {"pending", "in_progress", "done", "skipped", "failed"}:
         return plan
-    for step in plan.get("steps") or []:
+    import copy
+    new_plan = copy.deepcopy(plan)
+    for step in new_plan.get("steps") or []:
         if step.get("id") == step_id:
             step["status"] = status
-            if note:
+            if note is not None:
                 existing = step.get("notes") or ""
                 step["notes"] = f"{existing}\n{note}".strip() if existing else note
             break
-    return plan
+    return new_plan

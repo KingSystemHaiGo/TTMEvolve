@@ -43,9 +43,9 @@ def matches_predicate(predicate: Optional[Dict[str, Any]], context: Dict[str, An
     if "tool" in predicate and action.get("tool") != predicate["tool"]:
         return False
     if "tool_prefix" in predicate:
-        prefix = str(predicate["tool_prefix"])
-        actual = str(action.get("tool") or "")
-        if not actual.startswith(prefix):
+        prefix = predicate["tool_prefix"] if isinstance(predicate["tool_prefix"], str) else str(predicate["tool_prefix"])
+        actual = action.get("tool") or ""
+        if not isinstance(actual, str) or not actual.startswith(prefix):
             return False
     if "verdict" in predicate and plan_validation.get("verdict") != predicate["verdict"]:
         return False
@@ -81,27 +81,26 @@ def select_applicable_hooks(
 def _eval_simple_expr(expr: str, context: Dict[str, Any]) -> bool:
     """Evaluate a tiny expression grammar for `when.expr`.
 
-    Grammar: a single comparison `<dot.path><op><literal>`, where op is one of
-    ==, !=, >=, <=, >, <. Multiple clauses joined by `and`/`or` are accepted.
-    Literals can be numbers (int/float), bare strings (no quotes), or quoted
-    strings. Unknown / unsafe expressions evaluate to False (fail-closed).
+    Grammar: a comparison `<dot.path><op><literal>` joined by `and`/`or`.
+    Operators are ==, !=, >=, <=, >, <. Literals can be int, float, bool,
+    None, bare string, or quoted string. Each clause carries its own joiner
+    (default `and`); when a clause starts with `and`/`or`, that keyword is
+    used as the joiner with the previous clause. Fail-closed on errors.
     """
     try:
         clauses = [c.strip() for c in _split_clauses(expr)]
         if not clauses:
             return False
-        results: List[bool] = []
-        joiner = "and"
+        results: List[Tuple[bool, str]] = []  # (value, joiner_before)
+        default_joiner = "and"
         for clause in clauses:
             lower = clause.lower()
             if lower in {"and", "or"}:
-                joiner = lower
+                default_joiner = lower
                 continue
-            ok, consumed_joiner = _eval_clause(clause, context)
-            if consumed_joiner:
-                joiner = consumed_joiner
-            results.append(ok)
-        return _combine(results, joiner)
+            value, prefix = _eval_clause(clause, context)
+            results.append((value, prefix or default_joiner))
+        return _combine_pairs(results, default_joiner)
     except Exception:
         return False
 
@@ -161,12 +160,14 @@ def _eval_clause(clause: str, context: Dict[str, Any]) -> Tuple[bool, Optional[s
     return False, joiner
 
 
-def _combine(results: List[bool], joiner: str) -> bool:
-    if not results:
+def _combine_pairs(pairs: List[Tuple[bool, str]], default_joiner: str) -> bool:
+    if not pairs:
         return False
-    out = results[0]
-    for value in results[1:]:
-        if joiner == "or":
+    out = pairs[0][0]
+    for value, joiner in pairs[1:]:
+        # Use the joiner that precedes this clause (default_joiner if absent).
+        effective = joiner or default_joiner
+        if effective == "or":
             out = out or value
         else:
             out = out and value
