@@ -31,6 +31,9 @@ interface Props {
   onRunningChange?: (running: boolean) => void
   permissionProfile?: string
   onPermissionProfileChange?: (profile: string) => void
+  projectName?: string
+  modelSummary?: string
+  configSummary?: string
 }
 
 interface SessionSummary {
@@ -59,6 +62,9 @@ export default function ChatPanel({
   onRunningChange,
   permissionProfile = 'default',
   onPermissionProfileChange,
+  projectName = '未选择项目',
+  modelSummary = '模型未选择',
+  configSummary = 'default',
 }: Props) {
   const [isLoading, setIsLoading] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -141,6 +147,20 @@ export default function ChatPanel({
 
   return (
     <div className="chat-panel">
+      <div className="chat-context-header" aria-label="当前上下文">
+        <div className="chat-context-item">
+          <span>项目</span>
+          <strong>{projectName}</strong>
+        </div>
+        <div className="chat-context-item">
+          <span>模型</span>
+          <strong>{modelSummary}</strong>
+        </div>
+        <div className="chat-context-item compact">
+          <span>配置</span>
+          <strong>{configSummary}</strong>
+        </div>
+      </div>
       <div className="chat-conversation-bar" aria-label="对话操作">
         <div className="chat-conversation-status">
           <span className={`chat-status-dot stage-${workbench.stage}`} />

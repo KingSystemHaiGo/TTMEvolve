@@ -1213,3 +1213,19 @@
 - Important lesson: the product needs two browser layers, not one compromised layer: Tauri/WebView2 for the user's live desktop preview, Playwright for Agent-driven operation.
 
 ## Last updated: 2026-06-26 13:52
+
+## 2026-06-26 Cockpit Status Placement
+
+- User clarified the status hierarchy:
+  - Project/model/config should live in the left-top context area.
+  - Maker MCP status should live in the top bar.
+  - Token and elapsed-time metrics should live under each conversation answer.
+- Implemented a compact chat context header for project/model/config.
+- Simplified `CockpitHeader` so the top bar focuses on Maker access/tool/forum actions plus Maker MCP status.
+- Added per-assistant-message usage chips for token/context/latency/tokens-per-second/endpoint.
+- Validation:
+  - `npm.cmd --prefix frontend run build` passed.
+  - `cargo build --release --manifest-path src-tauri/Cargo.toml` passed.
+  - Real desktop screenshot confirmed project/model/config on the left and the top bar above the Maker preview.
+
+## Last updated: 2026-06-26 14:51

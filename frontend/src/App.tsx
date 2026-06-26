@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, type PointerEvent as ReactPointerEvent } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import ChatPanel from './components/ChatPanel'
 import AssetLibrary from './components/AssetLibrary'
 import CockpitHeader from './components/CockpitHeader'
@@ -20,10 +20,27 @@ export interface Message {
   eventType?: string
   source?: string
   isFail?: boolean
+  usage?: MessageUsage
 }
 
 export type Provider = string
 export type WorkspaceDrawerKind = 'files' | 'assets' | 'tools' | 'settings' | 'maker'
+
+export interface MessageUsage {
+  phase?: string
+  provider?: string
+  mode?: string
+  prompt_tokens?: number
+  completion_tokens?: number
+  total_tokens?: number
+  token_count?: number
+  generate_ms?: number
+  tokens_per_sec?: number
+  endpoint?: string
+  http_status?: number
+  error_type?: string
+  updated_at?: number
+}
 
 export interface ProviderPreset {
   id: string
@@ -304,6 +321,12 @@ function savedWorkspacePageWidth(): number {
   return Math.min(MAX_WORKSPACE_PAGE_WIDTH, Math.max(MIN_WORKSPACE_PAGE_WIDTH, saved))
 }
 
+function projectNameFromPath(path?: string): string {
+  const root = path || '.'
+  const normalized = root.replace(/\\/g, '/').replace(/\/$/, '')
+  return normalized.split('/').pop() || root
+}
+
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([])
   const [provider, setProvider] = useState<Provider>('local')
@@ -336,10 +359,6 @@ export default function App() {
   const [makerRepairing, setMakerRepairing] = useState(false)
   const [pendingMakerRepairAudit, setPendingMakerRepairAudit] = useState(false)
   const [makerIssueAutoOpened, setMakerIssueAutoOpened] = useState(false)
-  const [liveUsage, setLiveUsage] = useState<LiveUsage | null>(null)
-  const [agentRunning, setAgentRunning] = useState(false)
-  const [runStartedAt, setRunStartedAt] = useState<number | null>(null)
-  const [clockNow, setClockNow] = useState(() => Date.now())
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
     localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light'
   )
@@ -354,6 +373,7 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   const { readFile, writeFile } = useFs()
+  const latestAnswerUsageRef = useRef<MessageUsage | null>(null)
 
   const navigateMakerPreview = useCallback(async (url: string) => {
     const targetUrl = String(url || '').trim()
@@ -617,6 +637,7 @@ export default function App() {
       ...prev,
       {
         ...msg,
+        usage: msg.usage || (msg.role === 'assistant' ? latestAnswerUsageRef.current || undefined : undefined),
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         timestamp: Date.now(),
       },
@@ -625,17 +646,27 @@ export default function App() {
 
   const handleAgentUsage = useCallback((usage: LiveUsage) => {
     const next = { ...usage, updated_at: Date.now() }
-    setLiveUsage((prev) => ({
-      ...(prev || {}),
+    latestAnswerUsageRef.current = {
+      ...(latestAnswerUsageRef.current || {}),
       ...next,
-      token_count: next.token_count ?? prev?.token_count,
-      total_tokens: next.total_tokens ?? prev?.total_tokens,
-      generate_ms: next.generate_ms ?? prev?.generate_ms,
-      tokens_per_sec: next.tokens_per_sec ?? prev?.tokens_per_sec,
-      endpoint: next.endpoint || prev?.endpoint,
-      http_status: next.http_status ?? prev?.http_status,
-      error_type: next.error_type || prev?.error_type,
-    }))
+      token_count: next.token_count ?? latestAnswerUsageRef.current?.token_count,
+      total_tokens: next.total_tokens ?? latestAnswerUsageRef.current?.total_tokens,
+      generate_ms: next.generate_ms ?? latestAnswerUsageRef.current?.generate_ms,
+      tokens_per_sec: next.tokens_per_sec ?? latestAnswerUsageRef.current?.tokens_per_sec,
+      endpoint: next.endpoint || latestAnswerUsageRef.current?.endpoint,
+      http_status: next.http_status ?? latestAnswerUsageRef.current?.http_status,
+      error_type: next.error_type || latestAnswerUsageRef.current?.error_type,
+    }
+    setMessages((prev) => {
+      const reverseIndex = [...prev].reverse().findIndex((message) => message.role === 'assistant')
+      if (reverseIndex < 0) return prev
+      const targetIndex = prev.length - 1 - reverseIndex
+      return prev.map((message, index) =>
+        index === targetIndex
+          ? { ...message, usage: latestAnswerUsageRef.current || undefined }
+          : message
+      )
+    })
     if (next.total_tokens !== undefined || next.generate_ms !== undefined || next.endpoint) {
       setHealth((prev) => prev
         ? {
@@ -655,24 +686,10 @@ export default function App() {
   }, [])
 
   const handleAgentRunningChange = useCallback((running: boolean) => {
-    setAgentRunning((wasRunning) => {
-      if (running && !wasRunning) {
-        setRunStartedAt(Date.now())
-        setClockNow(Date.now())
-        setLiveUsage(null)
-      }
-      if (!running && wasRunning) {
-        setRunStartedAt(null)
-      }
-      return running
-    })
+    if (running) {
+      latestAnswerUsageRef.current = null
+    }
   }, [])
-
-  useEffect(() => {
-    if (!agentRunning) return
-    const timer = window.setInterval(() => setClockNow(Date.now()), 1000)
-    return () => window.clearInterval(timer)
-  }, [agentRunning])
 
   const handleFileSelect = useCallback(
     async (path: string) => {
@@ -1080,6 +1097,9 @@ export default function App() {
                 onRunningChange={handleAgentRunningChange}
                 permissionProfile={profile}
                 onPermissionProfileChange={setProfile}
+                projectName={projectNameFromPath(makerSetup?.project?.root || projectRoot)}
+                modelSummary={`${health?.provider || provider} · ${health?.model || model || '未选择'}`}
+                configSummary={`${profile} · ${health?.runtime_kind || 'runtime'}`}
               />
               <div
                 className="shell-resize-handle"
@@ -1113,6 +1133,14 @@ export default function App() {
           </aside>
         )}
         <main className="preview-stack">
+          <CockpitHeader
+            makerVersion={makerVersion}
+            mcpStatus={mcpStatus}
+            onOpenTools={() => openWorkspaceDrawer('tools')}
+            onOpenMakerSetup={() => openWorkspaceDrawer('maker')}
+            makerDestination={makerDestination}
+            onToggleMakerDestination={toggleMakerDestination}
+          />
           <div
             className={`preview-main ${workspacePage ? `with-workspace-page workspace-page-${workspacePage}` : ''}`}
             style={workspacePage ? workspacePageStyle : undefined}
@@ -1151,22 +1179,6 @@ export default function App() {
               />
             </div>
           </div>
-          <CockpitHeader
-            provider={provider}
-            profile={profile}
-            projectRoot={projectRoot}
-            makerVersion={makerVersion}
-            health={health}
-            usage={liveUsage}
-            agentRunning={agentRunning}
-            runElapsedMs={agentRunning && runStartedAt ? clockNow - runStartedAt : undefined}
-            mcpStatus={mcpStatus}
-            makerSetup={makerSetup}
-            onOpenTools={() => openWorkspaceDrawer('tools')}
-            onOpenMakerSetup={() => openWorkspaceDrawer('maker')}
-            makerDestination={makerDestination}
-            onToggleMakerDestination={toggleMakerDestination}
-          />
         </main>
       </div>
     </div>

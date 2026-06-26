@@ -52,6 +52,7 @@ export default function ChatMessage({ message }: Props) {
           className="assistant-markdown"
           dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content) }}
         />
+        {message.usage && <MessageUsageBar usage={message.usage} />}
       </article>
     )
   }
@@ -65,6 +66,31 @@ export default function ChatMessage({ message }: Props) {
       <div className="message-content">{message.content}</div>
     </div>
   )
+}
+
+function MessageUsageBar({ usage }: { usage: NonNullable<Message['usage']> }) {
+  const items = [
+    usage.total_tokens !== undefined ? `Token ${usage.total_tokens}` : '',
+    usage.token_count !== undefined ? `上下文 ${usage.token_count}` : '',
+    usage.generate_ms !== undefined ? `耗时 ${formatDuration(usage.generate_ms)}` : '',
+    usage.tokens_per_sec !== undefined ? `${usage.tokens_per_sec} tok/s` : '',
+    usage.endpoint || '',
+  ].filter(Boolean)
+
+  if (!items.length) return null
+  return (
+    <div className="assistant-answer-usage" title={usage.error_type || usage.mode || usage.phase || ''}>
+      {items.map((item) => (
+        <span key={item}>{item}</span>
+      ))}
+    </div>
+  )
+}
+
+function formatDuration(value: number): string {
+  if (!Number.isFinite(value)) return '等待中'
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}s`
+  return `${Math.round(value)}ms`
 }
 
 function roleLabel(role: Message['role']): string {

@@ -136,3 +136,11 @@
 - Fixed: Tauri desktop preview now uses a native child WebView2 (`maker-preview`) for normal users instead of screenshot polling.
 - Preserved: Playwright browser service remains the Agent automation path.
 - Verified: frontend build, Rust build/test, lifecycle/start-script tests, release build, and real `TTMEvolve.vbs` smoke with one visible app window and WebView2 child window evidence.
+
+## 2026-06-26 14:51 Cockpit Status Placement
+
+- Status: done.
+- Moved project/model/config to the left-top chat context area.
+- Kept Maker MCP status in the top bar with Maker actions.
+- Moved token/latency evidence to assistant-message usage chips.
+- Verified: frontend build and Tauri release build.
