@@ -257,17 +257,81 @@ def build_runtime_advice(
             "reasons": ["No context_sync snapshot is available."],
             "evidence": evidence,
         }
+    continuation = summarize_continuation(latest_context_sync)
+    if continuation.get("resume_ready"):
+        evidence["continuation"] = {
+            "resume_ready": continuation.get("resume_ready"),
+            "resume_mode": continuation.get("resume_mode"),
+            "workspace_profile": continuation.get("workspace_profile"),
+            "open_plan_count": continuation.get("open_plan_count"),
+            "compression_needed": continuation.get("compression_needed"),
+        }
 
     return {
         "status": "ready",
         "priority": "continue",
-        "next_action": "Proceed with the Maker task using maker_briefing and compact handoff evidence.",
+        "next_action": "Proceed from continuation checkpoint using maker_briefing and compact handoff evidence.",
         "reasons": ["Maker alignment and compact runtime evidence are available."],
         "evidence": {
             **evidence,
             "context_revision": latest_context_sync.get("revision"),
             "learning": learning_latest,
         },
+    }
+
+
+def summarize_continuation(latest_context_sync: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not isinstance(latest_context_sync, dict) or not latest_context_sync:
+        return {
+            "status": "missing",
+            "resume_ready": False,
+            "next_action": "Wait for context_sync before long-task handoff.",
+        }
+    checkpoint = latest_context_sync.get("continuation_checkpoint")
+    if not isinstance(checkpoint, dict):
+        snapshot = latest_context_sync.get("snapshot") if isinstance(latest_context_sync.get("snapshot"), dict) else {}
+        checkpoint = (
+            snapshot.get("continuation_checkpoint")
+            if isinstance(snapshot.get("continuation_checkpoint"), dict)
+            else {}
+        )
+    compression = checkpoint.get("compression") if isinstance(checkpoint.get("compression"), dict) else {}
+    open_plan_steps = (
+        checkpoint.get("open_plan_steps")
+        if isinstance(checkpoint.get("open_plan_steps"), list)
+        else []
+    )
+    artifacts = (
+        checkpoint.get("artifact_refs")
+        if isinstance(checkpoint.get("artifact_refs"), list)
+        else []
+    )
+    return {
+        "status": "ready" if checkpoint.get("resume_ready") else "partial",
+        "version": checkpoint.get("version"),
+        "resume_ready": bool(checkpoint.get("resume_ready")),
+        "resume_mode": checkpoint.get("resume_mode") or "context_handoff",
+        "workspace_profile": checkpoint.get("workspace_profile")
+            or latest_context_sync.get("workspace_profile")
+            or "general",
+        "context_revision": checkpoint.get("context_revision") or latest_context_sync.get("revision"),
+        "iteration": checkpoint.get("iteration") or latest_context_sync.get("step"),
+        "trajectory_steps": checkpoint.get("trajectory_steps"),
+        "goal_next_focus": checkpoint.get("goal_next_focus"),
+        "goal_overall": checkpoint.get("goal_overall") or latest_context_sync.get("goal_overall"),
+        "last_tool": checkpoint.get("last_tool") or latest_context_sync.get("last_tool"),
+        "last_ok": checkpoint.get("last_ok"),
+        "plan_verdict": checkpoint.get("plan_verdict") or latest_context_sync.get("plan_verdict"),
+        "open_plan_count": len(open_plan_steps),
+        "open_plan_steps": open_plan_steps[:6],
+        "artifact_count": checkpoint.get("artifact_count") or latest_context_sync.get("artifact_count", 0),
+        "artifact_refs": artifacts[:6],
+        "compression_needed": bool(compression.get("needed")),
+        "compressed_step_count": compression.get("compressed_step_count", 0),
+        "skipped_step_count": compression.get("skipped_step_count", 0),
+        "summary": str(compression.get("summary") or "")[:800],
+        "resume_limits": checkpoint.get("resume_limits") if isinstance(checkpoint.get("resume_limits"), dict) else {},
+        "handoff_hint": checkpoint.get("handoff_hint") or "Use context_sync/runtime_metrics before raw SSE.",
     }
 
 
@@ -726,6 +790,7 @@ def build_session_evidence_bundle(
     runtime_summary = summarize_runtime_metrics(runtime_metrics)
     layer_summary = summarize_layer_events(layer_history)
     latest_context_sync = context_history[-1] if context_history else None
+    continuation = summarize_continuation(latest_context_sync)
     learning_latest = learning_history[-1] if learning_history else None
     maker_guard_latest = maker_guard_history[-1] if maker_guard_history else None
     llm_probe_latest = server._latest_llm_probe_for_session(session_id)
@@ -801,6 +866,7 @@ def build_session_evidence_bundle(
         "maker_tool_audit": maker_setup.get("tool_audit", {}),
         "maker_briefing": maker_briefing,
         "latest_context_sync": latest_context_sync,
+        "continuation": continuation,
         "layer_summary": layer_summary,
         "runtime_metrics_summary": runtime_summary,
         "learning_latest": learning_latest,
@@ -849,6 +915,7 @@ def render_session_evidence_markdown(bundle: Dict[str, Any]) -> str:
         if isinstance(bundle.get("latest_context_sync"), dict)
         else {}
     )
+    continuation = bundle.get("continuation") if isinstance(bundle.get("continuation"), dict) else {}
     runtime_summary = (
         bundle.get("runtime_metrics_summary")
         if isinstance(bundle.get("runtime_metrics_summary"), dict)
@@ -973,8 +1040,18 @@ def render_session_evidence_markdown(bundle: Dict[str, Any]) -> str:
         f"- token_cache: hits=`{token_cache.get('hits')}` misses=`{token_cache.get('misses')}` size=`{token_cache.get('size')}`",
         f"- tool_ranking: selected=`{tool_ranking.get('selected_count')}` candidates=`{tool_ranking.get('candidate_count')}` cache_hit=`{tool_ranking.get('cache_hit')}`",
         "",
+        "## Continuation",
+        f"- status: `{continuation.get('status') or '-'}` resume_ready=`{continuation.get('resume_ready')}` mode=`{continuation.get('resume_mode') or '-'}`",
+        f"- workspace_profile: `{continuation.get('workspace_profile') or '-'}` context_revision=`{continuation.get('context_revision') or '-'}`",
+        f"- goal_next_focus: {continuation.get('goal_next_focus') or '-'}",
+        f"- last_tool: `{continuation.get('last_tool') or '-'}` ok=`{continuation.get('last_ok')}` plan=`{continuation.get('plan_verdict') or '-'}`",
+        f"- open_plan_count: `{continuation.get('open_plan_count') or 0}` artifact_count=`{continuation.get('artifact_count') or 0}`",
+        f"- compression: needed=`{continuation.get('compression_needed')}` compressed_steps=`{continuation.get('compressed_step_count') or 0}` skipped=`{continuation.get('skipped_step_count') or 0}`",
+        "",
         "## Counts",
     ])
+    if continuation.get("summary"):
+        lines.append(f"- compressed_summary: {continuation.get('summary')}")
     if latest_feedback:
         lines.extend([
             "",
@@ -1045,6 +1122,11 @@ def build_llm_onboarding_bundle(
         if isinstance(evidence.get("learning_latest"), dict)
         else {}
     )
+    continuation = (
+        evidence.get("continuation")
+        if isinstance(evidence.get("continuation"), dict)
+        else {}
+    )
     endpoints = {
         key: communication.get(key)
         for key in [
@@ -1110,6 +1192,12 @@ def build_llm_onboarding_bundle(
             "summary": "Use evidence and context sync before detailed histories; runtime metrics expose token/cache/tool ranking.",
         },
         {
+            "id": "long_task_continuation",
+            "status": "ready" if continuation.get("resume_ready") else "instrumented",
+            "evidence": [endpoints.get("evidence_bundle"), endpoints.get("context_sync")],
+            "summary": "Continuation checkpoint exposes workspace profile, open plan steps, goal focus, artifacts, and compression state.",
+        },
+        {
             "id": "frontend_backend_loop",
             "status": "ready" if endpoints.get("onboarding_bundle") and endpoints.get("evidence_bundle") else "warn",
             "evidence": ["AgentWorkbench", endpoints.get("onboarding_bundle")],
@@ -1136,6 +1224,8 @@ def build_llm_onboarding_bundle(
         live_gaps.append("runtime_metrics_sample")
     if not learning_latest:
         live_gaps.append("learning_completion_sample")
+    if not continuation.get("resume_ready"):
+        live_gaps.append("continuation_checkpoint")
 
     closure_decision = "stable_small_version_ready"
     if blockers:
@@ -1171,6 +1261,7 @@ def build_llm_onboarding_bundle(
             "learning": learning_latest.get("event") or learning_latest.get("state") or "not_observed",
             "maker_setup": maker_setup.get("readiness"),
             "maker_tool_audit": "ok" if maker_tool_audit.get("ok") else "needs_review",
+            "continuation": continuation.get("status") or "missing",
         },
         "startup_order": [item for item in startup_order if item],
         "for_any_llm": [
@@ -1190,6 +1281,7 @@ def build_llm_onboarding_bundle(
             "release_gate": readiness.get("release_gate", {}),
         },
         "runtime_advice": advice,
+        "continuation": continuation,
         "layer_summary": layer_summary,
         "runtime_metrics_summary": runtime_summary,
         "learning_latest": learning_latest or None,
@@ -1206,6 +1298,7 @@ def build_llm_onboarding_bundle(
                 "MakerMCP authority and guard evidence are visible before Maker side effects.",
                 "Agent/Core Runtime/Learning evidence is independently pullable.",
                 "Token strategy prefers readiness/evidence/context summaries over raw histories.",
+                "Long tasks expose continuation checkpoints before raw transcript replay.",
                 "Workbench and backend expose the same compact evidence path.",
             ],
         },
@@ -1246,6 +1339,7 @@ def render_llm_onboarding_markdown(bundle: Dict[str, Any]) -> str:
     advice = bundle.get("runtime_advice") if isinstance(bundle.get("runtime_advice"), dict) else {}
     closure = bundle.get("closure_gate") if isinstance(bundle.get("closure_gate"), dict) else {}
     token_strategy = bundle.get("token_strategy") if isinstance(bundle.get("token_strategy"), dict) else {}
+    continuation = bundle.get("continuation") if isinstance(bundle.get("continuation"), dict) else {}
     layer_summary = bundle.get("layer_summary") if isinstance(bundle.get("layer_summary"), dict) else {}
     runtime_summary = (
         bundle.get("runtime_metrics_summary")
@@ -1286,6 +1380,7 @@ def render_llm_onboarding_markdown(bundle: Dict[str, Any]) -> str:
         f"- layer_events: `{summary.get('layer_events') or layer_summary.get('event_count') or 0}`",
         f"- runtime_events: `{summary.get('runtime_events') or runtime_summary.get('event_count') or 0}`",
         f"- learning: `{summary.get('learning') or '-'}`",
+        f"- continuation: `{summary.get('continuation') or continuation.get('status') or '-'}` resume_ready=`{continuation.get('resume_ready')}`",
         "",
         "## Closure Gate",
         f"- decision: `{closure.get('decision') or '-'}`",
@@ -1307,6 +1402,12 @@ def render_llm_onboarding_markdown(bundle: Dict[str, Any]) -> str:
         f"- llm_total_tokens: `{metrics.get('llm_total_tokens') if metrics else '-'}`",
         f"- token_cache: hits=`{token_cache.get('hits')}` misses=`{token_cache.get('misses')}` size=`{token_cache.get('size')}`",
         f"- tool_ranking: selected=`{tool_ranking.get('selected_count')}` candidates=`{tool_ranking.get('candidate_count')}` cache_hit=`{tool_ranking.get('cache_hit')}`",
+        "",
+        "## Continuation",
+        f"- status: `{continuation.get('status') or '-'}` mode=`{continuation.get('resume_mode') or '-'}` workspace=`{continuation.get('workspace_profile') or '-'}`",
+        f"- goal_next_focus: {continuation.get('goal_next_focus') or '-'}",
+        f"- last_tool: `{continuation.get('last_tool') or '-'}` plan=`{continuation.get('plan_verdict') or '-'}`",
+        f"- open_plan_count: `{continuation.get('open_plan_count') or 0}` compression_needed=`{continuation.get('compression_needed')}`",
         "",
         "## Rules For Any LLM",
     ])

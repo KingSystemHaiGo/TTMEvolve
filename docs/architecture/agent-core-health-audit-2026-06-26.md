@@ -82,7 +82,9 @@ New evidence added on 2026-06-26:
 - `context_sync.snapshot.continuation_checkpoint` is now emitted by `ReActLoop`.
 - The checkpoint includes `workspace_profile`, open plan steps, goal focus, last tool/result, artifact refs, a deterministic compression summary, and explicit resume limits.
 - `SessionStore.get_context_sync_history()` now exposes `resume_ready`, `resume_mode`, `workspace_profile`, `open_plan_count`, and the full checkpoint through the existing pull API.
+- Evidence Bundle and LLM Onboarding Bundle now expose a first-class `continuation` summary and render it in Markdown, so external agents do not need to dig through raw snapshots.
 - Verified by `tests/test_tool_call_validation.py::test_react_loop_context_sync_includes_continuation_checkpoint` and `tests/test_app_server_resume.py::test_app_server_context_sync_endpoint`.
+- Verified by `tests/test_app_server_resume.py::test_app_server_evidence_bundle_endpoint`, which checks Evidence JSON, Evidence Markdown, Onboarding JSON, and Onboarding Markdown.
 
 Boundary: this is a durable context handoff checkpoint, not full Python process resurrection. A restarted runtime can inspect and continue from the checkpoint, but restoring an interrupted in-process tool call is still not proven.
 

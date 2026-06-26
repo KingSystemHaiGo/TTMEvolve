@@ -1101,7 +1101,38 @@ def test_app_server_evidence_bundle_endpoint():
                 "revision": 2,
                 "changed": True,
                 "signature": "evidence-sig",
-                "snapshot": {"session_id": "evidence1", "task": "build Maker project"},
+                "snapshot": {
+                    "session_id": "evidence1",
+                    "task": "build Maker project",
+                    "workspace_profile": "maker",
+                    "continuation_checkpoint": {
+                        "version": "continuation-checkpoint.v1",
+                        "context_revision": 2,
+                        "workspace_profile": "maker",
+                        "resume_ready": True,
+                        "resume_mode": "context_handoff",
+                        "open_plan_steps": [
+                            {"id": "build", "title": "Run Maker build", "status": "pending", "tool": "maker_build"}
+                        ],
+                        "goal_next_focus": "Run Maker build",
+                        "goal_overall": "active",
+                        "last_tool": "maker_build",
+                        "last_ok": True,
+                        "plan_verdict": "pass",
+                        "artifact_count": 1,
+                        "artifact_refs": [{"path": "scripts/main.lua", "tool": "modify_file"}],
+                        "compression": {
+                            "needed": True,
+                            "compressed_step_count": 8,
+                            "skipped_step_count": 0,
+                            "summary": "Task: build Maker project",
+                        },
+                        "resume_limits": {
+                            "process_resurrection": False,
+                            "raw_sse_replay_required": False,
+                        },
+                    },
+                },
             },
         )
         server.session_store.append_event(
@@ -1177,6 +1208,11 @@ def test_app_server_evidence_bundle_endpoint():
             assert data["maker_mcp"]["tool_count"] == 0
             assert data["maker_mcp"]["top_tools"] == []
             assert data["latest_context_sync"]["revision"] == 2
+            assert data["continuation"]["resume_ready"] is True
+            assert data["continuation"]["workspace_profile"] == "maker"
+            assert data["continuation"]["open_plan_count"] == 1
+            assert data["continuation"]["goal_next_focus"] == "Run Maker build"
+            assert data["continuation"]["compression_needed"] is True
             assert data["layer_summary"]["event_count"] == 3
             assert data["layer_summary"]["latest_by_layer"]["agent"]["event"] == "agent.run.started"
             assert data["layer_summary"]["latest_by_layer"]["runtime"]["event"] == "runtime.audit.finished"
@@ -1213,6 +1249,9 @@ def test_app_server_evidence_bundle_endpoint():
             assert "mcp_connected: `False`" in markdown
             assert "mcp_tool_count: `0`" in markdown
             assert "## Layer Communication" in markdown
+            assert "## Continuation" in markdown
+            assert "workspace_profile: `maker`" in markdown
+            assert "goal_next_focus: Run Maker build" in markdown
             assert "agent: state=`active` event=`agent.run.started`" in markdown
             assert "runtime: state=`done` event=`runtime.audit.finished`" in markdown
             assert "learning: state=`done` event=`learning.reflection.finished`" in markdown
@@ -1231,9 +1270,13 @@ def test_app_server_evidence_bundle_endpoint():
                 "stable_small_version_ready_live_validation_pending",
             }
             assert onboarding["summary"]["api_call_proof"] == "api_call_observed"
+            assert onboarding["summary"]["continuation"] == "ready"
+            assert onboarding["continuation"]["workspace_profile"] == "maker"
+            assert onboarding["continuation"]["open_plan_steps"][0]["id"] == "build"
             assert onboarding["startup_order"][0] == "/agent/onboarding?session_id=evidence1&steps=20"
             assert onboarding["endpoints"]["onboarding_bundle"] == "/agent/onboarding?session_id=evidence1&steps=20"
             assert onboarding["closure_gate"]["checks"][0]["id"] == "any_llm_startup"
+            assert any(check["id"] == "long_task_continuation" and check["status"] == "ready" for check in onboarding["closure_gate"]["checks"])
             assert "maker_mcp_remote_authority" in onboarding["closure_gate"]["live_validation_gaps"]
             assert onboarding["token_strategy"]["metrics"]["tool_ranking"]["selected_count"] == 6
             assert "TapTap Maker Plus" in onboarding["reference_principles"][0]
@@ -1243,6 +1286,8 @@ def test_app_server_evidence_bundle_endpoint():
             assert onboarding_markdown.startswith("# TTMEvolve LLM Onboarding Bundle")
             assert "release: `v0.4.2-onboarding-closure`" in onboarding_markdown
             assert "surface: `codex`" in onboarding_markdown
+            assert "## Continuation" in onboarding_markdown
+            assert "workspace=`maker`" in onboarding_markdown
             assert "onboarding_bundle: `/agent/onboarding?session_id=evidence1&steps=20`" in onboarding_markdown
         finally:
             server.stop()

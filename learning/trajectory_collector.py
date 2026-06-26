@@ -19,6 +19,7 @@ class TrajectoryCollector:
         self.storage_path.mkdir(parents=True, exist_ok=True)
 
     def append(self, session_id: str, trajectory: List[Dict[str, Any]]) -> None:
+        self.storage_path.mkdir(parents=True, exist_ok=True)
         file_path = self.storage_path / f"{session_id}.jsonl"
         with file_path.open("a", encoding="utf-8") as f:
             for step in trajectory:
