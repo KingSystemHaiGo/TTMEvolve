@@ -164,18 +164,28 @@ impl ServerManager {
 }
 
 fn resolve_python(project_root: &Path) -> PathBuf {
+    if let Ok(value) = std::env::var("TTM_PYTHON_EXE") {
+        let candidate = PathBuf::from(value);
+        if candidate.exists() {
+            return candidate;
+        }
+    }
+
     let portable = project_root.join("portable").join("python");
     let candidates = if cfg!(windows) {
         vec![
             portable.join("python.exe"),
             portable.join("Scripts").join("python.exe"),
-            PathBuf::from(".venv").join("Scripts").join("python.exe"),
+            project_root
+                .join(".venv")
+                .join("Scripts")
+                .join("python.exe"),
         ]
     } else {
         vec![
             portable.join("bin").join("python3"),
             portable.join("bin").join("python"),
-            PathBuf::from(".venv").join("bin").join("python3"),
+            project_root.join(".venv").join("bin").join("python3"),
         ]
     };
     for candidate in candidates {
@@ -234,9 +244,7 @@ impl ServerManager {
             .append(true)
             .open(&self.log_path)
             .map_err(|err| err.to_string())?;
-        let stderr: File = stdout
-            .try_clone()
-            .map_err(|err| err.to_string())?;
+        let stderr: File = stdout.try_clone().map_err(|err| err.to_string())?;
         Ok((Stdio::from(stdout), Stdio::from(stderr)))
     }
 }
@@ -247,7 +255,10 @@ pub fn append_desktop_log(log_path: &Path, line: &str) -> std::io::Result<()> {
     if let Some(parent) = log_path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let mut file = OpenOptions::new().create(true).append(true).open(log_path)?;
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)?;
     let timestamp = now_millis();
     writeln!(file, "[{timestamp}] {line}")?;
     file.flush()

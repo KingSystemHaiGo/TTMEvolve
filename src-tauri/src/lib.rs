@@ -49,7 +49,10 @@ pub fn run() {
         let log_path = resolve_log_path(app)?;
         let _ = server_manager::append_desktop_log(
             &log_path,
-            &format!("TTMEvolve {APP_VERSION} starting in {}", project_root.display()),
+            &format!(
+                "TTMEvolve {APP_VERSION} starting in {}",
+                project_root.display()
+            ),
         );
 
         // 1. Start the fast_ops HTTP bridge so the Python backend can call
@@ -125,14 +128,46 @@ pub fn run() {
 }
 
 fn resolve_project_root(app: &tauri::App) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    // Use Tauri's resource_dir as the canonical project root when running from
-    // a packaged build; otherwise fall back to current_exe parent (dev mode).
-    if let Ok(resource) = app.path().resource_dir() {
-        return Ok(resource);
+    if let Ok(root) = std::env::var("TTMEVOLVE_ROOT") {
+        let candidate = PathBuf::from(root);
+        if looks_like_project_root(&candidate) {
+            return Ok(candidate);
+        }
     }
+
+    // Use Tauri's resource_dir only when it contains packaged app resources.
+    if let Ok(resource) = app.path().resource_dir() {
+        if looks_like_project_root(&resource) {
+            return Ok(resource);
+        }
+    }
+
+    let cwd = std::env::current_dir()?;
+    if let Some(root) = find_project_root(&cwd) {
+        return Ok(root);
+    }
+
     let exe = std::env::current_exe()?;
-    let parent = exe.parent().ok_or("current_exe has no parent")?;
-    Ok(parent.to_path_buf())
+    if let Some(parent) = exe.parent() {
+        if let Some(root) = find_project_root(parent) {
+            return Ok(root);
+        }
+    }
+
+    Err("unable to locate TTMEvolve project root".into())
+}
+
+fn looks_like_project_root(path: &std::path::Path) -> bool {
+    path.join("main.py").exists() && path.join("server").join("app_server.py").exists()
+}
+
+fn find_project_root(start: &std::path::Path) -> Option<PathBuf> {
+    for candidate in start.ancestors() {
+        if looks_like_project_root(candidate) {
+            return Some(candidate.to_path_buf());
+        }
+    }
+    None
 }
 
 fn resolve_log_path(app: &tauri::App) -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -141,7 +176,12 @@ fn resolve_log_path(app: &tauri::App) -> Result<PathBuf, Box<dyn std::error::Err
 }
 
 #[allow(dead_code)]
-fn diagnostics_from(launch: &Option<ServerLaunchInfo>, status: &ServerStatus, log_path: &str, project_root: &str) -> DesktopDiagnostics {
+fn diagnostics_from(
+    launch: &Option<ServerLaunchInfo>,
+    status: &ServerStatus,
+    log_path: &str,
+    project_root: &str,
+) -> DesktopDiagnostics {
     let (server_status, server_port, server_pid) = match status {
         ServerStatus::Idle => ("idle".to_string(), None, None),
         ServerStatus::Starting => ("starting".to_string(), None, None),

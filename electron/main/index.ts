@@ -609,7 +609,7 @@ function createWindow(): BrowserWindow {
     win.loadURL(VITE_DEV_URL)
     win.webContents.openDevTools()
   } else {
-    const htmlPath = path.join(__dirname, '..', 'renderer', 'index.html')
+    const htmlPath = path.join(getProjectRoot(), 'frontend', 'dist', 'index.html')
     win.loadFile(htmlPath)
   }
 

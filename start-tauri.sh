@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
 # =============================================================================
-# TTMEvolve 启动脚本 (Linux/macOS) — 优先内嵌环境
+# TTMEvolve launcher (Linux/macOS) - prefers portable runtime
 #
-# v0.9.0 增强：
-#   - 跨平台：Linux + macOS
-#   - 优先 portable 内嵌环境
-#   - 自动检测系统 Python
-#   - 启动器 / CLI 模式选择
-#   - 友好的错误信息
+# v0.9.0 enhanced:
+#   - cross-platform: Linux + macOS
+#   - portable Python first, then .venv, then system Python
+#   - GUI / CLI / headless modes
+#   - source checkout GUI fallback builds frontend and runs Tauri with Cargo
+#   - friendly error messages
 # =============================================================================
 
 set -e
 cd "$(dirname "$0")"
 
-# 平台检测
 PLATFORM="$(uname -s 2>/dev/null || echo Unknown)"
 case "$PLATFORM" in
     Linux*)   PLATFORM_TAG="linux" ;;
@@ -23,9 +22,7 @@ esac
 echo "[start-tauri] platform: $PLATFORM_TAG"
 
 PYTHON_EXE=""
-NODE_EXE=""
 
-# 1. 内嵌 Python (portable)
 if [ -x "./portable/python/bin/python3" ]; then
     PYTHON_EXE="$(pwd)/portable/python/bin/python3"
     echo "[start-tauri] using embedded python: $PYTHON_EXE"
@@ -44,18 +41,6 @@ else
     exit 1
 fi
 
-# 2. 内嵌 Node
-if [ -x "./portable/node/bin/node" ]; then
-    NODE_EXE="$(pwd)/portable/node/bin/node"
-    echo "[start-tauri] using embedded node: $NODE_EXE"
-elif command -v node >/dev/null 2>&1; then
-    NODE_EXE="$(command -v node)"
-    echo "[start-tauri] using system node: $NODE_EXE"
-fi
-
-export PYTHON_EXE NODE_EXE
-
-# 3. 模式选择
 MODE="gui"
 if [ "${1:-}" = "--cli" ]; then
     MODE="cli"
@@ -66,19 +51,35 @@ elif [ "${1:-}" = "--headless" ]; then
 fi
 echo "[start-tauri] mode: $MODE"
 
-# 4. 启动应用
+export TTM_PYTHON_EXE="$PYTHON_EXE"
+export TTMEVOLVE_ROOT="$(pwd)"
+
 case "$MODE" in
     gui)
         if [ -x "./src-tauri/target/release/ttmevolve" ]; then
             echo "[start-tauri] starting production build"
-            exec "./src-tauri/target/release/ttmevolve"
+            exec "./src-tauri/target/release/ttmevolve" "$@"
         elif [ -x "./src-tauri/target/debug/ttmevolve" ]; then
             echo "[start-tauri] starting debug build"
-            exec "./src-tauri/target/debug/ttmevolve"
-        else
-            echo "[start-tauri] no built binary; falling back to python main.py"
-            exec "$PYTHON_EXE" main.py --embedded "$@"
+            exec "./src-tauri/target/debug/ttmevolve" "$@"
         fi
+
+        if ! command -v cargo >/dev/null 2>&1; then
+            echo "[start-tauri] ERROR: no built Tauri binary found and Cargo is unavailable"
+            echo "[start-tauri] install Rust/Cargo or use a packaged TTMEvolve build"
+            exit 1
+        fi
+        if ! command -v npm >/dev/null 2>&1; then
+            echo "[start-tauri] ERROR: npm not found; cannot build frontend for Tauri"
+            echo "[start-tauri] please install Node.js or run scripts/build-portable/build_all.py"
+            exit 1
+        fi
+
+        echo "[start-tauri] no built binary; building frontend for Tauri"
+        npm --prefix frontend run build
+
+        echo "[start-tauri] starting Tauri from source with Cargo"
+        exec cargo run --manifest-path src-tauri/Cargo.toml -- "$@"
         ;;
     cli|headless)
         exec "$PYTHON_EXE" main.py --embedded "$@"

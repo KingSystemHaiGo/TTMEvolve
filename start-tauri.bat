@@ -1,11 +1,12 @@
 @echo off
 REM =============================================================================
-REM TTMEvolve 启动脚本 (Windows) — 优先内嵌环境
+REM TTMEvolve launcher (Windows) - prefers portable runtime
 REM
-REM v0.9.0 增强：
-REM   - 优先 portable 内嵌环境
-REM   - GUI / CLI / Headless 模式选择
-REM   - 友好的错误信息
+REM v0.9.0 enhanced:
+REM   - portable Python first, then .venv, then system Python
+REM   - GUI / CLI / headless modes
+REM   - source checkout GUI fallback builds frontend and runs Tauri with Cargo
+REM   - friendly error messages
 REM =============================================================================
 
 setlocal EnableExtensions EnableDelayedExpansion
@@ -13,27 +14,27 @@ cd /d "%~dp0"
 
 set "PYTHON_EXE="
 
-REM 1. 内嵌 Python (portable)
+REM 1. Embedded Python (portable)
 if exist "portable\python\python.exe" (
     set "PYTHON_EXE=%CD%\portable\python\python.exe"
     echo [start-tauri] using embedded python: !PYTHON_EXE!
-    goto :start_app
+    goto :python_found
 )
 
-REM 2. .venv 虚拟环境
+REM 2. .venv virtual environment
 if exist ".venv\Scripts\python.exe" (
     set "PYTHON_EXE=%CD%\.venv\Scripts\python.exe"
     echo [start-tauri] using venv python: !PYTHON_EXE!
-    goto :start_app
+    goto :python_found
 )
 
-REM 3. 系统 Python
+REM 3. System Python
 where python >nul 2>nul
 if %errorlevel%==0 (
     for /f "delims=" %%i in ('where python') do (
         set "PYTHON_EXE=%%i"
         echo [start-tauri] using system python: !PYTHON_EXE!
-        goto :start_app
+        goto :python_found
     )
 )
 
@@ -41,23 +42,8 @@ echo [start-tauri] ERROR: no python found (portable, venv, or system)
 echo [start-tauri] please install Python or run scripts\build-portable\build_all.bat
 exit /b 1
 
-:start_app
+:python_found
 
-REM 内嵌 Node
-set "NODE_EXE="
-if exist "portable\node\node.exe" (
-    set "NODE_EXE=%CD%\portable\node\node.exe"
-) else (
-    where node >nul 2>nul
-    if %errorlevel%==0 (
-        for /f "delims=" %%i in ('where node') do (
-            set "NODE_EXE=%%i"
-            goto :run_app
-        )
-    )
-)
-
-REM 模式选择
 set "MODE=gui"
 if "%1"=="--cli" (
     set "MODE=cli"
@@ -69,23 +55,47 @@ if "%1"=="--headless" (
 )
 echo [start-tauri] mode: !MODE!
 
-:run_app
+set "TTM_PYTHON_EXE=!PYTHON_EXE!"
+set "TTMEVOLVE_ROOT=%CD%"
 
-if "!MODE!"=="gui" (
-    REM 启动 Tauri 主程序
-    if exist "src-tauri\target\release\ttmevolve.exe" (
-        echo [start-tauri] starting production build
-        "src-tauri\target\release\ttmevolve.exe" --python-exe "!PYTHON_EXE!"
-    ) else if exist "src-tauri\target\debug\ttmevolve.exe" (
-        echo [start-tauri] starting debug build
-        "src-tauri\target\debug\ttmevolve.exe" --python-exe "!PYTHON_EXE!"
-    ) else (
-        echo [start-tauri] no built binary; falling back to python main.py
-        "!PYTHON_EXE!" main.py --embedded %*
-    )
-) else (
-    REM CLI / headless 模式：直接调用 Python
-    "!PYTHON_EXE!" main.py --embedded %*
+if "!MODE!"=="gui" goto :run_gui
+goto :run_backend
+
+:run_gui
+if exist "src-tauri\target\release\ttmevolve.exe" (
+    echo [start-tauri] starting production build
+    "src-tauri\target\release\ttmevolve.exe" %*
+    exit /b %errorlevel%
 )
 
-endlocal
+if exist "src-tauri\target\debug\ttmevolve.exe" (
+    echo [start-tauri] starting debug build
+    "src-tauri\target\debug\ttmevolve.exe" %*
+    exit /b %errorlevel%
+)
+
+where cargo >nul 2>nul
+if errorlevel 1 (
+    echo [start-tauri] ERROR: no built Tauri binary found and Cargo is unavailable
+    echo [start-tauri] install Rust/Cargo or use a packaged TTMEvolve build
+    exit /b 1
+)
+
+where npm.cmd >nul 2>nul
+if errorlevel 1 (
+    echo [start-tauri] ERROR: npm.cmd not found; cannot build frontend for Tauri
+    echo [start-tauri] please install Node.js or run scripts\build-portable\build_all.bat
+    exit /b 1
+)
+
+echo [start-tauri] no built binary; building frontend for Tauri
+npm.cmd --prefix frontend run build
+if errorlevel 1 exit /b %errorlevel%
+
+echo [start-tauri] starting Tauri from source with Cargo
+cargo run --manifest-path src-tauri\Cargo.toml -- %*
+exit /b %errorlevel%
+
+:run_backend
+"!PYTHON_EXE!" main.py --embedded %*
+exit /b %errorlevel%

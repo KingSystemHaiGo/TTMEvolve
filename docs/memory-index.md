@@ -1099,3 +1099,26 @@
 - Lesson: GitHub sync is incomplete if README/release-facing docs still describe an older architecture, even when code/tests/commit/push are already complete.
 
 ## Last updated: 2026-06-26 10:41
+
+## 2026-06-26 Tauri Frontend Startup Fix
+
+- User reported that the Tauri frontend could not open.
+- Root causes found by current-state verification:
+  - `frontend/vite.config.ts` still built into `electron/dist/renderer`, while Tauri expected `frontend/dist`.
+  - `src-tauri/tauri.conf.json` used root `npm run dev` / `npm run build`, which still follows the legacy Electron-oriented root scripts instead of targeting the frontend directly.
+  - `start-tauri.bat` / `start-tauri.sh` fell back to `python main.py --embedded` when no Tauri binary existed, which starts only the backend and never opens the Tauri GUI.
+  - Tauri dev/runtime root resolution needed to locate the real repository root and consume the Python executable selected by the launcher.
+- Fixes:
+  - Vite now outputs `frontend/dist`.
+  - Tauri beforeDev/beforeBuild commands call `npm --prefix ../frontend ...`.
+  - Electron compatibility build loads `frontend/dist/index.html`.
+  - `start-tauri` source checkout fallback builds the frontend and runs `cargo run --manifest-path src-tauri/Cargo.toml`.
+  - Rust root/Python resolution now honors `TTMEVOLVE_ROOT` and `TTM_PYTHON_EXE`.
+- Verification:
+  - `npm.cmd --prefix frontend run build` outputs `frontend/dist/index.html`.
+  - `npm.cmd --prefix electron run build` passes.
+  - `cargo test --manifest-path src-tauri/Cargo.toml` -> 32 passed.
+  - `.venv\Scripts\python.exe -m pytest tests/test_start_scripts.py -q` -> 14 passed.
+  - Real `start-tauri.bat` launch produced a responding `TTMEvolve` window and `http://127.0.0.1:8765/health` returned `status=ok`, `runtime_kind=api`, `provider=minimax`.
+
+## Last updated: 2026-06-26 11:38
