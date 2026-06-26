@@ -19,7 +19,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::os::windows::process::CommandExt;
 
 const SERVER_HOST: &str = "127.0.0.1";
-const DEFAULT_PORT: u16 = 8765;
+const DEFAULT_PORT: u16 = 7345;
 const PORT_SCAN_LIMIT: u16 = 40;
 const HEALTH_TIMEOUT_SECONDS: u64 = 30;
 
@@ -109,6 +109,16 @@ impl ServerManager {
                     return Ok(info.port);
                 }
             }
+        }
+
+        if probe_health(DEFAULT_PORT) {
+            let instance_token = make_instance_token();
+            *self.launch.lock().expect("launch lock poisoned") = Some(ServerLaunchInfo {
+                port: DEFAULT_PORT,
+                instance_token,
+                launched_at: now_millis(),
+            });
+            return Ok(DEFAULT_PORT);
         }
 
         let port = find_available_local_port(SERVER_HOST, DEFAULT_PORT, PORT_SCAN_LIMIT)

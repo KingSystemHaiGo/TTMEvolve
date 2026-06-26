@@ -7,6 +7,8 @@ interface Props {
   disabled?: boolean
   isLoading?: boolean
   queueCount?: number
+  permissionProfile?: string
+  onPermissionProfileChange?: (profile: string) => void
 }
 
 export default function ChatInput({
@@ -16,6 +18,8 @@ export default function ChatInput({
   disabled = false,
   isLoading = false,
   queueCount = 0,
+  permissionProfile = 'default',
+  onPermissionProfileChange,
 }: Props) {
   const [text, setText] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -77,6 +81,18 @@ export default function ChatInput({
         disabled={disabled}
         placeholder={isLoading ? '继续输入，会自动排队...' : '提出目标、问题，或直接开始做游戏...'}
       />
+      <select
+        className="chat-permission-select"
+        value={permissionProfile}
+        onChange={(event) => onPermissionProfileChange?.(event.target.value)}
+        title="选择 Agent 本次会话可使用的最大权限"
+        aria-label="权限模式"
+        disabled={disabled || isLoading}
+      >
+        <option value="safe">只读</option>
+        <option value="default">默认</option>
+        <option value="autonomous">自动</option>
+      </select>
       {isLoading && onCancel && (
         <button className="chat-stop-button" type="button" onClick={onCancel}>
           停止

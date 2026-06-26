@@ -1,5 +1,6 @@
 import { MouseEvent, useEffect, useRef, useState } from 'react'
 import { useBrowser } from '../hooks/useBrowser'
+import { isTauri } from '../lib/tauri'
 
 const PREVIEW_URL_KEY = 'ttmevolve.preview.url'
 
@@ -29,8 +30,43 @@ export default function BrowserPreview({ initialUrl = '' }: BrowserPreviewProps)
   if (nativeBrowser) {
     return <NativeBrowserPreview initialUrl={initialUrl} api={nativeBrowser} />
   }
+  if (isTauri()) {
+    return <TauriWebPreview initialUrl={initialUrl} />
+  }
   return <ScreenshotBrowserPreview initialUrl={initialUrl} />
 }
+
+function TauriWebPreview({ initialUrl }: BrowserPreviewProps) {
+  const firstUrl = savedPreviewUrl(initialUrl || 'https://maker.taptap.cn/')
+  const [url, setUrl] = useState(firstUrl)
+  const [showFallback, setShowFallback] = useState(false)
+
+  return (
+    <div className="browser-preview tauri-browser-preview">
+      <div className="tauri-browser-topbar">
+        <span>WebView2 预览</span>
+        <button type="button" onClick={() => setUrl(MAKER_DEFAULT_URL)}>
+          Maker
+        </button>
+        <button type="button" onClick={() => setShowFallback((current) => !current)}>
+          {showFallback ? '网页预览' : '诊断预览'}
+        </button>
+      </div>
+      {showFallback ? (
+        <ScreenshotBrowserPreview initialUrl={url} />
+      ) : (
+        <iframe
+          className="tauri-browser-frame"
+          src={url}
+          title="TapTap Maker preview"
+          onLoad={() => localStorage.setItem(PREVIEW_URL_KEY, url)}
+        />
+      )}
+    </div>
+  )
+}
+
+const MAKER_DEFAULT_URL = 'https://maker.taptap.cn/'
 
 function NativeBrowserPreview({ initialUrl, api }: { initialUrl: string; api: MakerBrowserApi }) {
   const hostRef = useRef<HTMLDivElement | null>(null)

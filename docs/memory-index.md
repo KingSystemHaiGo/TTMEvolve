@@ -1122,3 +1122,23 @@
   - Real `start-tauri.bat` launch produced a responding `TTMEvolve` window and `http://127.0.0.1:8765/health` returned `status=ok`, `runtime_kind=api`, `provider=minimax`.
 
 ## Last updated: 2026-06-26 11:38
+
+## 2026-06-26 Desktop Readiness + Maker Access UX Pass
+
+- User requested: startup loading screen, enter only after all runtime checks are OK, auto-open Maker connection UI when MakerMCP has issues, restore preview, add permission mode selector in message send area, fix desktop UX issues, keep GitHub clean and README maintained.
+- Fixes implemented:
+  - Tauri backend default port changed to `7345` to match frontend API calls; Tauri now reuses an existing healthy 7345 backend instead of silently launching a backend on a different port.
+  - Frontend added a startup readiness gate covering config, `/health`, `/maker/setup-status`, and `/mcp/status`.
+  - Frontend auto-opens the Maker Access workspace page when Maker setup/MCP/tool audit requires attention.
+  - Tauri preview path now uses WebView2/iframe preview with screenshot diagnostics fallback; Electron still uses native BrowserView when `electronAPI.makerBrowser` exists.
+  - Chat send area now includes a per-session permission profile selector (`safe`, `default`, `autonomous`) and sends it as `profile` to `/sessions`.
+  - README was rewritten as clean UTF-8 Chinese/English and updated with desktop readiness, Maker auto-routing, preview behavior, permission mode, and latest verification.
+- Verification:
+  - `npm.cmd --prefix frontend run build` passed.
+  - `npm.cmd --prefix electron run build` passed.
+  - `cargo test --manifest-path src-tauri/Cargo.toml` -> 32 passed.
+  - `.venv\Scripts\python.exe -m pytest tests/test_start_scripts.py tests/test_tauri_lifecycle.py -q` -> 26 passed.
+  - Real `start-tauri.bat` launch produced a responding `TTMEvolve` window; `http://127.0.0.1:7345/health` returned `status=ok`, Maker setup returned `readiness=ready`, and MCP returned `connected=true`, `tool_count=10`.
+- Remaining product nuance: Tauri does not provide Electron's embedded Chromium BrowserView; the preview is WebView2-based. If TapTap Maker blocks iframe embedding, the screenshot diagnostics fallback remains available.
+
+## Last updated: 2026-06-26 12:08

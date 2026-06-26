@@ -29,6 +29,8 @@ interface Props {
   onClearContextSnippets?: () => void
   onUsage?: (usage: LlmUsagePayload) => void
   onRunningChange?: (running: boolean) => void
+  permissionProfile?: string
+  onPermissionProfileChange?: (profile: string) => void
 }
 
 interface SessionSummary {
@@ -55,6 +57,8 @@ export default function ChatPanel({
   onClearContextSnippets,
   onUsage,
   onRunningChange,
+  permissionProfile = 'default',
+  onPermissionProfileChange,
 }: Props) {
   const [isLoading, setIsLoading] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -72,6 +76,7 @@ export default function ChatPanel({
     model,
     baseUrl,
     apiKey,
+    permissionProfile,
     onFileTreeRefresh,
     onUsage
   )
@@ -220,6 +225,8 @@ export default function ChatPanel({
         onCancel={cancelCurrent}
         isLoading={isLoading}
         queueCount={queueCount}
+        permissionProfile={permissionProfile}
+        onPermissionProfileChange={onPermissionProfileChange}
         onAttachFiles={(paths) => {
           const content = `加入上下文文件：\n${paths.map((path) => `- ${path}`).join('\n')}`
           addMessage({ role: 'system', content })

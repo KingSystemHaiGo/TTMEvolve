@@ -182,6 +182,71 @@ button {
     var(--tm-bg);
 }
 
+.app-boot-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  background: var(--tm-bg);
+}
+
+.app-boot-card {
+  width: min(420px, calc(100vw - 40px));
+  display: grid;
+  gap: 10px;
+  padding: 22px;
+  border: 1px solid var(--tm-border);
+  border-radius: var(--tm-radius);
+  background: var(--tm-surface);
+  box-shadow: var(--tm-shadow-soft);
+}
+
+.app-boot-mark {
+  width: fit-content;
+  padding: 7px 11px;
+  border-radius: var(--tm-radius-sm);
+  background: var(--tm-primary);
+  color: #ffffff;
+  font-weight: 1000;
+}
+
+.app-boot-card strong {
+  color: var(--tm-text);
+  font-size: 18px;
+}
+
+.app-boot-card span {
+  color: var(--tm-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.app-boot-progress {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--tm-surface-soft);
+}
+
+.app-boot-progress i {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--tm-primary);
+  animation: bootPulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes bootPulse {
+  from {
+    transform: translateX(-18%);
+  }
+  to {
+    transform: translateX(152%);
+  }
+}
+
 .electron-titlebar {
   display: flex;
   align-items: center;
@@ -3624,7 +3689,7 @@ button {
 
 .chat-input {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto auto;
+  grid-template-columns: 34px minmax(0, 1fr) 82px auto auto;
   gap: 8px;
   padding: 10px;
   background: var(--tm-page);
@@ -4159,6 +4224,19 @@ select:disabled {
 .tool-audit-summary button:hover:not(:disabled) {
   background: var(--tm-primary);
   color: #ffffff;
+}
+
+.chat-permission-select {
+  min-width: 0;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--tm-border);
+  border-radius: var(--tm-radius);
+  background: var(--tm-surface);
+  color: var(--tm-text);
+  font-size: 12px;
+  font-weight: 900;
+  outline: none;
 }
 
 .tool-audit-note {
@@ -5352,8 +5430,12 @@ select:disabled {
 }
 
 .browser-preview {
+  display: flex;
+  flex-direction: column;
   width: 100%;
+  height: 100%;
   min-width: 0;
+  min-height: 0;
   background: #f8fafb;
 }
 
@@ -5427,8 +5509,54 @@ select:disabled {
 }
 
 .browser-placeholder {
+  display: grid;
+  min-height: 100%;
+  place-content: center;
   color: var(--tm-text-muted);
   text-align: center;
+}
+
+.tauri-browser-preview {
+  background: var(--tm-surface);
+}
+
+.tauri-browser-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--tm-border);
+  background: var(--tm-page);
+}
+
+.tauri-browser-topbar span {
+  flex: 1;
+  min-width: 0;
+  color: var(--tm-text-muted);
+  font-size: 12px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tauri-browser-topbar button {
+  min-height: 26px;
+  border: 1px solid var(--tm-border);
+  border-radius: var(--tm-radius-sm);
+  background: var(--tm-surface-soft);
+  color: var(--tm-text-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.tauri-browser-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: #ffffff;
 }
 
 .browser-eval-result {

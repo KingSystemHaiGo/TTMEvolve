@@ -246,6 +246,50 @@ function isMediaPath(path: string): boolean {
   return MEDIA_EXTS.has(ext)
 }
 
+function appBootPending(
+  configLoading: boolean,
+  health: HealthInfo | null,
+  makerSetup: MakerSetupStatus | null,
+  mcpStatus: McpStatus | null,
+  startedAt: number,
+  now: number
+): boolean {
+  if (now - startedAt > 45000) return false
+  return configLoading || !health || !makerSetup || !mcpStatus
+}
+
+function bootStatusText(
+  configLoading: boolean,
+  health: HealthInfo | null,
+  makerSetup: MakerSetupStatus | null,
+  mcpStatus: McpStatus | null,
+  startedAt: number,
+  now: number
+): string {
+  if (configLoading) return '正在读取本地配置和模型设置...'
+  if (!health) return '正在等待 Python App Server 健康检查...'
+  if (health.status === 'offline') return '后端暂时离线，正在重试连接...'
+  if (!makerSetup) return '正在检查 Maker 项目、授权和工具安装状态...'
+  if (!mcpStatus) return '正在检查 Maker MCP 连接和远程工具...'
+  const seconds = Math.max(1, Math.round((now - startedAt) / 1000))
+  return `已检查 ${seconds} 秒，正在进入工作台...`
+}
+
+function makerNeedsAttention(
+  makerSetup: MakerSetupStatus | null,
+  mcpStatus: McpStatus | null,
+  toolAudit: any
+): boolean {
+  if (!makerSetup || !mcpStatus) return false
+  if (makerSetup.readiness && makerSetup.readiness !== 'ready') return true
+  if (Array.isArray(makerSetup.blockers) && makerSetup.blockers.length > 0) return true
+  if (mcpStatus.connected === false) return true
+  if ((mcpStatus.tool_count ?? 0) <= 2) return true
+  if (toolAudit?.ok === false) return true
+  if (Array.isArray(toolAudit?.missing_required_proxy_tools) && toolAudit.missing_required_proxy_tools.length > 0) return true
+  return false
+}
+
 function savedClampedWidth(): number {
   const saved = Number(localStorage.getItem(CHAT_LAYOUT_KEY))
   if (!Number.isFinite(saved) || saved <= 0) return DEFAULT_CHAT_WIDTH
@@ -289,6 +333,7 @@ export default function App() {
   const [makerDestination, setMakerDestination] = useState<'maker' | 'forum'>('maker')
   const [makerRepairing, setMakerRepairing] = useState(false)
   const [pendingMakerRepairAudit, setPendingMakerRepairAudit] = useState(false)
+  const [makerIssueAutoOpened, setMakerIssueAutoOpened] = useState(false)
   const [liveUsage, setLiveUsage] = useState<LiveUsage | null>(null)
   const [agentRunning, setAgentRunning] = useState(false)
   const [runStartedAt, setRunStartedAt] = useState<number | null>(null)
@@ -297,6 +342,8 @@ export default function App() {
     localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light'
   )
   const [contextSnippets, setContextSnippets] = useState<ContextSnippet[]>([])
+  const [bootStartedAt] = useState(() => Date.now())
+  const [bootNow, setBootNow] = useState(() => Date.now())
 
   const [openFiles, setOpenFiles] = useState<string[]>([])
   const [activePath, setActivePath] = useState('')
@@ -305,6 +352,11 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   const { readFile, writeFile } = useFs()
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setBootNow(Date.now()), 500)
+    return () => window.clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -736,6 +788,27 @@ export default function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (makerIssueAutoOpened || configLoading || !makerSetup || !mcpStatus) return
+    if (!makerNeedsAttention(makerSetup, mcpStatus, toolAudit)) return
+    setMakerIssueAutoOpened(true)
+    setWorkspaceDrawer(null)
+    setWorkspacePage('maker')
+    void loadTools()
+    addMessage({
+      role: 'system',
+      content: '检测到 Maker MCP 或项目接入还没有完全就绪，已打开 Maker 接入页。请按页面提示完成修复后再开始真实 Maker 任务。',
+    })
+  }, [
+    addMessage,
+    configLoading,
+    loadTools,
+    makerIssueAutoOpened,
+    makerSetup,
+    mcpStatus,
+    toolAudit,
+  ])
+
   const reconnectMcp = useCallback(async () => {
     setToolsLoading(true)
     setToolsError('')
@@ -956,6 +1029,16 @@ export default function App() {
   return (
     <div className="app-container">
       <ElectronTitleBar />
+      {appBootPending(configLoading, health, makerSetup, mcpStatus, bootStartedAt, bootNow) && (
+        <div className="app-boot-gate" role="status" aria-live="polite">
+          <div className="app-boot-card">
+            <div className="app-boot-mark">TTM</div>
+            <strong>正在检查桌面运行状态</strong>
+            <span>{bootStatusText(configLoading, health, makerSetup, mcpStatus, bootStartedAt, bootNow)}</span>
+            <div className="app-boot-progress"><i /></div>
+          </div>
+        </div>
+      )}
       <div className="cockpit-shell maker-shell" style={cockpitStyle}>
         <aside className={`chat-sidebar ${chatCollapsed ? 'collapsed' : ''}`}>
           {chatCollapsed ? (
@@ -989,6 +1072,8 @@ export default function App() {
                 onClearContextSnippets={() => setContextSnippets([])}
                 onUsage={handleAgentUsage}
                 onRunningChange={handleAgentRunningChange}
+                permissionProfile={profile}
+                onPermissionProfileChange={setProfile}
               />
               <div
                 className="shell-resize-handle"

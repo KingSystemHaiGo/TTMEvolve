@@ -365,6 +365,7 @@ export function useBackend(
   model?: string,
   baseUrl?: string,
   apiKey?: string,
+  profile?: string,
   onFileTreeRefresh?: () => void,
   onUsage?: (usage: LlmUsagePayload) => void,
 ): UseBackendReturn {
@@ -538,6 +539,7 @@ export function useBackend(
           body: JSON.stringify({
             task,
             provider,
+            profile,
             model,
             base_url: baseUrl,
             api_key: apiKey,
@@ -1488,7 +1490,7 @@ export function useBackend(
         runQueuedNext()
       }
     },
-    [addMessage, setLoading, provider, model, baseUrl, apiKey, onFileTreeRefresh, onUsage, fetchRuntimeContract]
+    [addMessage, setLoading, provider, profile, model, baseUrl, apiKey, onFileTreeRefresh, onUsage, fetchRuntimeContract]
   )
 
   const sendMessage = useCallback(
