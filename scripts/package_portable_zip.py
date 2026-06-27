@@ -113,7 +113,7 @@ EXCLUDED_FILE_PATTERNS = {
     "*.rar",
     "*.tar",
     "*.tar.gz",
-    "*.zip",
+    # "*.zip" is excluded but python312.zip (Python stdlib zip) is handled below
     ".env",
     ".env.*",
 }
@@ -157,6 +157,9 @@ def _should_include(rel_path: str, is_dir: bool) -> bool:
     # 0. Special cases first (before BANNED_PREFIXES)
     # Tauri release exe — must be included even though parent dir is banned
     if rel.endswith("/ttmevolve.exe") or rel == "src-tauri/target/release/ttmevolve.exe":
+        return True
+    # Python embeddable stdlib zip — required for Python to start
+    if rel.endswith("/python312.zip") or path.name == "python312.zip":
         return True
     # Allow traversal of src-tauri/target/ to reach ttmevolve.exe
     if is_dir and rel in ("src-tauri/target", "src-tauri/target/release"):
@@ -228,8 +231,10 @@ def validate_archive_entries(entries: Iterable[str]) -> List[str]:
         entry = _as_posix(raw)
         parts = Path(entry).parts
         name = Path(entry).name
-        # Tauri exe always allowed
+        # Tauri exe and python312.zip always allowed
         if entry.endswith("/ttmevolve.exe") or entry == "src-tauri/target/release/ttmevolve.exe":
+            continue
+        if entry.endswith("/python312.zip") or name == "python312.zip":
             continue
         if ".maker-mcp" in parts or name in BANNED_ARCHIVE_NAMES or name.startswith(".env"):
             forbidden.append(entry)
