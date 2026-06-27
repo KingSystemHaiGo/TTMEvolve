@@ -10,7 +10,7 @@
 ## Current Status
 - Version: 0.4.5-one-click-practice-entry+gui-chat-readable
 - Progress: Desktop Maker cockpit + Runtime Contract + external handoff + pullable diagnostics + async learning + Maker guard/advice + external LLM quickstart + Workbench surface selector + live session-scoped LLM probe/advice/metrics/learning evidence + one-click external-agent boot links + compact Evidence Bundle + pasteable Evidence Markdown + Runtime Readiness + API call proof + local LLM feedback summary + one-stop LLM Onboarding Bundle + Maker Setup Doctor + Maker Tool Audit + project directory switching + embedded auth flow preparation + chat-first GUI default + Portable Agent Root diagnostics + middle workspace sidebar for files/assets + page-like tools/settings surfaces + compact preview chrome + TapTap Maker forum entry + shell/BrowserView dark mode + readable chat layout + new/history conversation controls + splash-first startup gate
-- Last Delivery: Stabilized release push checkpoint. Full Python suite is green (`748 passed, 14 skipped`), frontend/Electron/Tauri checks pass, source checkpoint readiness is `ready`, and the source zip manifest has 404 files with SHA-256 `7e575a0a71c41b4e5e010b1b23793f1280d9a5b4d5eccf8acdffd7652123ddcc`. Portable cache cleanup preserved Maker auth and brought the offline runtime bundle back to `ready`; full-offline readiness remains `partial` only because signed installer, Maker remote build smoke, and production RAG quality are still unproven.
+- Last Delivery: Split the GitHub README into a clean English `README.md` and standalone Chinese `README.zh-CN.md`. The source package was rebuilt locally after the README split; source-checkpoint readiness remains `ready`, and full-offline readiness remains `partial` only because signed installer, Maker remote build smoke, and production RAG quality are still unproven.
 
 ## User Profile
 - Name: 灰語, Assistant: 嗒啦啦
@@ -19,7 +19,7 @@
 - Cares about: system design, continuous improvement, AI self-evolution
 
 ## Predicted Next Step
-- Task: Push the verified source checkpoint to GitHub. Optional remaining release evidence still includes signed installer, Maker remote build smoke, and production RAG semantic-quality proof.
+- Task: Push the README language split to GitHub. Optional remaining release evidence still includes signed installer, Maker remote build smoke, and production RAG semantic-quality proof.
 - Files: scripts/release_readiness.py, tests/test_release_readiness.py, scripts/build-portable/verify_portable.py, README.md, docs/releases/v0.4.5-source-release-checkpoint.md, AGENTS.md, docs/memory-index.md, docs/sprint-board.md, docs/memory-health.md
 
 ## Recovery Protocol

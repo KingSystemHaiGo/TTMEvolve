@@ -863,3 +863,19 @@
   - `git diff --check` -> passed with existing LF/CRLF warnings only.
 - Boundary: ready to push a stable source checkpoint to GitHub. Do not market this as a fully signed/offline commercial installer until the remaining external gates are proven.
 - Next: commit and push verified source checkpoint.
+
+## 2026-06-27 14:45 GitHub README Language Split
+
+- Status: verified.
+- Changed: `README.md` is now the English GitHub default README.
+- Added: `README.zh-CN.md` is now the standalone Chinese README.
+- Fixed: removed the previous corrupted bilingual mixed text from the GitHub README surface.
+- Preserved: source checkpoint truthfulness boundary remains explicit; full-offline release is still partial until signed installer, Maker remote build smoke, and production RAG quality are proven.
+- Verification:
+  - UTF-8/readme link assertions -> passed.
+  - Source package rebuilt -> 405 files, no forbidden entries.
+  - Source readiness -> `ready`.
+  - Package/readiness tests -> `8 passed`.
+  - `git diff --check` -> passed with existing LF/CRLF warnings only.
+- Boundary: documentation-only update.
+- Next: push README update to GitHub.

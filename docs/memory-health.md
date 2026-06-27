@@ -770,3 +770,23 @@ pm.cmd --prefix frontend run build passed; focused tool-routing pytest for proje
 - Health touch: `docs/memory-health.md` [edited].
 - Boundary: this records the verified source release checkpoint before GitHub push. It does not upgrade unproven external gates.
 - Next: commit and push.
+
+## 2026-06-27 14:45 GitHub README Language Split POST
+
+- Status: verified.
+- Updated: `README.md` is a clean English GitHub README.
+- Added: `README.zh-CN.md` is a clean standalone Chinese README.
+- Fixed: removed corrupted mixed-language README text and added mutual language links.
+- Verified: README files decode as UTF-8 and contain the expected language cross-links.
+- Verified: source package rebuilt locally and source readiness remains `ready`.
+- Verification:
+  - UTF-8/readme assertions -> passed.
+  - `.venv\Scripts\python.exe scripts\package_release.py` -> passed.
+  - `.venv\Scripts\python.exe scripts\release_readiness.py --mode source-checkpoint --json` -> `status=ready`.
+  - `.venv\Scripts\python.exe -m pytest tests\test_package_release.py tests\test_release_readiness.py -q` -> `8 passed`.
+  - `git diff --check` -> passed with existing LF/CRLF warnings only.
+- POST-mem touch: `docs/memory-index.md` [edited].
+- POST-sync touch: `docs/sprint-board.md` [edited].
+- Health touch: `docs/memory-health.md` [edited].
+- Boundary: documentation/readme update only; runtime and release claim gates are unchanged.
+- Next: commit and push.

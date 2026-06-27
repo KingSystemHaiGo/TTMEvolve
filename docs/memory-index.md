@@ -1820,4 +1820,20 @@
 - Boundary: this is a stable source release checkpoint and cleaned offline runtime evidence. It does not claim signed installer readiness, Maker remote build smoke, or production embedding semantic-quality proof.
 - Next: push the verified source checkpoint to GitHub; later gates are signed installer, Maker remote build smoke, and real RAG quality corpus/artifact.
 
-## Last updated: 2026-06-27 14:33
+## 2026-06-27 14:45 GitHub README Language Split
+
+- Replaced the corrupted bilingual `README.md` with a clean English GitHub README.
+- Added `README.zh-CN.md` as the standalone Chinese README and linked both files to each other.
+- Updated public release wording to match current evidence: stable source checkpoint ready, full offline release partial, signed installer/Maker remote build/production RAG quality unproven.
+- Avoided embedding the source package SHA directly in README because the README is included in the generated source package; the generated manifest remains the authoritative package evidence.
+- Rebuilt the local source package after the README split. The generated manifest remains the authoritative source for file count, size, SHA-256, and forbidden-entry evidence.
+- Verification:
+  - UTF-8/readme link assertions -> passed.
+  - `.venv\Scripts\python.exe scripts\package_release.py` -> passed.
+  - `.venv\Scripts\python.exe scripts\release_readiness.py --mode source-checkpoint --json` -> `status=ready`.
+  - `.venv\Scripts\python.exe -m pytest tests\test_package_release.py tests\test_release_readiness.py -q` -> `8 passed`.
+  - `git diff --check` -> passed with existing LF/CRLF warnings only.
+- Boundary: this is documentation/readme packaging hygiene only. It does not change runtime capability claims.
+- Next: commit and push the README split to GitHub.
+
+## Last updated: 2026-06-27 14:45
