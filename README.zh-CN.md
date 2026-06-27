@@ -1,245 +1,124 @@
-# TTMEvolve
+# TTMEvolve 中文说明 / Chinese README
 
-[English README](README.md)
+TTMEvolve 是面向 TapTap Maker 游戏开发的桌面 AI Agent 工作台。项目主要面向中文开发者，因此公开文档采用中文优先、中英双语维护。
 
-TTMEvolve 是一个面向 TapTap Maker 游戏开发的桌面 AI Agent 工作台。它把 Tauri + React 桌面外壳、本地 Python App Server、Maker MCP 诊断、API 优先的 LLM 路由、运行时证据、记忆与学习流程整合到一个本地开发驾驶舱里。
+TTMEvolve is a desktop AI Agent workbench for TapTap Maker game development. The project primarily serves Chinese developers, so public documentation is maintained bilingually with Chinese first.
 
-## 当前发布状态
+- 默认 GitHub 首页 / Default GitHub landing page: [README.md](README.md)
+- 公开文档索引 / Public docs index: [docs/README.md](docs/README.md)
 
-| 项目 | 状态 |
+## 当前状态 / Current Status
+
+| 项目 / Item | 状态 / Status |
 | --- | --- |
-| 源码 checkpoint | Ready |
-| 版本线 | `0.4.5-one-click-practice-entry+gui-chat-readable` |
-| 主桌面外壳 | Tauri 2.x + Rust + WebView2 |
-| 前端 | React + Vite 工作台 |
-| 后端 | Python App Server，默认 `http://127.0.0.1:7345` |
-| LLM 运行时 | API Provider 优先；本地 GGUF 是显式 fallback |
-| Maker 集成 | Maker 设置、就绪检查、工具审计、MCP 重连流程 |
-| 离线 runtime bundle | 清理缓存后审计 ready，portable Node 仍是 warning |
-| 完整可发布离线版 | Partial，尚不声明完成 |
+| 源码 checkpoint / Source checkpoint | Ready |
+| 版本线 / Version line | `0.4.5-one-click-practice-entry+gui-chat-readable` |
+| 桌面壳 / Desktop shell | Tauri 2.x + Rust + WebView2 |
+| 前端 / Frontend | React + Vite workbench |
+| 后端 / Backend | Python App Server, default `http://127.0.0.1:7345` |
+| LLM 运行时 / LLM runtime | API providers first; local GGUF is explicit fallback |
+| 完整离线发布 / Full offline release | Partial / not claimed |
 
-当前 GitHub 状态可以声明为稳定源码发布 checkpoint。它还不声明签名安装包、Maker 远程构建 smoke、生产 RAG 语义质量证明。
+当前公开发布只声明源码 checkpoint ready。签名安装包、Maker 远程构建 smoke、生产 RAG 语义质量、本机 `portable/` 缓存状态都不作为当前公开发布承诺。
 
-## 快速开始
+The current public release only claims that the source checkpoint is ready. Signed installers, Maker remote build smoke, production RAG semantic quality, and local `portable/` cache state are not claimed as public release guarantees.
 
-Windows 上启动桌面 GUI：
+## 快速启动 / Quick Start
+
+Windows GUI:
 
 ```powershell
 .\start-tauri.bat
 ```
 
-CLI 与无界面模式：
+CLI / Headless:
 
 ```powershell
 .\start-tauri.bat --cli
 .\start-tauri.bat --headless
 ```
 
-仅后端 smoke：
+后端 smoke check / Backend-only smoke check:
 
 ```powershell
 python main.py --serve --mock
 ```
 
-启动器会优先使用 `portable/` 下的内嵌运行时，然后尝试 `.venv/`，最后使用系统工具。在源码 checkout 中，如果还没有 Tauri 二进制文件，启动器会先构建前端，再用 Cargo 启动 Tauri。
+启动器优先使用 `portable/`，其次 `.venv/`，最后使用系统工具。源码 checkout 中没有 Tauri 二进制时，会构建前端并通过 Cargo 启动 Tauri。
 
-## TTMEvolve 提供什么
+The launcher prefers `portable/`, then `.venv/`, then system tools. In a source checkout, if no Tauri binary exists, it builds the frontend and starts Tauri through Cargo.
 
-- 面向 TapTap Maker 工作流的 chat-first 桌面 Agent。
-- 通过 Tauri/WebView2 外壳提供原生 Maker 预览。
-- Maker MCP 设置诊断、就绪检查、工具审计和重连支持。
-- MiniMax、OpenAI-compatible、Claude-style Provider 与本地 fallback 路径的选择和 probe 证据。
-- Runtime Readiness、Evidence Bundle、LLM Onboarding、外部 Agent handoff 等调试接口。
-- Plan-first Agent 执行，包含 sandbox、approval、tool validation、runtime events 和持久会话回放。
-- 记忆与学习证据，并明确区分 deterministic RAG speed 与 production embedding quality 的 claim gate。
+## 核心能力 / Core Capabilities
 
-## 公开文档
+- Chat-first TapTap Maker 桌面 Agent。
+- Chat-first desktop Agent for TapTap Maker work.
+- 原生 Maker 预览、项目目录切换、文件/素材侧栏。
+- Native Maker preview, project directory switching, and file/asset sidebars.
+- Maker MCP readiness、setup doctor、tool audit、reconnect。
+- Maker MCP readiness, setup doctor, tool audit, and reconnect flows.
+- MiniMax、OpenAI-compatible、Claude-style provider 与本地 fallback 的 probe 证据。
+- Probe evidence for MiniMax, OpenAI-compatible providers, Claude-style providers, and local fallback paths.
+- Runtime Readiness、Evidence Bundle、LLM Onboarding、外部 Agent handoff。
+- Runtime Readiness, Evidence Bundle, LLM Onboarding, and external Agent handoff.
+- Plan-first Agent 执行，带 sandbox、approval、tool validation、事件回放。
+- Plan-first Agent execution with sandbox, approval, tool validation, and event replay.
 
-- [文档索引](docs/README.md)
-- [开发指南](docs/DEVELOPMENT.md)
+## 文档 / Documentation
+
+- [文档索引 / Documentation index](docs/README.md)
+- [开发指南 / Development guide](docs/DEVELOPMENT.md)
 - [App Server API](docs/API.md)
-- [路线图](docs/ROADMAP.md)
-- [架构说明](docs/architecture/README.md)
-- [发布说明](docs/releases/README.md)
-- [变更记录](CHANGELOG.md)
-- [贡献指南](CONTRIBUTING.md)
-- [安全策略](SECURITY.md)
+- [路线图 / Roadmap](docs/ROADMAP.md)
+- [架构说明 / Architecture notes](docs/architecture/README.md)
+- [发布说明 / Release notes](docs/releases/README.md)
+- [更新记录 / Changelog](CHANGELOG.md)
+- [贡献指南 / Contributing](CONTRIBUTING.md)
+- [安全政策 / Security policy](SECURITY.md)
+- [支持方式 / Support](SUPPORT.md)
 
-## 架构
-
-```mermaid
-flowchart TB
-    User["用户"] --> GUI["Tauri + React 工作台"]
-    User --> CLI["CLI / Headless"]
-
-    GUI --> Server["Python App Server<br/>127.0.0.1:7345"]
-    CLI --> Server
-
-    Server --> Agent["TapMakerAgent<br/>Plan / ReAct / Tools"]
-    Agent --> LLM["LLM Router<br/>API providers / local GGUF"]
-    Agent --> Tools["Tool Registry<br/>Files / Shell / Browser / Maker MCP"]
-    Agent --> Runtime["Runtime Controls<br/>Sandbox / Approval / Health"]
-    Agent --> Memory["Memory + Learning<br/>Evidence / Vector Index"]
-    Server --> Bus["Runtime Event Bus<br/>Session / Layer / Diagnostics"]
-    Agent --> Bus
-    Runtime --> Bus
-    Memory --> Bus
-
-    Tools --> Maker["TapTap Maker MCP"]
-    Tools --> Project["Maker 项目工作区"]
-    Runtime --> Storage["storage/ 运行时状态"]
-    Memory --> Docs["docs/ 持久项目知识"]
-```
-
-## 目录结构
-
-| 路径 | 用途 |
-| --- | --- |
-| `src-tauri/` | 主 Tauri/Rust 桌面外壳、后端生命周期、原生命令、更新器和打包配置。 |
-| `frontend/` | React + Vite 工作台 UI。 |
-| `server/` | 本地 App Server、会话 API、证据/就绪 API、Maker 设置 API、浏览器服务。 |
-| `agent/` | Agent 运行时、Plan First、ReAct loop、工具执行、Maker guard、MCP 集成、轨迹辅助模块。 |
-| `core/` | 配置、sandbox、approval、health、runtime events、contract、portable 环境检查。 |
-| `llm/` | LLM providers、router/factory、本地 GGUF 支持、provider presets。 |
-| `memory/` | 记忆管理、AGENTS.md 索引、向量/冷记忆、RAG benchmark、RAG quality evaluation。 |
-| `learning/` | 轨迹收集、反思、shared-memory bridge、技能生成和验证。 |
-| `ecosystem/` | 跨 Agent adapter 和 skill sync。 |
-| `electron/` | 旧 Electron 兼容构建面。 |
-| `tests/` | Python 回归和集成测试。 |
-| `docs/` | 发布说明、架构记录、sprint board、memory health 和项目知识。 |
-
-本地/运行时状态默认忽略：`storage/`、`portable/`、`workspace/`、`vendor/`、`models/`、`node_modules/`、`src-tauri/target/`、`logs/`、`.env*`、`.mcp.json`、`release-artifacts/`。
-
-## 开发命令
-
-前端构建：
+## 开发命令 / Development Commands
 
 ```powershell
 npm.cmd --prefix frontend run build
-```
-
-Electron 兼容构建：
-
-```powershell
 npm.cmd --prefix electron run build
-```
-
-Tauri/Rust 测试：
-
-```powershell
 cargo test --manifest-path src-tauri\Cargo.toml
-```
-
-Python 测试：
-
-```powershell
 .venv\Scripts\python.exe -m pytest -q
-```
-
-发布就绪检查：
-
-```powershell
+.venv\Scripts\python.exe scripts\package_release.py
 .venv\Scripts\python.exe scripts\release_readiness.py --mode source-checkpoint --json
 .venv\Scripts\python.exe scripts\release_readiness.py --mode full-offline --json
 ```
 
-生成源码 checkpoint 包：
+`source-checkpoint` 是当前公开发布 gate；`full-offline` 仍是保守的完整离线发布审计，当前不声明完成。
 
-```powershell
-.venv\Scripts\python.exe scripts\package_release.py
-```
+`source-checkpoint` is the current public release gate. `full-offline` remains the conservative full offline release audit and is not claimed as complete.
 
-## 最新验证
+## 发布边界 / Release Boundary
 
-当前已推送 checkpoint 的验证结果：
+可以声明 / Ready to claim:
 
-- `.venv\Scripts\python.exe -m pytest -q` -> `748 passed, 14 skipped`
-- `npm.cmd --prefix frontend run build` -> passed
-- `npm.cmd --prefix electron run build` -> passed，仅 Vite CJS deprecation warning
-- `cargo test --manifest-path src-tauri\Cargo.toml` -> `34 passed`，仅 warning
-- `.venv\Scripts\python.exe -m pytest tests\test_package_release.py tests\test_release_readiness.py -q` -> `8 passed`
-- `.venv\Scripts\python.exe scripts\release_readiness.py --mode source-checkpoint --json` -> `status=ready`
-- `.venv\Scripts\python.exe scripts\release_readiness.py --mode full-offline --json` -> `status=partial`
-- `git diff --check` -> passed，仅已有 LF/CRLF warning
+- 稳定源码 checkpoint。 / Stable source checkpoint.
+- 可见 GUI 启动入口。 / Visible GUI launch surface.
+- 源码包审计通过。 / Source package audit passes.
 
-源码包证据会写入生成的 manifest：
+暂不声明 / Not yet claimed:
 
-```text
-release-artifacts/TTMEvolve-source-v0.4.5-one-click-practice-entry.zip
-release-artifacts/TTMEvolve-source-v0.4.5-one-click-practice-entry.zip.manifest.json
-```
+- 签名安装包。 / Signed installer artifacts.
+- Maker 远程构建 side-effect smoke。 / Maker remote build side-effect smoke.
+- 生产 RAG 语义质量证明。 / Production RAG semantic-quality proof.
+- 本机 `portable/` 缓存状态的公开可复现保证。 / Public reproducibility guarantee for local `portable/` cache state.
 
-该包在本地生成，并且有意被 Git 忽略。文件数、大小、SHA-256 和 forbidden-entry 证据以 manifest 为准。
+## 安全边界 / Safety Notes
 
-## 发布边界
+不要提交 API keys、TapTap Maker auth state、本地模型、用户缓存、构建输出或私有项目素材。
 
-可以声明：
+Do not commit API keys, TapTap Maker auth state, local models, user caches, build outputs, or private project assets.
 
-- 稳定源码 checkpoint。
-- 可见启动入口存在。
-- 源码包审计通过。
-- guarded portable cache cleanup 后，离线 runtime bundle 审计 ready。
+默认忽略的本地路径包括 `storage/`、`portable/`、`workspace/`、`vendor/`、`models/`、`node_modules/`、`src-tauri/target/`、`logs/`、`.env*`、`.mcp.json` 和 `release-artifacts/`。
 
-暂不声明：
-
-- 签名安装包。
-- Maker 远程构建 side-effect smoke。
-- 基于真实 golden corpus 和 production embedding artifact 的生产 RAG 语义质量证明。
-
-## App Server API
-
-默认本地服务：
-
-```text
-http://127.0.0.1:7345
-```
-
-常用端点：
-
-| Method | Path | 用途 |
-| --- | --- | --- |
-| `GET` | `/health` | 健康和运行时状态 |
-| `POST` | `/sessions` | 创建 Agent 会话 |
-| `GET` | `/sessions/{id}/events` | SSE 事件流 |
-| `POST` | `/sessions/{id}/cancel` | 取消会话 |
-| `POST` | `/config/llm` | 更新 LLM 配置 |
-| `POST` | `/llm/probe` | 探测已配置的 LLM Provider |
-| `GET` | `/runtime/readiness` | 无网络运行时就绪 gate |
-| `GET` | `/runtime/portable` | portable 环境诊断 |
-| `GET` | `/maker/setup-status` | Maker 设置状态 |
-| `GET` | `/maker/tool-audit` | Maker 远端/本地工具审计 |
-| `GET` | `/sessions/{id}/evidence?steps=20` | 紧凑运行时证据包 |
-| `GET` | `/agent/onboarding?session_id=...&steps=20` | 外部 Agent onboarding bundle |
-
-## 安全边界
-
-不要提交 API keys、TapTap Maker auth state、本地模型文件、用户缓存、构建产物或私有项目素材。
-
-重要的忽略/私有路径：
-
-- `config.json`
-- `.env*`
-- `.mcp.json`
-- `.venv/`
-- `node_modules/`
-- `storage/`
-- `portable/`
-- `workspace/`
-- `vendor/`
-- `models/`
-- `logs/`
-- `.codex/`
-- `.cursor/`
-- `release-artifacts/`
-
-## GitHub
-
-仓库：
-
-```text
-https://github.com/KingSystemHaiGo/TTMEvolve
-```
+Ignored local paths include `storage/`, `portable/`, `workspace/`, `vendor/`, `models/`, `node_modules/`, `src-tauri/target/`, `logs/`, `.env*`, `.mcp.json`, and `release-artifacts/`.
 
 ## License
 
-Tauri bundle metadata 当前声明为 MIT。公开分发前应确认 `LICENSE` 文件存在并与发布策略一致。
+本项目使用 [MIT License](LICENSE)。
+
+This project is released under the [MIT License](LICENSE).

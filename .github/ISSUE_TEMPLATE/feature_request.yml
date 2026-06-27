@@ -1,24 +1,24 @@
-name: Feature request
-description: Suggest an improvement
+name: Feature request / 功能请求
+description: Suggest an improvement / 提议一个改进
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
   - type: textarea
     id: problem
     attributes:
-      label: Problem
-      description: What workflow should this improve?
+      label: Problem / 问题
+      description: What workflow should this improve? / 这个功能要改善哪个工作流？
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Proposal
-      description: What would a good solution look like?
+      label: Proposal / 方案
+      description: What would a good solution look like? / 你认为好的解决方案是什么？
     validations:
       required: true
   - type: textarea
     id: evidence
     attributes:
-      label: Evidence or examples
-      description: Links, screenshots, or comparable tools, if useful.
+      label: Evidence or examples / 证据或例子
+      description: Links, screenshots, or comparable tools, if useful. / 可以附链接、截图或类似工具。

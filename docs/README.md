@@ -1,19 +1,25 @@
-# TTMEvolve Documentation
+# TTMEvolve 文档 / TTMEvolve Documentation
+
+这里是面向用户、贡献者和维护者的公开文档入口。
 
 This directory contains public documentation for users, contributors, and maintainers.
 
-## Start Here
+## 从这里开始 / Start Here
 
-- [Project README](../README.md)
-- [中文 README](../README.zh-CN.md)
-- [Development Guide](DEVELOPMENT.md)
+- [项目 README / Project README](../README.md)
+- [中文 README / Chinese README](../README.zh-CN.md)
+- [开发指南 / Development Guide](DEVELOPMENT.md)
 - [App Server API](API.md)
-- [Roadmap](ROADMAP.md)
-- [Architecture Notes](architecture/README.md)
-- [Release Notes](releases/README.md)
+- [路线图 / Roadmap](ROADMAP.md)
+- [架构说明 / Architecture Notes](architecture/README.md)
+- [发布说明 / Release Notes](releases/README.md)
 
-## Documentation Boundary
+## 文档边界 / Documentation Boundary
+
+公开文档应该帮助用户安装、运行、验证、扩展或安全评估 TTMEvolve。
 
 Public docs should help users install, run, verify, extend, or safely evaluate TTMEvolve.
+
+内部项目记忆、sprint logs、私有 agent handoff notes 和本地运行时状态会被刻意排除在 GitHub 之外。它们可以留在本地 checkout 中，但不应作为公开仓库文档发布。
 
 Internal project memory, sprint logs, private agent handoff notes, and local runtime state are intentionally excluded from GitHub. They can remain in a local checkout, but they should not be published as repository documentation.

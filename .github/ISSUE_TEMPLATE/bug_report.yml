@@ -1,29 +1,29 @@
-name: Bug report
-description: Report a reproducible TTMEvolve bug
+name: Bug report / 缺陷报告
+description: Report a reproducible TTMEvolve bug / 报告可复现的 TTMEvolve bug
 title: "[Bug]: "
 labels: ["bug"]
 body:
   - type: textarea
     id: summary
     attributes:
-      label: Summary
-      description: What happened?
+      label: Summary / 摘要
+      description: What happened? / 发生了什么？
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Reproduction steps
-      description: Include exact commands or GUI actions.
+      label: Reproduction steps / 复现步骤
+      description: Include exact commands or GUI actions. / 请包含具体命令或 GUI 操作。
     validations:
       required: true
   - type: input
     id: commit
     attributes:
-      label: Commit or version
+      label: Commit or version / Commit 或版本
       placeholder: e.g. v0.4.5-source-checkpoint or commit hash
   - type: textarea
     id: evidence
     attributes:
-      label: Runtime evidence
-      description: Paste relevant `/health`, `/runtime/readiness`, or log excerpts. Do not include secrets.
+      label: Runtime evidence / 运行时证据
+      description: Paste relevant `/health`, `/runtime/readiness`, or log excerpts. Do not include secrets. / 粘贴相关 `/health`、`/runtime/readiness` 或日志片段。不要包含密钥。
