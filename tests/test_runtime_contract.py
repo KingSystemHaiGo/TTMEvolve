@@ -73,11 +73,20 @@ def test_runtime_contract_summarizes_maker_and_communication_surfaces():
     assert contract["communication"]["handoff_bundle"] == "/agent/handoff?session_id=s1&steps=3"
     assert contract["communication"]["evidence_bundle"] == "/sessions/s1/evidence?steps=20"
     assert contract["communication"]["context_sync"] == "/sessions/s1/context-sync?steps=3"
+    assert contract["communication"]["resume_drill"] == "/sessions/s1/resume-drill?steps=20"
     assert contract["communication"]["runtime_metrics"] == "/sessions/s1/runtime-metrics?steps=20"
+    assert contract["communication"]["layer_health"] == "/sessions/s1/layer-health?steps=20"
+    assert contract["communication"]["layer_control"] == "/sessions/s1/layer-control?steps=20"
+    assert contract["communication"]["engineering_control"] == "/sessions/s1/engineering-control?steps=20"
     assert contract["communication"]["project_state"] == "/sessions/s1/project-state"
+    assert contract["communication"]["project_writeback"] == "/sessions/s1/project-writeback"
     assert contract["communication"]["learning_status"] == "/sessions/s1/learning?steps=20"
+    assert contract["communication"]["learning_cancel"] == "/sessions/s1/learning/cancel"
+    assert contract["communication"]["learning_retry"] == "/sessions/s1/learning/retry"
     assert contract["communication"]["maker_guard"] == "/sessions/s1/maker-guard?steps=20"
     assert contract["communication"]["runtime_advice"] == "/sessions/s1/runtime-advice?steps=20"
+    assert contract["communication"]["rag_benchmark"] == "/memory/rag-benchmark"
+    assert contract["communication"]["rag_quality"] == "/memory/rag-quality"
     assert contract["communication"]["llm_probe"] == "/llm/probe"
     assert contract["communication"]["llm_probe_history"] == "/sessions/s1/llm-probe?steps=20"
     assert contract["communication"]["llm_feedback_summary"] == "/llm/feedback-summary"
@@ -90,9 +99,18 @@ def test_runtime_contract_summarizes_maker_and_communication_surfaces():
     assert contract["external_agents"]["attach_sequence"][3] == "GET /agent/quickstart?session_id=s1&steps=3"
     assert contract["external_agents"]["attach_sequence"][4] == "GET /sessions/s1/evidence?steps=20 for compact current evidence"
     assert contract["external_agents"]["attach_sequence"][5] == "GET /sessions/s1/project-state for bus-derived next action and project control state"
-    assert contract["external_agents"]["attach_sequence"][6] == "GET /agent/handoff?session_id=s1&steps=3"
-    assert contract["external_agents"]["attach_sequence"][8] == "GET /agent/maker-briefing?session_id=s1 before the first Maker action"
+    assert contract["external_agents"]["attach_sequence"][6] == "GET /sessions/s1/project-writeback before applying POST memory writeback"
+    assert contract["external_agents"]["attach_sequence"][7] == "GET /agent/handoff?session_id=s1&steps=3"
+    assert contract["external_agents"]["attach_sequence"][8] == "GET /agent/runtime-contract?session_id=s1"
+    assert contract["external_agents"]["attach_sequence"][9] == "GET /agent/maker-briefing?session_id=s1 before the first Maker action"
     assert "GET /sessions/s1/runtime-metrics?steps=20 when diagnosing latency/token cost" in contract["external_agents"]["attach_sequence"]
+    assert "GET /sessions/s1/layer-health?steps=20 when checking Agent/Core Runtime/Learning independence" in contract["external_agents"]["attach_sequence"]
+    assert "GET /sessions/s1/layer-control?steps=20 when checking engineering-control thresholds and corrective actions" in contract["external_agents"]["attach_sequence"]
+    assert "GET /sessions/s1/engineering-control?steps=20 when checking memory misses, repeated tool failures, and plan gates" in contract["external_agents"]["attach_sequence"]
+    assert "GET /sessions/s1/resume-drill?steps=20 before claiming long-task durable handoff" in contract["external_agents"]["attach_sequence"]
+    assert "GET /memory/rag-benchmark when checking memory/RAG speed claims" in contract["external_agents"]["attach_sequence"]
+    assert "GET /memory/rag-quality when checking production embedding semantic recall quality" in contract["external_agents"]["attach_sequence"]
+    assert "Inspect /memory/rag-benchmark embedding_quality before claiming production semantic recall quality" in contract["external_agents"]["attach_sequence"]
     assert "GET /sessions/s1/maker-guard?steps=20 when checking first-action Maker alignment" in contract["external_agents"]["attach_sequence"]
     assert "GET /sessions/s1/runtime-advice?steps=20 for the next diagnostic action" in contract["external_agents"]["attach_sequence"]
     assert "GET /sessions/s1/learning?steps=20 when checking background learning" in contract["external_agents"]["attach_sequence"]
@@ -105,6 +123,14 @@ def test_runtime_contract_summarizes_maker_and_communication_surfaces():
     mechanisms = " ".join(contract["token_efficiency"]["available_mechanisms"])
     assert "runtime contract" in mechanisms
     assert "runtime_metrics pull API" in mechanisms
+    assert "layer_health pull API" in mechanisms
+    assert "layer_control pull API" in mechanisms
+    assert "engineering_control pull API" in mechanisms
+    assert "resume_drill durable handoff check" in mechanisms
+    assert "project-control writeback plan" in mechanisms
+    assert "RAG benchmark report" in mechanisms
+    assert "RAG production embedding quality evaluator" in mechanisms
+    assert "RAG embedding quality claim gate" in mechanisms
     assert "session evidence bundle" in mechanisms
     assert "runtime readiness gate" in mechanisms
     assert "portable runtime diagnostics" in mechanisms

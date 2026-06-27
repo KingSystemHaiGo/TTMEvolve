@@ -344,6 +344,7 @@ class SessionStore:
                     "kind": "context_budget",
                     "phase": payload.get("phase"),
                     "iteration": payload.get("iteration"),
+                    "workspace_profile": payload.get("workspace_profile"),
                     "token_count": payload.get("token_count"),
                     "n_ctx": payload.get("n_ctx"),
                     "token_usage_ratio": payload.get("token_usage_ratio"),
@@ -477,6 +478,22 @@ class SessionStore:
                 "error": payload.get("error"),
                 "timestamp": event.get("created_at"),
             })
+
+        if limit > 0:
+            return history[-limit:]
+        return history
+
+    def get_cos_gate_history(self, session_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+        """Return COS Gate 0 classifications in chronological order."""
+        history: List[Dict[str, Any]] = []
+        for event in self.get_events(session_id):
+            if event.get("type") != "cos_gate":
+                continue
+            payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+            item = dict(payload)
+            item["timestamp"] = event.get("created_at")
+            item["event_source"] = event.get("source")
+            history.append(item)
 
         if limit > 0:
             return history[-limit:]

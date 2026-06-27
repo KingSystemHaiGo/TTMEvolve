@@ -1,14 +1,21 @@
-"""Tests for Plan First: plan_format + plan_review + plan_prompt."""
+"""Tests for Plan First: plan_format + plan_review + plan_prompt + phase runner."""
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any, Dict, List
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from agent.plan_first import (
+    build_plan_first_result,
+    draft_plan_from_llm,
+    known_tool_names,
+    run_plan_first_phase,
+)
 from core.plan_format import (
     empty_plan,
     normalize_plan,
@@ -37,9 +44,9 @@ def test_normalize_plan_filters_invalid_steps():
         "assumptions": ["a1"],
         "steps": [
             {"id": "s1", "tool": "modify_file", "params": {"path": "a.txt"}, "expected_evidence": ["ok"]},
-            {"tool": ""},  # missing tool → dropped
+            {"tool": ""},  # missing tool -> dropped
             {"id": "s2", "tool": "shell", "params": {}, "intent": "run"},
-            "garbage",  # not a dict → dropped
+            "garbage",  # not a dict -> dropped
         ],
     }
     plan = normalize_plan(raw, task="x")
@@ -203,3 +210,136 @@ def test_extract_plan_from_llm_text_returns_none_for_garbage():
 def test_known_tools_includes_maker_faults():
     assert "maker_setup_status" in KNOWN_TOOLS
     assert "maker_repair" in KNOWN_TOOLS
+
+
+# ---------- agent.plan_first ----------
+
+
+class _Response:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class _LLM:
+    def __init__(self, text: str) -> None:
+        self.text = text
+        self.prompts: List[str] = []
+
+    def generate(self, prompt: str, max_tokens: int = 0) -> _Response:
+        self.prompts.append(prompt)
+        return _Response(self.text)
+
+
+class _Tool:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+
+class _Tools:
+    def __init__(self, tools: List[Any] | None = None, fail: bool = False) -> None:
+        self.tools = tools or [
+            {"name": "modify_file"},
+            _Tool("read_file"),
+        ]
+        self.fail = fail
+
+    def list_tools(self) -> List[Any]:
+        if self.fail:
+            raise RuntimeError("tool listing failed")
+        return self.tools
+
+
+def _plan_text(tool: str = "modify_file") -> str:
+    return (
+        '{"summary": "edit safely", "steps": ['
+        '{"id": "s1", "tool": "' + tool + '", "params": {"path": "a.txt"}, '
+        '"intent": "edit", "expected_evidence": ["file changed"]}'
+        ']}'
+    )
+
+
+def _events() -> tuple[List[Dict[str, Any]], Any]:
+    events: List[Dict[str, Any]] = []
+
+    def emit(session_id: str, event_type: str, payload: Dict[str, Any]) -> None:
+        events.append({"session_id": session_id, "type": event_type, "payload": payload})
+
+    return events, emit
+
+
+def test_run_plan_first_phase_approves_reviewed_plan():
+    events, emit = _events()
+    result = run_plan_first_phase(
+        llm=_LLM(_plan_text()),
+        tools=_Tools(),
+        task="edit a file",
+        context="context",
+        session_id="s1",
+        emit=emit,
+        approval_provider=lambda plan: True,
+    )
+
+    assert result.approved is True
+    assert result.plan["approved"] is True
+    assert result.plan["status"] == "approved"
+    assert result.review["verdict"] == "pass"
+    assert [event["type"] for event in events] == ["plan_first_phase", "plan_draft"]
+
+
+def test_run_plan_first_phase_auto_rejects_failed_review():
+    events, emit = _events()
+    result = run_plan_first_phase(
+        llm=_LLM(_plan_text(tool="missing_tool")),
+        tools=_Tools(),
+        task="edit a file",
+        context="context",
+        session_id="s1",
+        emit=emit,
+        approval_provider=lambda plan: True,
+    )
+
+    assert result.approved is False
+    assert result.review["verdict"] == "fail"
+    assert events[-1]["type"] == "plan_first_phase"
+    assert events[-1]["payload"]["phase"] == "auto_rejected"
+
+
+def test_draft_plan_from_llm_emits_parse_failure_and_returns_empty_plan():
+    events, emit = _events()
+    plan = draft_plan_from_llm(
+        llm=_LLM("not json"),
+        tools=_Tools(),
+        task="unclear task",
+        context="context",
+        session_id="s1",
+        emit=emit,
+    )
+
+    assert plan["task"] == "unclear task"
+    assert plan["steps"] == []
+    assert events == [{
+        "session_id": "s1",
+        "type": "plan_draft_parse_failed",
+        "payload": {"raw_excerpt": "not json"},
+    }]
+
+
+def test_known_tool_names_tolerates_list_failure_and_objects():
+    assert known_tool_names(_Tools()) == ["modify_file", "read_file"]
+    assert known_tool_names(_Tools(fail=True)) == []
+
+
+def test_build_plan_first_result_keeps_public_shape():
+    result = build_plan_first_result(
+        session_id="s1",
+        task="task",
+        plan={"steps": [], "approved": False},
+        review={"verdict": "warn"},
+        reason="not_approved",
+    )
+
+    assert result["session_id"] == "s1"
+    assert result["done"] is False
+    assert result["trajectory"] == []
+    assert result["plan_review"]["verdict"] == "warn"
+    assert result["plan_first_phase"] == "not_approved"

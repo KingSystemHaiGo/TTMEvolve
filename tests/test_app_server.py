@@ -4,6 +4,7 @@ tests/test_app_server.py — App Server 冒烟测试
 
 from __future__ import annotations
 import json
+import socket
 import sys
 import threading
 import time
@@ -18,16 +19,24 @@ from core.portable_env import apply_portable_env
 from server.app_server import create_default_app_server
 
 
+def _free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
 def test_app_server_health_and_tools():
     apply_portable_env(_PROJECT_ROOT, force=True)
-    server = create_default_app_server(str(_PROJECT_ROOT / "config.json"), "mock")
+    port = _free_port()
+    base_url = f"http://127.0.0.1:{port}"
+    server = create_default_app_server(str(_PROJECT_ROOT / "config.json"), "mock", port=port)
     server.session_store.create_session("probe-smoke", "probe llm")
     thread = threading.Thread(target=server.start, daemon=True)
     thread.start()
     time.sleep(1)
 
     try:
-        with urllib.request.urlopen("http://127.0.0.1:7345/health", timeout=2) as resp:
+        with urllib.request.urlopen(f"{base_url}/health", timeout=2) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             assert data.get("status") == "ok"
             assert data.get("provider") == "mock"
@@ -36,13 +45,13 @@ def test_app_server_health_and_tools():
             assert "last_call_stats" in data
             print("[PASS] health endpoint")
 
-        with urllib.request.urlopen("http://127.0.0.1:7345/tools", timeout=2) as resp:
+        with urllib.request.urlopen(f"{base_url}/tools", timeout=2) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             assert "tools" in data
             assert len(data["tools"]) > 0
             print("[PASS] tools endpoint")
 
-        with urllib.request.urlopen("http://127.0.0.1:7345/runtime/portable", timeout=2) as resp:
+        with urllib.request.urlopen(f"{base_url}/runtime/portable", timeout=2) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             assert data.get("version") == "portable-runtime.v1"
             assert data.get("status") in {"ready", "degraded"}
@@ -51,7 +60,7 @@ def test_app_server_health_and_tools():
             print("[PASS] portable runtime endpoint")
 
         probe_req = urllib.request.Request(
-            "http://127.0.0.1:7345/llm/probe",
+            f"{base_url}/llm/probe",
             data=json.dumps({"provider": "mock", "session_id": "probe-smoke"}).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
@@ -65,7 +74,7 @@ def test_app_server_health_and_tools():
             assert "output_preview" in data
             print("[PASS] llm probe endpoint")
 
-        with urllib.request.urlopen("http://127.0.0.1:7345/sessions/probe-smoke/llm-probe?steps=2", timeout=2) as resp:
+        with urllib.request.urlopen(f"{base_url}/sessions/probe-smoke/llm-probe?steps=2", timeout=2) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             assert data.get("count") == 1
             assert data.get("latest", {}).get("provider") == "mock"

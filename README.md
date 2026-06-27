@@ -200,13 +200,23 @@ The latest full sync validated these paths:
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py::test_executor_search_files_skips_heavy_dirs_and_large_files -q` -> `1 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_tool_call_validation.py tests\test_sandbox.py tests\test_tool_timeouts.py tests\test_plan_first.py tests\test_plan_first_integration.py tests\test_plan_validation.py tests\test_coding_agent_v060.py tests\test_runtime_events.py tests\test_runtime_contract.py -q` -> `89 passed`
 - `.venv\Scripts\python.exe -m pytest tests\test_memory_manager.py tests\test_tool_call_validation.py tests\test_sandbox.py tests\test_tool_timeouts.py tests\test_plan_first.py tests\test_plan_first_integration.py tests\test_plan_validation.py tests\test_coding_agent_v060.py tests\test_runtime_events.py tests\test_runtime_contract.py -q` -> `95 passed`
-- `.venv\Scripts\python.exe -m pytest -q` -> `598 passed, 14 skipped`
+- `.venv\Scripts\python.exe -m pytest -q` -> `732 passed, 14 skipped`
 - `npm.cmd --prefix frontend run build` -> passed
 - `npm.cmd --prefix electron run build` -> passed
 - `cargo test --manifest-path src-tauri/Cargo.toml` -> `34 passed`
+- `cargo build --release --manifest-path src-tauri/Cargo.toml` -> passed; refreshed `src-tauri/target/release/ttmevolve.exe`
 - `.venv\Scripts\python.exe -m pytest tests/test_start_scripts.py tests/test_tauri_lifecycle.py -q` -> `28 passed`
-- Real `TTMEvolve.vbs` launch opened one visible TTMEvolve window with no visible cmd/powershell windows.
-- `/health` returned `status=ok`; child-window enumeration showed both the TTMEvolve shell WebView and the TapTap Maker preview WebView.
+- Real `TTMEvolve.vbs` launch opened one visible Tauri `TTMEvolve` window from the refreshed release exe.
+- `/health` returned `status=ok`, provider `minimax`, runtime kind `api`; `/runtime/portable` returned `ready` with no Windows user-dir leaks.
+- `/runtime/readiness` returned `ready` after `/llm/probe`; MiniMax call proof observed `https://api.minimax.chat/v1/text/chatcompletion_v2` with HTTP 200.
+- Maker setup/tool audit returned `ready`; Maker MCP connected with 10 remote tools and all required proxy tools registered.
+- Windows child-window enumeration showed both the `TTMEvolve` shell WebView and the `TapTap 制造` Maker preview WebView.
+- Closing the GUI stopped the Tauri window and left no `ttmevolve.exe`, embedded `main.py --embedded`, or listening `7345` process.
+- `scripts/package_release.py --dry-run` -> passed.
+- `scripts/package_release.py` -> created `release-artifacts/TTMEvolve-source-v0.4.5-one-click-practice-entry.zip` plus manifest; archive audit found `forbidden_count=0` and no hits for `config.json`, `.env*`, `.mcp.json`, `storage/`, `portable/`, `vendor/`, `models/`, `workspace/`, `src-tauri/target/`, `node_modules/`, or `release-artifacts/`.
+- `.venv\Scripts\python.exe -m pytest tests\test_package_release.py tests\test_build_portable_sign.py tests\test_start_scripts.py -q` -> `36 passed`.
+- `scripts/release_readiness.py --mode source-checkpoint --json` -> `status=ready`, blockers `[]`, source package `ready`, launch surface `ready`, `can_claim_source_checkpoint_ready=true`, `can_claim_full_publishable_release=false`.
+- `scripts/release_readiness.py --mode full-offline --json` -> `status=blocked`; the offline runtime bundle is blocked by missing `portable/python/python.exe` and oversized portable state, while signed installer, Maker remote build smoke, and production RAG semantic quality remain unproven.
 
 ## Maker MCP Rules / Maker MCP 规则
 
@@ -263,6 +273,7 @@ Do not commit local/private runtime state:
 - `.codex/`
 - `.cursor/`
 - `.mcp.json`
+- `release-artifacts/`
 - generated shortcuts and local build artifacts / 生成的快捷方式与本地构建产物
 
 Never commit API keys, TapTap Maker auth state, local model files, user caches, build outputs, or private project assets.

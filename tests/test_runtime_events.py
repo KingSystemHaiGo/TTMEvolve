@@ -15,6 +15,8 @@ from core.runtime_events import (
 )
 from server.project_observer import ProjectManagementObserver
 from server.runtime_observer import RuntimeMetricsObserver
+from server.learning_observer import LearningStateObserver
+from server.memory_observer import MemoryRecallObserver
 
 
 def test_envelope_event_adds_shared_metadata():
@@ -92,6 +94,12 @@ def test_runtime_event_bus_observer_errors_do_not_break_publish():
     event = bus.publish({"type": "status", "session_id": "s1", "payload": {"ok": True}})
 
     assert seen == [event]
+    stats = bus.stats()
+    assert stats["observer_error_count"] == 1
+    assert stats["last_observer_error"]["error_type"] == "RuntimeError"
+    assert stats["last_observer_error"]["event_type"] == "status"
+    assert stats["last_observer_error"]["session_id"] == "s1"
+    assert any("broken" in key for key in stats["observer_errors_by_handler"])
 
 
 def test_runtime_metrics_observer_subscribes_to_bus_without_store():
@@ -182,6 +190,102 @@ def test_project_management_observer_derives_next_action_from_context_sync():
     assert snapshot["continuation"]["resume_ready"] is True
     assert "plan_warn" in snapshot["risk_flags"]
     assert "compression_needed" in snapshot["risk_flags"]
+    assert observer.stats()["observed_session_count"] == 1
+
+    observer.close()
+
+
+def test_learning_state_observer_derives_learning_layer_state():
+    bus = RuntimeEventBus()
+    observer = LearningStateObserver(bus)
+
+    bus.publish({
+        "type": "layer",
+        "session_id": "learning-bus",
+        "payload": {
+            "layer": "runtime",
+            "state": "done",
+            "event": "runtime.audit.finished",
+        },
+    })
+    bus.publish({
+        "type": "layer",
+        "session_id": "learning-bus",
+        "payload": {
+            "layer": "learning",
+            "state": "done",
+            "event": "learning.reflection.finished",
+            "detail": "stored lesson",
+            "source_layer": "learning",
+            "target_layer": "memory",
+            "cause": "agent_result",
+            "metrics": {"elapsed_ms": 11.5, "async": True, "eligible": True},
+        },
+    })
+
+    summary = observer.summary("learning-bus")
+    history = observer.history("learning-bus", limit=0)
+
+    assert summary["status"] == "ready"
+    assert summary["source"] == "runtime_event_bus_learning_observer"
+    assert summary["event"] == "learning.reflection.finished"
+    assert summary["state"] == "done"
+    assert summary["async"] is True
+    assert summary["eligible"] is True
+    assert summary["elapsed_ms"] == 11.5
+    assert len(history) == 1
+    assert observer.stats()["observed_session_count"] == 1
+
+    observer.close()
+
+
+def test_memory_recall_observer_summarizes_context_budget_events():
+    bus = RuntimeEventBus()
+    observer = MemoryRecallObserver(bus)
+
+    bus.publish({
+        "type": "context_budget",
+        "session_id": "memory-bus",
+        "payload": {
+            "phase": "think",
+            "iteration": 0,
+            "workspace_profile": "maker",
+            "agents_md_hits": 2,
+            "cold_recall_hits": 1,
+            "agents_md_ms": 3.5,
+            "cold_recall_ms": 8.0,
+            "context_build_ms": 12.0,
+            "token_cache_hits": 5,
+            "token_cache_misses": 1,
+            "token_cache_size": 4,
+            "compression_applied": False,
+        },
+    })
+    bus.publish({
+        "type": "context_budget",
+        "session_id": "memory-bus",
+        "payload": {
+            "phase": "think",
+            "iteration": 1,
+            "workspace_profile": "maker",
+            "agents_md_hits": 1,
+            "cold_recall_hits": 3,
+            "cold_recall_ms": 4.0,
+            "context_build_ms": 9.0,
+        },
+    })
+
+    summary = observer.summary("memory-bus", limit=0)
+
+    assert summary["status"] == "ready"
+    assert summary["source"] == "runtime_event_bus_memory_observer"
+    assert summary["event_count"] == 2
+    assert summary["workspace_profiles"] == ["maker"]
+    assert summary["latest"]["iteration"] == 1
+    assert summary["totals"]["agents_md_hits"] == 3
+    assert summary["totals"]["cold_recall_hits"] == 4
+    assert summary["max_latency"]["cold_recall_ms"] == 8.0
+    assert summary["max_latency"]["context_build_ms"] == 12.0
     assert observer.stats()["observed_session_count"] == 1
 
     observer.close()

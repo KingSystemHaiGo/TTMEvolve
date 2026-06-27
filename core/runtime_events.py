@@ -103,6 +103,9 @@ class RuntimeEventBus:
         self.history_limit = max(1, int(history_limit or 500))
         self._history: Deque[Dict[str, Any]] = deque(maxlen=self.history_limit)
         self._subscribers: Dict[str, Dict[str, Any]] = {}
+        self._observer_error_count = 0
+        self._observer_errors_by_handler: Dict[str, int] = {}
+        self._last_observer_error: Optional[Dict[str, Any]] = None
         self._lock = RLock()
 
     def subscribe(
@@ -194,6 +197,9 @@ class RuntimeEventBus:
                 "history_size": len(self._history),
                 "history_limit": self.history_limit,
                 "subscriber_count": len(self._subscribers),
+                "observer_error_count": self._observer_error_count,
+                "observer_errors_by_handler": dict(self._observer_errors_by_handler),
+                "last_observer_error": dict(self._last_observer_error) if self._last_observer_error else None,
             }
 
     @staticmethod
@@ -207,11 +213,34 @@ class RuntimeEventBus:
             return False
         return True
 
-    @staticmethod
-    def _safe_call(handler: EventHandler, event: Dict[str, Any]) -> None:
+    def _safe_call(self, handler: EventHandler, event: Dict[str, Any]) -> None:
         try:
             handler(event)
-        except Exception:
-            # Observers must not break the runtime path. Diagnostics can
-            # subscribe separately and record their own failures.
+        except Exception as exc:
+            # Observers must not break the runtime path. Record compact
+            # diagnostics so engineering-control surfaces can detect drift.
+            handler_name = self._handler_name(handler)
+            meta = event.get("meta") if isinstance(event.get("meta"), dict) else {}
+            with self._lock:
+                self._observer_error_count += 1
+                self._observer_errors_by_handler[handler_name] = (
+                    self._observer_errors_by_handler.get(handler_name, 0) + 1
+                )
+                self._last_observer_error = {
+                    "handler": handler_name,
+                    "error_type": exc.__class__.__name__,
+                    "error": str(exc),
+                    "event_type": event.get("type"),
+                    "session_id": event.get("session_id"),
+                    "event_id": meta.get("event_id"),
+                    "timestamp": time.time(),
+                }
             return
+
+    @staticmethod
+    def _handler_name(handler: EventHandler) -> str:
+        module = getattr(handler, "__module__", "")
+        qualname = getattr(handler, "__qualname__", "") or getattr(handler, "__name__", "")
+        if not qualname and hasattr(handler, "__class__"):
+            qualname = handler.__class__.__name__
+        return f"{module}.{qualname}".strip(".")

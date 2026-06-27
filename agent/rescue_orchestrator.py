@@ -9,6 +9,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from core.config import Config
+from agent.rescue_application import append_direct_action_rescue_step
 from agent.rescue_trigger import RescueRequired, RescueTrigger
 from core.health import HealthMonitor
 from core.rescue_telemetry import RescueTelemetry
@@ -39,11 +40,15 @@ class RescueOrchestrator:
         self._last_rescue_time = 0.0
         self._last_trigger_reason = "unknown"
         self._in_rescue = False
-        self._max_rescue_per_session = int(
-            self.cfg.get("rescue.max_rescue_per_session", 1)
+        self._max_rescue_per_session = self._safe_int(
+            self.cfg.get("rescue.max_rescue_per_session", 1),
+            default=1,
+            minimum=0,
         )
-        self._cooldown_seconds = float(
-            self.cfg.get("rescue.cooldown_seconds", 60)
+        self._cooldown_seconds = self._safe_float(
+            self.cfg.get("rescue.cooldown_seconds", 60),
+            default=60.0,
+            minimum=0.0,
         )
         self._distill_after_rescue = bool(
             self.cfg.get("rescue.distill_after_rescue", True)
@@ -152,14 +157,38 @@ class RescueOrchestrator:
 
     def _can_rescue(self) -> Optional[str]:
         """检查救援次数与冷却，返回跳过原因（None 表示可以救援）。"""
-        if self._rescue_count >= self._max_rescue_per_session:
+        rescue_count = self._safe_int(self._rescue_count, default=0, minimum=0)
+        max_rescue = self._safe_int(self._max_rescue_per_session, default=1, minimum=0)
+        if rescue_count >= max_rescue:
             return "max_rescue_reached"
         now = time.time()
-        if now - self._last_rescue_time < self._cooldown_seconds:
+        last_rescue_time = self._safe_float(self._last_rescue_time, default=0.0, minimum=0.0)
+        cooldown_seconds = self._safe_float(self._cooldown_seconds, default=60.0, minimum=0.0)
+        if now - last_rescue_time < cooldown_seconds:
             return "cooldown"
         if not self.expert.is_available():
             return "expert_unavailable"
         return None
+
+    @staticmethod
+    def _safe_int(value: Any, *, default: int, minimum: Optional[int] = None) -> int:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            parsed = default
+        if minimum is not None:
+            parsed = max(minimum, parsed)
+        return parsed
+
+    @staticmethod
+    def _safe_float(value: Any, *, default: float, minimum: Optional[float] = None) -> float:
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            parsed = default
+        if minimum is not None:
+            parsed = max(minimum, parsed)
+        return parsed
 
     def _emit(self, event_type: str, payload: Dict[str, Any]) -> None:
         """通过 ReActLoop 的事件通道发送救援事件。"""
@@ -215,14 +244,12 @@ class RescueOrchestrator:
             if not rescue.action:
                 raise ValueError("direct_action 模式需要提供 action")
             observation = self.react.inject_expert_action(rescue.action)
-            self.react.trajectory.append({
-                "iteration": len(self.react.trajectory),
-                "timestamp": time.time(),
-                "source": "expert",
-                "thought": rescue.thought or "",
-                "action": rescue.action,
-                "observation": observation,
-            })
+            append_direct_action_rescue_step(
+                trajectory=self.react.trajectory,
+                action=rescue.action,
+                observation=observation,
+                thought=rescue.thought,
+            )
 
         elif rescue.mode == "loop_takeover":
             steps = max(1, min(rescue.takeover_steps or 3, 5))

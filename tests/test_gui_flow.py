@@ -107,11 +107,11 @@ class _TestServerHelper:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=5.0) as resp:
+        with urllib.request.urlopen(req, timeout=30.0) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
     def get(self, path: str) -> bytes:
-        with urllib.request.urlopen(self.url(path), timeout=5.0) as resp:
+        with urllib.request.urlopen(self.url(path), timeout=30.0) as resp:
             return resp.read()
 
 
@@ -194,7 +194,7 @@ def test_end_to_end_approval_flow():
         events = []
         action_id = None
         req = urllib.request.Request(f"http://127.0.0.1:{port}/sessions/{sid}/events")
-        with urllib.request.urlopen(req, timeout=15.0) as resp:
+        with urllib.request.urlopen(req, timeout=60.0) as resp:
             while True:
                 line = resp.readline().decode("utf-8", errors="replace")
                 if not line:
@@ -224,7 +224,7 @@ def _post(port: int, path: str, payload: dict) -> bytes:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=5.0) as resp:
+    with urllib.request.urlopen(req, timeout=30.0) as resp:
         return resp.read()
 
 

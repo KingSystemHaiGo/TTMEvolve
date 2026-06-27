@@ -218,7 +218,7 @@ class Executor:
 
         started_at = time.perf_counter()
         try:
-            if tool_name in self.MAKER_PROXY_TOOLS:
+            if tool_name in self._maker_tool_names:
                 result = handler(tool_name, **params)
             elif tool_name in self._dynamic_tools:
                 call_params = dict(params)

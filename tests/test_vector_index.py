@@ -231,6 +231,56 @@ def test_faiss_search_uses_reverse_id_map_fast_path():
         assert [chunk.id for _, chunk in results] == ["chunk-a", "chunk-b"]
 
 
+def test_rebuild_index_replaces_existing_index(monkeypatch):
+    from types import SimpleNamespace
+
+    class FakeFlatIndex:
+        def __init__(self, dim):
+            self.d = dim
+
+    class FakeIdMapIndex:
+        instances = []
+
+        def __init__(self, base):
+            self.base = base
+            self.d = base.d
+            self.ntotal = 0
+            self.added_ids = []
+            FakeIdMapIndex.instances.append(self)
+
+        def add_with_ids(self, vectors, ids):
+            self.added_ids.extend(int(item) for item in ids)
+            self.ntotal += len(ids)
+
+    fake_faiss = SimpleNamespace(IndexFlatIP=FakeFlatIndex, IndexIDMap2=FakeIdMapIndex)
+    monkeypatch.setitem(sys.modules, "faiss", fake_faiss)
+    FakeIdMapIndex.instances = []
+
+    with tempfile.TemporaryDirectory() as tmp:
+        idx = VectorIndex(
+            namespace="test",
+            storage_dir=Path(tmp),
+            enabled=True,
+            encoder=_mock_encoder,
+            embedding_dim=8,
+        )
+        idx.add([
+            TextChunk(id="a", text="alpha memory", source="s1"),
+            TextChunk(id="b", text="beta memory", source="s1"),
+        ])
+        old_index = idx._index
+        assert old_index is not None
+        assert old_index.ntotal == 2
+
+        idx._rebuild_index()
+
+        assert idx._index is not old_index
+        assert old_index.ntotal == 2
+        assert idx._index.ntotal == 2
+        assert len(idx._id_map) == 2
+        assert len(idx._reverse_id_map) == 2
+
+
 if __name__ == "__main__":
     test_add_and_search_mock()
     print("OK test_add_and_search_mock")
@@ -248,4 +298,5 @@ if __name__ == "__main__":
     print("OK test_batch_add_allocates_unique_internal_ids")
     test_faiss_search_uses_reverse_id_map_fast_path()
     print("OK test_faiss_search_uses_reverse_id_map_fast_path")
+    # test_rebuild_index_replaces_existing_index uses pytest's monkeypatch fixture.
     print("\nAll vector index tests passed.")

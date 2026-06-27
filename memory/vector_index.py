@@ -134,6 +134,10 @@ class VectorIndex:
     def is_available(self) -> bool:
         return self._enabled and self._faiss_available and self._st_available and self._index is not None
 
+    @property
+    def can_build_vector_index(self) -> bool:
+        return self._enabled and self._faiss_available and self._st_available
+
     # ------------------------------------------------------------------
     # 编码
     # ------------------------------------------------------------------
@@ -153,13 +157,16 @@ class VectorIndex:
     # ------------------------------------------------------------------
     # 索引构建
     # ------------------------------------------------------------------
-    def _ensure_index(self, dim: int) -> None:
-        if self._index is not None and self._dim == dim:
-            return
+    def _create_index(self, dim: int) -> None:
         import faiss
         base = faiss.IndexFlatIP(dim)
         self._index = faiss.IndexIDMap2(base)
         self._dim = dim
+
+    def _ensure_index(self, dim: int) -> None:
+        if self._index is not None and self._dim == dim:
+            return
+        self._create_index(dim)
 
     def _get_dim(self) -> int:
         if self._requested_dim is not None:
@@ -178,7 +185,7 @@ class VectorIndex:
             return
         for chunk in chunks:
             self._chunks[chunk.id] = chunk
-        if not self.is_available:
+        if not self.can_build_vector_index:
             return
 
         dim = self._get_dim()
@@ -237,7 +244,7 @@ class VectorIndex:
             self._index = None
             return
         dim = self._get_dim()
-        self._ensure_index(dim)
+        self._create_index(dim)
         texts = [c.text for c in self._chunks.values()]
         vectors = self._encode(texts)
         ids = np.arange(len(texts), dtype=np.int64)
@@ -255,7 +262,8 @@ class VectorIndex:
         if not query.strip():
             return []
 
-        candidates = self._keyword_search(query, top_k * 4)
+        candidates: List[Tuple[float, TextChunk]] = []
+        candidate_ids: set[str] = set()
 
         if self.is_available and self._index is not None and self._index.ntotal > 0:
             try:
@@ -268,12 +276,30 @@ class VectorIndex:
                     if not cid:
                         continue
                     chunk = self._chunks.get(cid)
-                    if chunk and (chunk not in [c for _, c in candidates]):
+                    if chunk and cid not in candidate_ids:
                         candidates.append((float(dist), chunk))
+                        candidate_ids.add(cid)
+                vector_results = self._dedupe_filter_candidates(candidates, top_k, filter_fn)
+                if len(vector_results) >= top_k:
+                    return vector_results
             except Exception:
                 pass
 
         # 去重 + 过滤 + 排序
+        for score, chunk in self._keyword_search(query, top_k * 4):
+            if chunk.id in candidate_ids:
+                continue
+            candidates.append((score, chunk))
+            candidate_ids.add(chunk.id)
+
+        return self._dedupe_filter_candidates(candidates, top_k, filter_fn)
+
+    @staticmethod
+    def _dedupe_filter_candidates(
+        candidates: List[Tuple[float, TextChunk]],
+        top_k: int,
+        filter_fn: Optional[Callable[[TextChunk], bool]] = None,
+    ) -> List[Tuple[float, TextChunk]]:
         seen: set[str] = set()
         results: List[Tuple[float, TextChunk]] = []
         for score, chunk in sorted(candidates, key=lambda x: x[0], reverse=True):

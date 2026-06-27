@@ -16,7 +16,11 @@ from memory.manager import MemoryManager
 
 def _make_manager(n_ctx: int = 1024) -> MemoryManager:
     cfg = Config()
-    cfg.data = {"llm": {"n_ctx": n_ctx, "reserve_tokens": 64, "max_history_steps": 6}}
+    cfg.data = {
+        "llm": {"n_ctx": n_ctx, "reserve_tokens": 64, "max_history_steps": 6},
+        "agents_md": {"enabled": False},
+        "memory": {"vector_index": {"enabled": False}},
+    }
     cfg._profiles = {}
     budget = ContextBudgetManager(n_ctx=n_ctx, reserve_tokens=64, tokenizer=len)
     return MemoryManager(

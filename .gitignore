@@ -37,3 +37,6 @@ config.json
 # Rust / Tauri build output
 src-tauri/target/
 src-tauri/gen/
+
+# Release packaging output
+release-artifacts/

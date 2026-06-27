@@ -1,9 +1,16 @@
 # D:/CC/TTMEvolve - Core Memory
 
+## Memory Boundary
+- This file is the developer handoff memory for Codex/嗒啦啦 while working on the TTMEvolve repository.
+- TTMEvolve is the product being developed and optimized. It is not a co-developer of this repository.
+- Product memory files describe TTMEvolve runtime behavior, user-facing Agent features, and engineering state. They must not be treated as the assistant's private self-memory.
+- When writing POST notes, say "I/Codex fixed..." only in the chat summary; project docs should say "Fixed/Added/Verified..." and record product facts.
+- Avoid phrasing that implies TTMEvolve and the assistant are mutually developing each other. The correct ownership model is: 灰語 directs, Codex/嗒啦啦 implements, TTMEvolve is the application under development.
+
 ## Current Status
 - Version: 0.4.5-one-click-practice-entry+gui-chat-readable
 - Progress: Desktop Maker cockpit + Runtime Contract + external handoff + pullable diagnostics + async learning + Maker guard/advice + external LLM quickstart + Workbench surface selector + live session-scoped LLM probe/advice/metrics/learning evidence + one-click external-agent boot links + compact Evidence Bundle + pasteable Evidence Markdown + Runtime Readiness + API call proof + local LLM feedback summary + one-stop LLM Onboarding Bundle + Maker Setup Doctor + Maker Tool Audit + project directory switching + embedded auth flow preparation + chat-first GUI default + Portable Agent Root diagnostics + middle workspace sidebar for files/assets + page-like tools/settings surfaces + compact preview chrome + TapTap Maker forum entry + shell/BrowserView dark mode + readable chat layout + new/history conversation controls + splash-first startup gate
-- Last Delivery: Replaced Provider/Model native selects with custom theme-aware pickers so the Settings page remains readable in dark mode on Windows/Electron.
+- Last Delivery: Stabilized release push checkpoint. Full Python suite is green (`748 passed, 14 skipped`), frontend/Electron/Tauri checks pass, source checkpoint readiness is `ready`, and the source zip manifest has 404 files with SHA-256 `7e575a0a71c41b4e5e010b1b23793f1280d9a5b4d5eccf8acdffd7652123ddcc`. Portable cache cleanup preserved Maker auth and brought the offline runtime bundle back to `ready`; full-offline readiness remains `partial` only because signed installer, Maker remote build smoke, and production RAG quality are still unproven.
 
 ## User Profile
 - Name: 灰語, Assistant: 嗒啦啦
@@ -12,13 +19,13 @@
 - Cares about: system design, continuous improvement, AI self-evolution
 
 ## Predicted Next Step
-- Task: Open the GUI from the visible launcher, verify user messages are right bubbles, assistant output is full-width Markdown preview, tool steps are compact status rows, `新对话` resets the active chat, `历史` lists persisted sessions, and Maker preview remains active; then use GUI Maker Setup `Practice` for the next real Maker smoke task.
-- Files: frontend/src/App.tsx, frontend/src/components/CockpitHeader.tsx, frontend/src/components/BrowserPreview.tsx, frontend/src/styles/index.css, electron/main/index.ts, docs/sessions/2026-06-24.md
+- Task: Push the verified source checkpoint to GitHub. Optional remaining release evidence still includes signed installer, Maker remote build smoke, and production RAG semantic-quality proof.
+- Files: scripts/release_readiness.py, tests/test_release_readiness.py, scripts/build-portable/verify_portable.py, README.md, docs/releases/v0.4.5-source-release-checkpoint.md, AGENTS.md, docs/memory-index.md, docs/sprint-board.md, docs/memory-health.md
 
 ## Recovery Protocol
 1. Read AGENTS.md (this file)
 2. Read docs/memory-index.md
-3. Read docs/architecture/code-review-roadmap-2026-06-22.md
+3. Read docs/architecture/architecture-control-roadmap-2026-06-27.md
 4. If present, read docs/persona.md and .Codex/memory/self.md
 
 ## Key Pitfalls

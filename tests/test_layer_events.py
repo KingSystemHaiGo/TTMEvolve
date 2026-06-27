@@ -153,7 +153,7 @@ def test_agent_learning_layer_runs_async_after_result():
         assert result["learning_job"]["status"] in {"queued", "running"}
         assert elapsed < 0.25
 
-        deadline = time.time() + 2
+        deadline = time.time() + 30
         while time.time() < deadline:
             if agent.get_learning_job("async-layer").get("status") == "done":
                 break

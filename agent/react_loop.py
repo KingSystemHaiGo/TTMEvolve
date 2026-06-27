@@ -9,29 +9,49 @@ agent/react_loop.py — ReAct 推理循环
 
 from __future__ import annotations
 import json
-import hashlib
-import concurrent.futures
 import time
 import uuid
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
+from agent.action_execution import (
+    ActionExecutionService,
+    tool_timeout_context_hint,
+    validation_context_hint,
+    validation_observation,
+)
+from agent.maker_guard import (
+    maker_first_action_guard,
+    maker_guard_context_hint,
+    maker_guard_observation,
+)
+from agent.plan_first import (
+    build_plan_first_result,
+    draft_plan_from_llm,
+    known_tool_names,
+    run_plan_first_phase,
+)
+from agent.trajectory_result import (
+    build_react_result,
+    record_observation_step,
+    record_output_step,
+    summarize_react_result,
+)
+from agent.context_sync import (
+    build_context_sync_snapshot,
+    context_sync_diff_keys,
+    context_sync_signature,
+)
+from agent.expert_takeover import run_expert_takeover
 from agent.tool_registry import ToolRegistry
 from core.cancellation import TaskCancelled
-from core.context_compression import compress_trajectory, should_compress
 from core.executor import Executor
 from core.event_log import EventLog
 from core.goal_tracking import checklist_context_hint, update_goal_checklist
 from core.plan_format import (
-    PLAN_FORMAT_VERSION,
     empty_plan,
-    normalize_plan,
-    plan_progress,
     plan_to_context_block,
-    update_step_status,
 )
-from core.plan_prompt import build_plan_prompt, extract_plan_from_llm_text
-from core.plan_review import review_plan
-from core.plan_validation import summarize_plan_validation, validate_plan_step
+from core.plan_validation import validate_plan_step
 from llm.interface import LLMInterface
 
 if TYPE_CHECKING:
@@ -66,6 +86,13 @@ class ReActLoop:
         self.memory_manager = memory_manager
         self.cancel_check = cancel_check
         self.tool_progress_interval_seconds = max(0.1, float(tool_progress_interval_seconds or 5.0))
+        self.action_execution = ActionExecutionService(
+            tools=self.tools,
+            executor=self.executor,
+            emit=self._emit,
+            check_cancelled=self._check_cancelled,
+            progress_interval_seconds=self.tool_progress_interval_seconds,
+        )
         self.skill_sync_status = skill_sync_status
         self.runtime_contract_provider = runtime_contract_provider
         self._plan_first_enabled = bool(plan_first_enabled)
@@ -216,33 +243,46 @@ class ReActLoop:
             self._emit_latency("iteration_planning", iteration_started_at, iteration=i)
 
             if step.get("done"):
-                self._trajectory.append(step)
-                self._emit(self._session_id, "output", {"output": step.get("output", "")})
-                self._refresh_goal_checklist(output=step.get("output", ""))
-                self._maybe_emit_context_sync(iteration=i, reason="output")
+                record_output_step(
+                    trajectory=self._trajectory,
+                    step=step,
+                    iteration=i,
+                    session_id=self._session_id,
+                    emit=self._emit,
+                    refresh_goal=self._refresh_goal_checklist,
+                    emit_context_sync=self._maybe_emit_context_sync,
+                )
                 break
 
             # 执行动作前先进行 tool-call schema 校验
             tool_name = step["action"].get("tool")
             params = step["action"].get("params", {})
-            guard = self._maker_first_action_guard(i, tool_name, params)
+            guard = maker_first_action_guard(
+                iteration=i,
+                task=self._task,
+                briefing=self._maker_briefing_snapshot,
+                runtime_contract=self._runtime_contract_snapshot,
+                tool_name=tool_name,
+                params=params,
+            )
             if guard["decision"] == "block":
                 self._emit(self._session_id, "maker_briefing_guard", guard)
-                observation = self._maker_guard_observation(tool_name, guard)
-                step["observation"] = observation
-                plan_validation = self._validate_plan_step(step)
-                step["plan_validation"] = plan_validation
-                self._trajectory.append(step)
-                self._emit(self._session_id, "observation", {
-                    "iteration": i,
-                    "tool": tool_name,
-                    "observation": observation,
-                })
-                self._emit(self._session_id, "plan_validation", plan_validation)
-                self._refresh_goal_checklist()
-                self._maybe_emit_skill_sync(iteration=i, reason="maker_briefing_guard")
-                self._maybe_emit_context_sync(iteration=i, reason="maker_briefing_guard")
-                self._context += self._maker_guard_context_hint(guard)
+                observation = maker_guard_observation(tool_name, guard)
+                record_observation_step(
+                    trajectory=self._trajectory,
+                    step=step,
+                    iteration=i,
+                    session_id=self._session_id,
+                    tool_name=tool_name,
+                    observation=observation,
+                    emit=self._emit,
+                    validate_step=self._validate_plan_step,
+                    refresh_goal=self._refresh_goal_checklist,
+                    emit_skill_sync=self._maybe_emit_skill_sync,
+                    emit_context_sync=self._maybe_emit_context_sync,
+                    reason="maker_briefing_guard",
+                )
+                self._context += maker_guard_context_hint(guard)
                 self._emit(self._session_id, "error", {"iteration": i, "message": guard["reason"]})
 
                 if self._on_step:
@@ -265,21 +305,21 @@ class ReActLoop:
                     "suggested_next_step": preflight.get("suggested_next_step", ""),
                 })
                 error_text = "; ".join(preflight["errors"])
-                observation = self._validation_observation(tool_name, preflight)
-                step["observation"] = observation
-                plan_validation = self._validate_plan_step(step)
-                step["plan_validation"] = plan_validation
-                self._trajectory.append(step)
-                self._emit(self._session_id, "observation", {
-                    "iteration": i,
-                    "tool": tool_name,
-                    "observation": observation,
-                })
-                self._emit(self._session_id, "plan_validation", plan_validation)
-                self._refresh_goal_checklist()
-                self._maybe_emit_skill_sync(iteration=i, reason="plan_validation")
-                self._maybe_emit_context_sync(iteration=i, reason="plan_validation")
-                self._context += self._validation_context_hint(tool_name, preflight)
+                observation = validation_observation(tool_name, preflight)
+                record_observation_step(
+                    trajectory=self._trajectory,
+                    step=step,
+                    iteration=i,
+                    session_id=self._session_id,
+                    tool_name=tool_name,
+                    observation=observation,
+                    emit=self._emit,
+                    validate_step=self._validate_plan_step,
+                    refresh_goal=self._refresh_goal_checklist,
+                    emit_skill_sync=self._maybe_emit_skill_sync,
+                    emit_context_sync=self._maybe_emit_context_sync,
+                )
+                self._context += validation_context_hint(tool_name, preflight)
                 self._emit(self._session_id, "error", {"iteration": i, "message": error_text})
 
                 if self._on_step:
@@ -297,7 +337,7 @@ class ReActLoop:
 
             self._check_cancelled()
             tool_started_at = time.perf_counter()
-            observation = self._execute_action_with_progress(
+            observation = self.action_execution.execute_with_progress(
                 self._session_id,
                 tool_name,
                 params,
@@ -312,27 +352,32 @@ class ReActLoop:
                 tool=tool_name,
                 ok=bool(observation.get("ok")),
             )
-            observation = self._reconcile_if_uncertain_commit(i, tool_name, observation)
-            step["observation"] = observation
-            plan_validation = self._validate_plan_step(step)
-            step["plan_validation"] = plan_validation
-            self._trajectory.append(step)
-            self._emit(self._session_id, "observation", {
-                "iteration": i,
-                "tool": tool_name,
-                "observation": observation,
-            })
-            self._emit(self._session_id, "plan_validation", plan_validation)
-            self._refresh_goal_checklist()
-            self._maybe_emit_skill_sync(iteration=i, reason="plan_validation")
-            self._maybe_emit_context_sync(iteration=i, reason="plan_validation")
+            observation = self.action_execution.reconcile_if_uncertain_commit(
+                self._session_id,
+                i,
+                tool_name,
+                observation,
+            )
+            record_observation_step(
+                trajectory=self._trajectory,
+                step=step,
+                iteration=i,
+                session_id=self._session_id,
+                tool_name=tool_name,
+                observation=observation,
+                emit=self._emit,
+                validate_step=self._validate_plan_step,
+                refresh_goal=self._refresh_goal_checklist,
+                emit_skill_sync=self._maybe_emit_skill_sync,
+                emit_context_sync=self._maybe_emit_context_sync,
+            )
 
             # 失败时更新上下文
             if not observation.get("ok"):
                 error_msg = f"\n[错误] {tool_name} 失败: {observation.get('error')}"
                 self._context += error_msg
                 if observation.get("error_type") == "tool_timeout" or observation.get("partial"):
-                    self._context += self._tool_timeout_context_hint(tool_name, observation)
+                    self._context += tool_timeout_context_hint(tool_name, observation)
                 self._emit(self._session_id, "error", {"iteration": i, "message": error_msg})
 
             # 触发外部回调（救援触发器在此检查）
@@ -344,262 +389,11 @@ class ReActLoop:
         self._emit(self._session_id, "status", {"message": "任务结束", "result_summary": self._summarize(result)})
         return result
 
-    def _execute_action_with_progress(
-        self,
-        session_id: str,
-        tool_name: Optional[str],
-        params: Dict[str, Any],
-        *,
-        iteration: int,
-        started_at: float,
-    ) -> Dict[str, Any]:
-        heartbeat_count = 0
-        pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-        future = pool.submit(self._execute_action, session_id, tool_name, params)
-        try:
-            while True:
-                try:
-                    return future.result(timeout=self.tool_progress_interval_seconds)
-                except concurrent.futures.TimeoutError:
-                    self._check_cancelled()
-                    heartbeat_count += 1
-                    elapsed_ms = round((time.perf_counter() - started_at) * 1000, 1)
-                    self._emit(session_id, "tool_progress", {
-                        "iteration": iteration,
-                        "tool": tool_name,
-                        "status": "running",
-                        "elapsed_ms": elapsed_ms,
-                        "heartbeat_count": heartbeat_count,
-                        "partial": True,
-                    })
-        except Exception:
-            future.cancel()
-            raise
-        finally:
-            pool.shutdown(wait=future.done(), cancel_futures=True)
-
-    def _reconcile_if_uncertain_commit(
-        self,
-        iteration: int,
-        tool_name: Optional[str],
-        observation: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        if observation.get("committed") is not None or not observation.get("idempotency_key"):
-            return observation
-        self._emit(self._session_id, "commit_reconcile", {
-            "iteration": iteration,
-            "tool": tool_name,
-            "idempotency_key": observation.get("idempotency_key"),
-            "status": "checking",
-        })
-        reconciler = getattr(self.executor, "reconcile_commit_state", None)
-        if not callable(reconciler):
-            return observation
-        reconciled = reconciler(observation)
-        self._emit(self._session_id, "commit_reconcile", {
-            "iteration": iteration,
-            "tool": tool_name,
-            "idempotency_key": reconciled.get("idempotency_key"),
-            "status": reconciled.get("reconcile_status", "unknown"),
-            "committed": reconciled.get("committed"),
-            "observation": reconciled,
-        })
-        return reconciled
-
     def _validate_plan_step(self, step: Dict[str, Any]) -> Dict[str, Any]:
         return validate_plan_step(
             task=self._task,
             step=step,
             trajectory=self._trajectory,
-        )
-
-    def _maker_first_action_guard(
-        self,
-        iteration: int,
-        tool_name: Optional[str],
-        params: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        briefing = self._maker_briefing_snapshot if isinstance(self._maker_briefing_snapshot, dict) else {}
-        if iteration != 0 or not briefing or not tool_name:
-            return {"decision": "skip", "iteration": iteration}
-        if not self._task_needs_maker_authority():
-            return {
-                "decision": "skip",
-                "iteration": iteration,
-                "tool": tool_name,
-                "reason": "Task does not require Maker authority before local actions.",
-                "authority": briefing.get("authority"),
-            }
-        if not briefing.get("connected"):
-            return {
-                "decision": "pass",
-                "iteration": iteration,
-                "tool": tool_name,
-                "reason": "MakerMCP is disconnected; local diagnostics are allowed.",
-                "authority": briefing.get("authority"),
-                "recommended_first_action": briefing.get("recommended_first_action"),
-            }
-
-        selected_template = briefing.get("selected_template")
-        if not isinstance(selected_template, dict):
-            selected_template = {}
-        suggested_tools = [
-            str(item)
-            for item in briefing.get("suggested_tools", [])
-            if item
-        ] if isinstance(briefing.get("suggested_tools"), list) else []
-        maker = self._runtime_contract_snapshot.get("maker_mcp") if isinstance(self._runtime_contract_snapshot, dict) else {}
-        top_tools = [
-            str(item.get("name"))
-            for item in (maker.get("top_tools", []) if isinstance(maker, dict) else [])
-            if isinstance(item, dict) and item.get("name")
-        ]
-        allowed_tools = sorted(set(suggested_tools + top_tools + [
-            "maker_briefing",
-            "runtime_contract",
-            "query_skills",
-        ]))
-        if not allowed_tools:
-            return {
-                "decision": "pass",
-                "iteration": iteration,
-                "tool": tool_name,
-                "reason": "No Maker authority tools are known yet; current diagnostic action is allowed.",
-                "authority": briefing.get("authority"),
-                "recommended_first_action": briefing.get("recommended_first_action"),
-            }
-        if tool_name in allowed_tools or tool_name.startswith("maker_") or tool_name.startswith("mcp_"):
-            return {
-                "decision": "pass",
-                "iteration": iteration,
-                "tool": tool_name,
-                "reason": "First action matches Maker briefing authority.",
-                "authority": briefing.get("authority"),
-                "selected_template": selected_template,
-                "allowed_tools": allowed_tools[:8],
-                "recommended_first_action": briefing.get("recommended_first_action"),
-            }
-
-        if self._looks_like_local_side_effect(tool_name, params):
-            return {
-                "decision": "block",
-                "iteration": iteration,
-                "tool": tool_name,
-                "reason": (
-                    "First action would make a local side effect before using the Maker briefing "
-                    "authority. Use a MakerMCP/status/briefing action first, or explain why local "
-                    "files are the authority for this task."
-                ),
-                "authority": briefing.get("authority"),
-                "selected_template": selected_template,
-                "allowed_tools": allowed_tools[:8],
-                "suggested_tools": suggested_tools[:4],
-                "recommended_first_action": briefing.get("recommended_first_action"),
-                "recommended_endpoint": briefing.get("recommended_endpoint"),
-            }
-
-        return {
-            "decision": "warn",
-            "iteration": iteration,
-            "tool": tool_name,
-            "reason": "First action does not directly match Maker briefing, but appears diagnostic.",
-            "authority": briefing.get("authority"),
-            "selected_template": selected_template,
-            "allowed_tools": allowed_tools[:8],
-            "suggested_tools": suggested_tools[:4],
-            "recommended_first_action": briefing.get("recommended_first_action"),
-            "recommended_endpoint": briefing.get("recommended_endpoint"),
-        }
-
-    @staticmethod
-    def _looks_like_local_side_effect(tool_name: str, params: Dict[str, Any]) -> bool:
-        name = tool_name.lower()
-        side_effect_words = [
-            "write",
-            "delete",
-            "move",
-            "rename",
-            "create",
-            "save",
-            "patch",
-            "apply",
-            "build",
-            "submit",
-            "publish",
-        ]
-        if any(word in name for word in side_effect_words):
-            return True
-        if not isinstance(params, dict):
-            return False
-        return any(
-            key in params
-            for key in ["content", "patch", "diff", "destination", "new_path", "target_path"]
-        )
-
-    def _task_needs_maker_authority(self) -> bool:
-        text = (self._task or "").lower()
-        maker_keywords = (
-            "maker",
-            "taptap",
-            "tap maker",
-            "tapmaker",
-            "游戏",
-            "关卡",
-            "构建",
-            "预览",
-            "发布",
-            "素材",
-            "场景",
-            "精灵",
-            "脚本",
-            "地图",
-            "practice",
-            "build",
-            "preview",
-            "asset",
-            "scene",
-        )
-        return any(keyword in text for keyword in maker_keywords)
-
-    def _maker_guard_observation(
-        self,
-        tool_name: Optional[str],
-        guard: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        return {
-            "ok": False,
-            "valid": False,
-            "failure_type": "maker_briefing_guard",
-            "tool": tool_name,
-            "decision": guard.get("decision"),
-            "reason": guard.get("reason"),
-            "authority": guard.get("authority"),
-            "allowed_tools": guard.get("allowed_tools", []),
-            "suggested_tools": guard.get("suggested_tools", []),
-            "recommended_first_action": guard.get("recommended_first_action"),
-            "recommended_endpoint": guard.get("recommended_endpoint"),
-            "suggested_fix": (
-                "Follow maker_briefing first: choose one suggested MakerMCP/status tool, "
-                "or call maker_briefing/runtime_contract before making local side effects."
-            ),
-        }
-
-    @staticmethod
-    def _maker_guard_context_hint(guard: Dict[str, Any]) -> str:
-        payload = {
-            "failure_type": "maker_briefing_guard",
-            "decision": guard.get("decision"),
-            "reason": guard.get("reason"),
-            "authority": guard.get("authority"),
-            "allowed_tools": guard.get("allowed_tools", []),
-            "suggested_tools": guard.get("suggested_tools", []),
-            "recommended_first_action": guard.get("recommended_first_action"),
-            "recommended_endpoint": guard.get("recommended_endpoint"),
-        }
-        return (
-            "\n[maker_briefing_guard]\n"
-            f"{json.dumps(payload, ensure_ascii=False)}\n"
-            "Before local side effects, follow the Maker briefing authority or fetch the compact briefing/contract again.\n"
         )
 
     def _refresh_goal_checklist(self, output: str = "") -> None:
@@ -685,16 +479,23 @@ class ReActLoop:
         self._emit(self._session_id, "skill_sync", payload)
 
     def _maybe_emit_context_sync(self, iteration: int, reason: str, force: bool = False) -> None:
-        snapshot = self._build_context_sync_snapshot(iteration)
-        snapshot_for_signature = self._snapshot_for_signature(snapshot)
-        encoded = json.dumps(snapshot_for_signature, ensure_ascii=False, sort_keys=True, default=str)
-        signature = hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
+        snapshot = build_context_sync_snapshot(
+            session_id=self._session_id,
+            task=self._task,
+            iteration=iteration,
+            trajectory=self._trajectory,
+            goal_checklist=self._goal_checklist,
+            plan=self._plan,
+            latest_skill_sync=self._latest_skill_sync,
+            context_revision=self._context_sync_revision,
+        )
+        signature = context_sync_signature(snapshot)
         previous_signature = self._context_sync_signature
         changed = bool(previous_signature and previous_signature != signature)
         if not force and not changed:
             return
 
-        diff_keys = self._context_sync_diff_keys(self._context_sync_snapshot, snapshot)
+        diff_keys = context_sync_diff_keys(self._context_sync_snapshot, snapshot)
         self._context_sync_signature = signature
         self._context_sync_snapshot = snapshot
         self._context_sync_revision += 1
@@ -708,250 +509,6 @@ class ReActLoop:
             "diff_keys": diff_keys,
             "snapshot": snapshot,
         })
-
-    @staticmethod
-    def _snapshot_for_signature(snapshot: Dict[str, Any]) -> Dict[str, Any]:
-        stable = json.loads(json.dumps(snapshot, ensure_ascii=False, default=str))
-        checkpoint = stable.get("continuation_checkpoint")
-        if isinstance(checkpoint, dict):
-            checkpoint.pop("context_revision", None)
-        return stable
-
-    def _build_context_sync_snapshot(self, iteration: int) -> Dict[str, Any]:
-        last_step = self._latest_actionable_step()
-        action = last_step.get("action") if isinstance(last_step.get("action"), dict) else {}
-        observation = last_step.get("observation") if isinstance(last_step.get("observation"), dict) else {}
-        plan_validation = (
-            last_step.get("plan_validation")
-            if isinstance(last_step.get("plan_validation"), dict)
-            else {}
-        )
-        skill_sync = self._latest_skill_sync if isinstance(self._latest_skill_sync, dict) else {}
-        artifacts = self._collect_artifact_refs(limit=8)
-        params = action.get("params") if isinstance(action.get("params"), dict) else {}
-        checkpoint = self._build_continuation_checkpoint(
-            iteration=iteration,
-            last_step=last_step,
-            artifacts=artifacts,
-            skill_sync=skill_sync,
-        )
-        return {
-            "session_id": self._session_id,
-            "task": self._task,
-            "iteration": iteration,
-            "trajectory_steps": len(self._trajectory),
-            "workspace_profile": checkpoint.get("workspace_profile", "general"),
-            "last_tool": action.get("tool") or observation.get("tool"),
-            "last_action": {
-                "tool": action.get("tool"),
-                "params_keys": sorted(params.keys()),
-                "done": bool(action.get("done")),
-            },
-            "plan_validation": {
-                "verdict": plan_validation.get("verdict"),
-                "summary": plan_validation.get("summary"),
-                "next_check": plan_validation.get("next_check"),
-                "issues_count": len(plan_validation.get("issues") or []),
-            },
-            "goal_checklist": {
-                "overall": self._goal_checklist.get("overall"),
-                "counts": self._goal_checklist.get("counts", {}),
-                "next_focus": self._goal_checklist.get("next_focus"),
-            },
-            "commit_state": self._commit_state_from_observation(observation),
-            "skill_sync": {
-                "ok": skill_sync.get("ok"),
-                "state": skill_sync.get("state"),
-                "signature": skill_sync.get("signature"),
-                "compatibility_status": skill_sync.get("compatibility_status"),
-                "changed": bool(skill_sync.get("changed")),
-            },
-            "artifact_refs": artifacts,
-            "artifact_count": len(artifacts),
-            "continuation_checkpoint": checkpoint,
-        }
-
-    def _build_continuation_checkpoint(
-        self,
-        *,
-        iteration: int,
-        last_step: Dict[str, Any],
-        artifacts: List[Dict[str, Any]],
-        skill_sync: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        """Build a compact handoff point for long-task resume/agent handoff.
-
-        This is not full process resurrection. It is the durable contract another
-        process or future runtime can use to understand what remains without
-        replaying the raw SSE stream.
-        """
-        action = last_step.get("action") if isinstance(last_step.get("action"), dict) else {}
-        observation = last_step.get("observation") if isinstance(last_step.get("observation"), dict) else {}
-        plan_validation = (
-            last_step.get("plan_validation")
-            if isinstance(last_step.get("plan_validation"), dict)
-            else {}
-        )
-        budget_stats = (
-            last_step.get("budget_stats")
-            if isinstance(last_step.get("budget_stats"), dict)
-            else {}
-        )
-        workspace_profile = str(budget_stats.get("workspace_profile") or "general")
-        open_plan_steps = self._open_plan_steps(limit=6)
-        compressed = compress_trajectory(
-            self._trajectory,
-            task=self._task,
-            checklist=self._goal_checklist,
-            plan=self._plan,
-            verbatim_turns=4,
-            max_turns=20,
-        )
-        compression_needed = should_compress(self._trajectory)
-        return {
-            "version": "continuation-checkpoint.v1",
-            "session_id": self._session_id,
-            "context_revision": self._context_sync_revision + 1,
-            "iteration": iteration,
-            "trajectory_steps": len(self._trajectory),
-            "workspace_profile": workspace_profile,
-            "resume_mode": "context_handoff",
-            "resume_ready": True,
-            "resume_limits": {
-                "process_resurrection": False,
-                "requires_runtime_replay": False,
-                "raw_sse_replay_required": False,
-            },
-            "open_plan_steps": open_plan_steps,
-            "goal_overall": self._goal_checklist.get("overall"),
-            "goal_next_focus": self._goal_checklist.get("next_focus"),
-            "last_tool": action.get("tool") or observation.get("tool"),
-            "last_ok": observation.get("ok"),
-            "plan_verdict": plan_validation.get("verdict"),
-            "artifact_refs": artifacts[:6],
-            "artifact_count": len(artifacts),
-            "skill_sync": {
-                "state": skill_sync.get("state"),
-                "compatibility_status": skill_sync.get("compatibility_status"),
-                "changed": bool(skill_sync.get("changed")),
-            },
-            "compression": {
-                "needed": compression_needed,
-                "version": compressed.get("version"),
-                "compressed_step_count": compressed.get("compressed_step_count", 0),
-                "skipped_step_count": compressed.get("skipped_step_count", 0),
-                "verbatim_step_count": len(compressed.get("verbatim_steps") or []),
-                "stats": compressed.get("stats", {}),
-                "summary": compressed.get("summary", "")[:1200],
-            },
-            "handoff_hint": (
-                "Continue from this checkpoint using task, open_plan_steps, "
-                "goal_next_focus, last_tool/last_ok, artifact_refs, and compression.summary. "
-                "Use context_sync/runtime_metrics instead of raw SSE unless details are missing."
-            ),
-        }
-
-    def _open_plan_steps(self, limit: int = 6) -> List[Dict[str, Any]]:
-        steps = self._plan.get("steps") if isinstance(self._plan, dict) else []
-        if not isinstance(steps, list):
-            return []
-        open_steps: List[Dict[str, Any]] = []
-        for step in steps:
-            if not isinstance(step, dict):
-                continue
-            status = step.get("status")
-            if status not in {"pending", "in_progress"}:
-                continue
-            open_steps.append({
-                "id": step.get("id"),
-                "title": step.get("title") or step.get("step") or step.get("description"),
-                "status": status,
-                "tool": step.get("tool"),
-            })
-            if len(open_steps) >= limit:
-                break
-        return open_steps
-
-    def _latest_actionable_step(self) -> Dict[str, Any]:
-        for step in reversed(self._trajectory):
-            action = step.get("action")
-            observation = step.get("observation")
-            if isinstance(observation, dict):
-                return step
-            if isinstance(action, dict) and action.get("tool"):
-                return step
-        return self._trajectory[-1] if self._trajectory else {}
-
-    @staticmethod
-    def _context_sync_diff_keys(previous: Dict[str, Any], current: Dict[str, Any]) -> List[str]:
-        if not previous:
-            return sorted(current.keys())
-        return sorted(
-            key for key in current.keys()
-            if previous.get(key) != current.get(key)
-        )
-
-    def _collect_artifact_refs(self, limit: int = 8) -> List[Dict[str, Any]]:
-        refs: List[Dict[str, Any]] = []
-        seen = set()
-        for step in reversed(self._trajectory[-8:]):
-            action = step.get("action") if isinstance(step.get("action"), dict) else {}
-            observation = step.get("observation")
-            if not isinstance(observation, dict):
-                continue
-            ref = self._artifact_ref_from_step(action, observation)
-            if not ref:
-                continue
-            key = json.dumps(ref, ensure_ascii=False, sort_keys=True, default=str)
-            if key in seen:
-                continue
-            seen.add(key)
-            refs.append(ref)
-            if len(refs) >= limit:
-                break
-        refs.reverse()
-        return refs
-
-    @staticmethod
-    def _artifact_ref_from_step(action: Dict[str, Any], observation: Dict[str, Any]) -> Dict[str, Any]:
-        params = action.get("params") if isinstance(action.get("params"), dict) else {}
-        ref = {
-            key: observation.get(key) if observation.get(key) not in (None, "") else params.get(key)
-            for key in [
-                "path",
-                "url",
-                "remote_id",
-                "task_id",
-                "file_id",
-                "asset_id",
-                "resource_id",
-                "idempotency_key",
-                "output_path",
-            ]
-            if (observation.get(key) if observation.get(key) not in (None, "") else params.get(key)) not in (None, "")
-        }
-        tool = observation.get("tool") or action.get("tool")
-        if tool:
-            ref["tool"] = tool
-        if observation.get("committed") is not None:
-            ref["committed"] = observation.get("committed")
-        return ref
-
-    @staticmethod
-    def _commit_state_from_observation(observation: Dict[str, Any]) -> Dict[str, Any]:
-        if not observation:
-            return {}
-        if observation.get("committed") is None and not observation.get("idempotency_key"):
-            return {}
-        return {
-            "tool": observation.get("tool"),
-            "idempotency_key": observation.get("idempotency_key"),
-            "committed": observation.get("committed"),
-            "observed_at": observation.get("observed_at"),
-            "reconcile_status": observation.get("reconcile_status"),
-            "remote_lookup_tool": observation.get("remote_lookup_tool"),
-            "remote_lookup_attempts": observation.get("remote_lookup_attempts"),
-        }
 
     def _run_iteration(self, iteration: int) -> Dict[str, Any]:
         """执行单轮思考+动作选择。"""
@@ -1067,99 +624,7 @@ class ReActLoop:
         tool_name: Optional[str],
         params: Dict[str, Any],
     ) -> Dict[str, Any]:
-        if not tool_name:
-            return {"ok": False, "error": "没有选择工具"}
-        if not self.tools.has(tool_name):
-            return {"ok": False, "error": f"工具 {tool_name} 不存在"}
-
-        self._check_cancelled()
-        validation = self.tools.validate_action(tool_name, params)
-        if not validation["ok"]:
-            return self._validation_observation(tool_name, validation)
-
-        # 本地工具统一走 Executor；MCP 工具由 Executor 转发给 MCP handler
-        self._check_cancelled()
-        result = self.executor.propose_action(session_id, tool_name, params)
-        return result
-
-    def _validation_observation(
-        self,
-        tool_name: Optional[str],
-        validation: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        errors = validation.get("errors", [])
-        structured_errors = validation.get("structured_errors", [])
-        first = structured_errors[0] if structured_errors else {}
-        return {
-            "ok": False,
-            "valid": False,
-            "failure_type": "tool_validation",
-            "tool": tool_name,
-            "error": "; ".join(errors),
-            "validation_errors": errors,
-            "structured_errors": structured_errors,
-            "rule_id": first.get("rule_id"),
-            "path": first.get("path"),
-            "reason": first.get("reason"),
-            "suggested_fix": first.get("suggested_fix"),
-            "alternatives": validation.get("alternatives", []),
-            "suggested_next_step": validation.get("suggested_next_step"),
-        }
-
-    def _validation_context_hint(
-        self,
-        tool_name: Optional[str],
-        validation: Dict[str, Any],
-    ) -> str:
-        errors = validation.get("errors", [])
-        structured_errors = validation.get("structured_errors", [])
-        payload = {
-            "valid": False,
-            "failure_type": "tool_validation",
-            "tool": tool_name,
-            "errors": structured_errors or errors,
-            "alternatives": validation.get("alternatives", []),
-            "suggested_next_step": validation.get("suggested_next_step"),
-        }
-        return (
-            "\n[tool_validation_failed]\n"
-            f"{json.dumps(payload, ensure_ascii=False)}\n"
-            "Fix the tool name or params exactly as suggested, or choose one of the alternatives before retrying.\n"
-        )
-
-    def _tool_timeout_context_hint(
-        self,
-        tool_name: Optional[str],
-        observation: Dict[str, Any],
-    ) -> str:
-        payload = {
-            "failure_type": "tool_timeout",
-            "tool": tool_name,
-            "elapsed_ms": observation.get("elapsed_ms"),
-            "timeout_seconds": observation.get("timeout_seconds"),
-            "partial": observation.get("partial", False),
-            "stdout_tail": self._tail_text(observation.get("stdout")),
-            "stderr_tail": self._tail_text(observation.get("stderr")),
-            "suggested_fix": (
-                "Do not repeat the same long call blindly. Use a smaller timeout, "
-                "narrow the command/tool params, inspect partial output, or choose "
-                "a cheaper diagnostic tool before continuing."
-            ),
-        }
-        return (
-            "\n[tool_timeout]\n"
-            f"{json.dumps(payload, ensure_ascii=False)}\n"
-            "Continue reasoning in the next step with the partial result instead of blocking.\n"
-        )
-
-    @staticmethod
-    def _tail_text(value: Any, limit: int = 1200) -> str:
-        if value is None:
-            return ""
-        text = str(value)
-        if len(text) <= limit:
-            return text
-        return text[-limit:]
+        return self.action_execution.execute(session_id, tool_name, params)
 
     def _build_context(self, task: str) -> str:
         base = f"Task: {task}\nUse the available tools step by step."
@@ -1224,125 +689,55 @@ class ReActLoop:
     # ------------------------------------------------------------------
 
     def _run_plan_first_phase(self, task: str) -> Optional[Dict[str, Any]]:
-        """Generate a draft plan, run a deterministic review, then wait for user approval.
-
-        Returns the approved plan dict, or None if the user rejects/aborts.
-        """
-        self._emit(self._session_id, "plan_first_phase", {"phase": "drafting", "task": task})
-        draft = self._draft_plan_from_llm(task)
-        self._plan = draft
-        self._plan_review = review_plan(self._plan, known_tools=self._known_tool_names())
-        self._emit(self._session_id, "plan_draft", {
-            "plan": self._plan,
-            "review": self._plan_review,
-            "progress": plan_progress(self._plan),
-        })
-
-        if self._plan_review.get("verdict") == "fail":
-            self._emit(self._session_id, "plan_first_phase", {
-                "phase": "auto_rejected",
-                "review": self._plan_review,
-            })
-            return None
-
-        if not callable(self._plan_approval_provider):
-            # No approval provider configured: auto-approve when review passes.
-            if self._plan_review.get("verdict") == "pass":
-                self._plan["approved"] = True
-                self._plan["status"] = "approved"
-                return self._plan
-            return None
-
-        try:
-            approved = bool(self._plan_approval_provider(self._plan))
-        except Exception as e:
-            self._emit(self._session_id, "plan_approval_error", {"error": str(e)})
-            approved = False
-        if not approved:
-            return None
-        self._plan["approved"] = True
-        self._plan["status"] = "approved"
-        return self._plan
-
-    def _draft_plan_from_llm(self, task: str) -> Dict[str, Any]:
-        """Ask the LLM for a JSON plan and normalize it into our schema."""
-        prompt = build_plan_prompt(
+        result = run_plan_first_phase(
+            llm=self.llm,
+            tools=self.tools,
             task=task,
             context=self._context,
-            runtime_hints={
-                "session_id": self._session_id,
-                "tools_available": len(self._known_tool_names()),
-            },
-            tool_list=sorted(self._known_tool_names()),
+            session_id=self._session_id,
+            emit=self._emit,
+            approval_provider=self._plan_approval_provider,
+            draft_plan=self._draft_plan_from_llm,
         )
-        try:
-            response = self.llm.generate(prompt=prompt, max_tokens=800)
-            text = response.text if hasattr(response, "text") else str(response)
-        except Exception as e:
-            self._emit(self._session_id, "plan_draft_error", {"error": str(e)})
-            return empty_plan(task=task)
-        parsed = extract_plan_from_llm_text(text or "")
-        if parsed is None:
-            self._emit(self._session_id, "plan_draft_parse_failed", {
-                "raw_excerpt": (text or "")[:200],
-            })
-            return empty_plan(task=task)
-        return normalize_plan(parsed, task=task)
+        self._plan = result.plan
+        self._plan_review = result.review
+        return self._plan if result.approved else None
+
+    def _draft_plan_from_llm(self, task: str) -> Dict[str, Any]:
+        return draft_plan_from_llm(
+            llm=self.llm,
+            tools=self.tools,
+            task=task,
+            context=self._context,
+            session_id=self._session_id,
+            emit=self._emit,
+        )
 
     def _known_tool_names(self) -> List[str]:
-        names: List[str] = []
-        try:
-            for tool in self.tools.list_tools():
-                if isinstance(tool, dict):
-                    name = tool.get("name")
-                else:
-                    name = getattr(tool, "name", None)
-                if isinstance(name, str) and name:
-                    names.append(name)
-        except Exception:
-            return []
-        return names
+        return known_tool_names(self.tools)
 
     def _build_plan_first_result(self, reason: str = "not_approved") -> Dict[str, Any]:
-        """Return a result dict for the case where the plan phase ends without approval."""
-        return {
-            "session_id": self._session_id,
-            "task": self._task,
-            "trajectory": [],
-            "output": "",
-            "done": False,
-            "plan": self._plan,
-            "plan_review": self._plan_review,
-            "plan_progress": plan_progress(self._plan),
-            "plan_first_phase": reason,
-        }
+        return build_plan_first_result(
+            session_id=self._session_id,
+            task=self._task,
+            plan=self._plan,
+            review=self._plan_review,
+            reason=reason,
+        )
 
     def _build_result(self) -> Dict[str, Any]:
-        output = ""
-        for step in reversed(self._trajectory):
-            if step.get("done") or "output" in step:
-                output = step.get("output", "")
-                break
-        result = {
-            "session_id": self._session_id,
-            "task": self._task,
-            "trajectory": self._trajectory,
-            "output": output,
-            "iteration_count": len(self._trajectory),
-            "plan_validation": summarize_plan_validation(self._trajectory),
-            "goal_checklist": self._goal_checklist,
-        }
-        if self._plan_first_enabled or self._plan.get("steps"):
-            result["plan"] = self._plan
-            result["plan_review"] = self._plan_review
-            result["plan_progress"] = plan_progress(self._plan)
-        return result
+        return build_react_result(
+            session_id=self._session_id,
+            task=self._task,
+            trajectory=self._trajectory,
+            goal_checklist=self._goal_checklist,
+            plan=self._plan,
+            plan_review=self._plan_review,
+            include_plan=bool(self._plan_first_enabled or self._plan.get("steps")),
+        )
 
     def _summarize(self, result: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            "iteration_count": result.get("iteration_count", 0),
-            "output_length": len(result.get("output", "")),
-        }
+        return summarize_react_result(result)
 
     # ------------------------------------------------------------------
     # 专家救援接口
@@ -1356,60 +751,21 @@ class ReActLoop:
         tool_name = action.get("tool")
         params = action.get("params", {})
         self._emit(self._session_id, "tool_call", {"tool": tool_name, "params": params, "source": "expert"})
-        observation = self._execute_action(self._session_id, tool_name, params)
+        observation = self.action_execution.execute(self._session_id, tool_name, params)
         return observation
 
     def takeover(self, expert_llm: LLMInterface, steps: int) -> None:
         """由专家 LLM 接管循环若干轮。"""
-        for i in range(steps):
-            iteration = len(self._trajectory)
-            step = {
-                "iteration": iteration,
-                "timestamp": time.time(),
-                "source": "expert",
-            }
-
-            thought = expert_llm.think(
-                task=self._task,
-                context=self._context,
-                trajectory=self._trajectory,
-                tools_description=self.tools.schema_for_llm(),
-            )
-            step["thought"] = thought
-            self._emit(self._session_id, "thought", {"iteration": iteration, "thought": thought, "source": "expert"})
-
-            action = expert_llm.choose_action(
-                task=self._task,
-                thought=thought,
-                tools_description=self.tools.schema_for_llm(),
-            )
-            step["action"] = action
-            self._emit(self._session_id, "action", {"iteration": iteration, "action": action, "source": "expert"})
-
-            if action.get("done"):
-                step["output"] = action.get("output", "")
-                step["done"] = True
-                self._trajectory.append(step)
-                self._emit(self._session_id, "output", {"output": step["output"], "source": "expert"})
-                return
-
-            tool_name = action.get("tool")
-            params = action.get("params", {})
-            self._emit(self._session_id, "tool_call", {"tool": tool_name, "params": params, "source": "expert"})
-            observation = self._execute_action(self._session_id, tool_name, params)
-            step["observation"] = observation
-            self._trajectory.append(step)
-            self._emit(self._session_id, "observation", {
-                "iteration": iteration,
-                "tool": tool_name,
-                "observation": observation,
-                "source": "expert",
-            })
-
-            if not observation.get("ok"):
-                error_msg = f"\n[错误] {tool_name} 失败: {observation.get('error')}"
-                self._context += error_msg
-                self._emit(self._session_id, "error", {"iteration": iteration, "message": error_msg, "source": "expert"})
-
-            if self._on_step:
-                self._on_step(step, self._trajectory)
+        run_expert_takeover(
+            expert_llm=expert_llm,
+            steps=steps,
+            task=self._task,
+            session_id=self._session_id,
+            trajectory=self._trajectory,
+            context=lambda: self._context,
+            tools_description=self.tools.schema_for_llm,
+            emit=self._emit,
+            execute_action=self.action_execution.execute,
+            append_context=lambda text: setattr(self, "_context", self._context + text),
+            on_step=self._on_step,
+        )

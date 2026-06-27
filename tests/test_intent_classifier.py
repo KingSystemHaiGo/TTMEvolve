@@ -10,9 +10,11 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from core.intent_classifier import (
+    COS_GATE_VERSION,
     INTENT_CLASSIFIER_VERSION,
     CATEGORIES,
     classify,
+    classify_cos_gate,
     render_card,
 )
 
@@ -193,3 +195,45 @@ def test_classify_case_insensitive():
 def test_classify_empty_whitespace_returns_question():
     intent = classify("   \n  \t  ")
     assert intent.category == "question"
+
+
+# ---------- COS Gate 0 ----------
+
+
+def test_cos_gate_classifies_small_bug_as_system_1():
+    gate = classify_cos_gate("帮我修复这个启动 bug").to_dict()
+
+    assert gate["version"] == COS_GATE_VERSION
+    assert gate["task_type"] == "bug_fix"
+    assert gate["level"] == "S"
+    assert gate["mode"] == "System 1"
+    assert gate["understanding_status"] == "confirmed"
+    assert "分类: bug修复 | 级别: S | 模式: System 1 | 理解: 已确认" in gate["declaration"]
+    assert "POST_MEM" in gate["required_gates"]
+    assert gate["truthfulness"]["requires_evidence"] is True
+
+
+def test_cos_gate_promotes_architecture_rag_goal_to_xl_system_2():
+    gate = classify_cos_gate(
+        "ttmevolve需要，对代码做审计，做模块解耦拆分代码，设计高效内部通信总线，"
+        "提升整体运行效率和响应速度。ttmevolve需要着重优化向量记忆，rag方面知识库，"
+        "提升整体记忆加载速度。ttmevolve需要agent层，核心运行层，学习转化层的各自独立运行和相互联通优化。"
+    ).to_dict()
+
+    assert gate["task_type"] == "refactor_optimization"
+    assert gate["level"] == "XL"
+    assert gate["mode"] == "System 2"
+    assert "RESEARCH" in gate["required_gates"]
+    assert "DOC_READ" in gate["required_gates"]
+    assert gate["multi_agent"]["recommendation"] == "encouraged"
+    assert gate["project_management"]["health_check_required"] is True
+
+
+def test_cos_gate_marks_vague_instruction_for_decomposition():
+    gate = classify_cos_gate("把战斗做好玩一点").to_dict()
+
+    assert gate["understanding_status"] == "decompose_vague"
+    assert "模糊拆解中" in gate["declaration"]
+    assert "DECOMPOSE_VAGUE" in gate["required_gates"]
+    assert "USER_CONFIRM" in gate["required_gates"]
+    assert 2 <= len(gate["vague_protocol"]["proposed_subtasks"]) <= 5

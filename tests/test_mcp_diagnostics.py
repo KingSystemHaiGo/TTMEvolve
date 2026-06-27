@@ -87,6 +87,14 @@ def test_mcp_integration_reports_status_and_last_call():
             assert status["last_call"]["elapsed_ms"] >= 0
             assert status["last_call"]["params_keys"] == ["message"]
 
+            result = agent.executor.propose_action("s1", "maker_status_lite", {})
+            assert result["ok"] is True
+            assert result["result"]["status"] == "ok"
+            status = agent.mcp_integration.status()
+            assert status["last_call"]["tool"] == "maker_status_lite"
+            assert status["last_call"]["ok"] is True
+            assert status["last_call"]["params_keys"] == []
+
             result = agent.mcp_integration._maker_handler("maker_list_tasks")
             assert result["ok"] is True
             status = agent.mcp_integration.status()

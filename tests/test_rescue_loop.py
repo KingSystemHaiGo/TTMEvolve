@@ -13,6 +13,8 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from agent.agent import TapMakerAgent
+from agent.rescue_orchestrator import RescueOrchestrator
+from agent.rescue_trigger import RescueTrigger
 from core.config import Config
 from llm.interface import LLMInterface
 from llm.mock_llm import MockLLM
@@ -143,8 +145,40 @@ def test_rescue_flow():
     print("[PASS] rescue flow completes task with expert help")
 
 
+def test_rescue_numeric_state_is_sanitized():
+    cfg = Config()
+    cfg.data = {
+        "rescue": {
+            "max_rescue_per_session": "bad",
+            "cooldown_seconds": "bad",
+        }
+    }
+    cfg._profiles = {}
+
+    class DummyExpert:
+        def is_available(self):
+            return True
+
+    orchestrator = RescueOrchestrator(
+        react_loop=object(),
+        expert_rescuer=DummyExpert(),
+        trigger=RescueTrigger(cfg),
+        distiller=None,
+        health=None,
+        config=cfg,
+    )
+    orchestrator._rescue_count = "0"
+    orchestrator._max_rescue_per_session = "2"
+    orchestrator._last_rescue_time = "not-a-float"
+    orchestrator._cooldown_seconds = "0"
+
+    assert orchestrator._can_rescue() is None
+    print("[PASS] rescue numeric state is sanitized")
+
+
 if __name__ == "__main__":
     test_rescue_disabled()
     test_rescue_thought_injection()
     test_rescue_flow()
+    test_rescue_numeric_state_is_sanitized()
     print("[PASS] all rescue loop tests")

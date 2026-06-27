@@ -55,6 +55,14 @@ for line in sys.stdin:
                         },
                     },
                     {
+                        "name": "maker_status_lite",
+                        "description": "fake TapTap Maker status tool",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {},
+                        },
+                    },
+                    {
                         "name": "maker_slow",
                         "description": "fake slow TapTap Maker tool",
                         "inputSchema": {
@@ -103,6 +111,17 @@ for line in sys.stdin:
                     "content": [
                         {"type": "text", "text": "slow-done"}
                     ]
+                },
+            })
+            continue
+        if tool_name == "maker_status_lite":
+            write({
+                "jsonrpc": "2.0",
+                "id": request.get("id"),
+                "result": {
+                    "status": "ok",
+                    "readiness": "ready",
+                    "tool_count": 5,
                 },
             })
             continue

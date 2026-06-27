@@ -10,7 +10,6 @@ agent/agent.py — TapMaker Agent 顶层入口
 """
 
 from __future__ import annotations
-import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -18,6 +17,7 @@ from typing import Any, Callable, Dict, List, Optional
 from core.config import Config
 from agent.builtin_tools import register_builtin_tools
 from agent.mcp_integration import MCPIntegration
+from agent.learning_queue import LearningJobQueue, LearningJobRequest
 from agent.react_loop import ReActLoop
 from agent.rescue_orchestrator import RescueOrchestrator
 from agent.rescue_trigger import RescueTrigger
@@ -43,6 +43,7 @@ from learning.reflection import ReflectionEngine
 from learning.skill_generator import SkillGenerator
 from learning.knowledge_base import KnowledgeBase
 from learning.knowledge_seeds import seed_knowledge_base
+from learning.shared_memory_bridge import archive_learning_insights_to_shared_memory
 from learning.validator import SkillValidator
 
 from llm.expert_rescuer import ExpertRescuer
@@ -78,8 +79,6 @@ class TapMakerAgent:
         self.event_sink: Optional[Callable[[Dict[str, Any]], None]] = None
         self.event_bus = RuntimeEventBus()
         self._event_queues: Dict[str, List[Dict[str, Any]]] = {}
-        self._learning_jobs: Dict[str, Dict[str, Any]] = {}
-        self._learning_jobs_lock = threading.Lock()
 
         # 记忆 / 上下文预算
         self.memory_manager = MemoryManager(
@@ -177,6 +176,15 @@ class TapMakerAgent:
             validator=SkillValidator(),
             registry=self.resource_registry,
             skill_sync_registry=self.skill_sync_registry,
+        )
+        self.learning_jobs = LearningJobQueue(
+            processor=self._process_learning_job,
+            on_transition=self._on_learning_job_transition,
+            max_attempts=int(self.config.get("learning.max_attempts", 1) or 1),
+            retry_delay_seconds=float(self.config.get("learning.retry_delay_seconds", 0.0) or 0.0),
+            worker_idle_timeout_seconds=float(
+                self.config.get("learning.worker_idle_timeout_seconds", 5.0) or 5.0
+            ),
         )
         # 专家救援与教学闭环（可选）
         self.expert_rescuer: Optional[ExpertRescuer] = None
@@ -584,15 +592,19 @@ class TapMakerAgent:
         return list(self._event_queues.get(session_id, []))
 
     def get_learning_job(self, session_id: str) -> Dict[str, Any]:
-        with self._learning_jobs_lock:
-            return dict(self._learning_jobs.get(session_id, {
-                "session_id": session_id,
-                "status": "missing",
-            }))
+        return self.learning_jobs.get(session_id)
 
     def list_learning_jobs(self) -> List[Dict[str, Any]]:
-        with self._learning_jobs_lock:
-            return [dict(job) for job in self._learning_jobs.values()]
+        return self.learning_jobs.list_jobs()
+
+    def learning_queue_summary(self) -> Dict[str, Any]:
+        return self.learning_jobs.summary()
+
+    def cancel_learning_job(self, session_id: str) -> Dict[str, Any]:
+        return self.learning_jobs.cancel(session_id)
+
+    def retry_learning_job(self, session_id: str) -> Dict[str, Any]:
+        return self.learning_jobs.retry(session_id)
 
     def _run_internal(self, task: str, sid: str) -> Dict[str, Any]:
         run_started_at = time.time()
@@ -731,131 +743,86 @@ class TapMakerAgent:
     ) -> Dict[str, Any]:
         eligible = int(result.get("iteration_count") or 0) >= 2
         async_enabled = bool(self.config.get("learning.async_enabled", True))
-        sink = self.event_sink
-        now = time.time()
-        job = {
-            "session_id": session_id,
-            "status": "queued" if eligible else "skipped",
-            "eligible": eligible,
-            "async": async_enabled and eligible,
-            "queued_at": now,
-            "started_at": None,
-            "finished_at": None,
-            "elapsed_ms": 0,
-            "error": "",
+        return self.learning_jobs.submit(
+            LearningJobRequest(
+                session_id=session_id,
+                task=task,
+                result=result,
+                correlation_id=correlation_id,
+                sink=self.event_sink,
+            ),
+            eligible=eligible,
+            async_enabled=async_enabled,
+        )
+    def _process_learning_job(self, session_id: str, task: str, result: Dict[str, Any]) -> Dict[str, Any]:
+        learning_summary = self._learn_from_session(session_id, task, result)
+        if learning_summary.get("error"):
+            raise RuntimeError(str(learning_summary.get("error")))
+        return learning_summary
+
+    def _on_learning_job_transition(self, transition: str, session_id: str, job: Dict[str, Any]) -> None:
+        event_map = {
+            "queued": ("learning.reflection.queued", "active", "runtime", "learning", "runtime_audit_finished"),
+            "skipped": ("learning.reflection.skipped", "done", "runtime", "learning", "runtime_audit_finished"),
+            "started": ("learning.reflection.started", "active", "runtime", "learning", "learning_job_started"),
+            "retry_queued": ("learning.reflection.retry_queued", "active", "learning", "learning", "learning_job_retry"),
+            "cancel_requested": (
+                "learning.reflection.cancel_requested",
+                "active",
+                "runtime",
+                "learning",
+                "learning_job_cancel_requested",
+            ),
+            "cancelled": ("learning.reflection.cancelled", "done", "learning", "storage", "learning_job_cancelled"),
+            "finished": ("learning.reflection.finished", "done", "learning", "storage", "reflection_pipeline_completed"),
+            "failed": ("learning.reflection.failed", "error", "learning", "storage", "reflection_pipeline_failed"),
         }
-        with self._learning_jobs_lock:
-            self._learning_jobs[session_id] = dict(job)
-
+        event_name, state, source_layer, target_layer, cause = event_map.get(
+            transition,
+            ("learning.reflection.status", "active", "learning", "learning", "learning_job_status"),
+        )
+        summary = job.get("summary") if isinstance(job.get("summary"), dict) else {}
+        shared_memory = job.get("shared_memory") if isinstance(job.get("shared_memory"), dict) else {}
+        shared_counts = shared_memory.get("counts") if isinstance(shared_memory.get("counts"), dict) else {}
+        metrics = {
+            "eligible": job.get("eligible"),
+            "async": job.get("async"),
+            "attempts": job.get("attempts", 0),
+            "max_attempts": job.get("max_attempts"),
+            "retryable": job.get("retryable"),
+            "cancel_requested": job.get("cancel_requested"),
+            "elapsed_ms": job.get("elapsed_ms", 0),
+            "error": job.get("error", ""),
+            "insight_count": job.get("insight_count", summary.get("insight_count", 0)),
+            "shared_memory_archived": shared_counts.get("archived", 0),
+            "shared_memory_promoted": shared_counts.get("promoted", 0),
+            "shared_memory_conflicts": shared_counts.get("conflicts", 0),
+        }
         self._emit_layer_event(
             session_id,
             "learning",
-            "active" if eligible else "done",
-            "学习任务已入队" if eligible else "学习层跳过：轨迹不足",
-            event="learning.reflection.queued" if eligible else "learning.reflection.skipped",
-            source_layer="runtime",
-            target_layer="learning",
-            correlation_id=correlation_id,
-            cause="runtime_audit_finished",
-            metrics={"eligible": eligible, "async": async_enabled and eligible},
-            sink=sink,
+            state,
+            self._learning_transition_detail(transition),
+            event=event_name,
+            source_layer=source_layer,
+            target_layer=target_layer,
+            correlation_id=str(job.get("correlation_id") or session_id),
+            cause=cause,
+            metrics=metrics,
+            sink=job.get("sink"),
         )
 
-        if not eligible:
-            return self.get_learning_job(session_id)
-
-        if async_enabled:
-            thread = threading.Thread(
-                target=self._run_learning_job,
-                args=(session_id, task, result, correlation_id, sink),
-                name=f"ttmevolve-learning-{session_id}",
-                daemon=True,
-            )
-            thread.start()
-            return self.get_learning_job(session_id)
-
-        self._run_learning_job(session_id, task, result, correlation_id, sink)
-        return self.get_learning_job(session_id)
-
-    def _run_learning_job(
-        self,
-        session_id: str,
-        task: str,
-        result: Dict[str, Any],
-        correlation_id: str,
-        sink: Optional[Callable[[Dict[str, Any]], None]],
-    ) -> None:
-        started_at = time.time()
-        with self._learning_jobs_lock:
-            job = dict(self._learning_jobs.get(session_id, {}))
-            job.update({"status": "running", "started_at": started_at})
-            self._learning_jobs[session_id] = job
-
-        self._emit_layer_event(
-            session_id,
-            "learning",
-            "active",
-            "沉淀轨迹和经验",
-            event="learning.reflection.started",
-            source_layer="runtime",
-            target_layer="learning",
-            correlation_id=correlation_id,
-            cause="learning_job_started",
-            metrics={"eligible": True, "async": job.get("async", False)},
-            sink=sink,
-        )
-
-        try:
-            self._learn_from_session(session_id, task, result)
-            finished_at = time.time()
-            elapsed_ms = (finished_at - started_at) * 1000
-            with self._learning_jobs_lock:
-                job = dict(self._learning_jobs.get(session_id, {}))
-                job.update({
-                    "status": "done",
-                    "finished_at": finished_at,
-                    "elapsed_ms": elapsed_ms,
-                    "error": "",
-                })
-                self._learning_jobs[session_id] = job
-            self._emit_layer_event(
-                session_id,
-                "learning",
-                "done",
-                "学习层处理完成，知识下次按需检索",
-                event="learning.reflection.finished",
-                source_layer="learning",
-                target_layer="storage",
-                correlation_id=correlation_id,
-                cause="reflection_pipeline_completed",
-                metrics={"elapsed_ms": elapsed_ms, "async": job.get("async", False)},
-                sink=sink,
-            )
-        except Exception as e:
-            finished_at = time.time()
-            elapsed_ms = (finished_at - started_at) * 1000
-            with self._learning_jobs_lock:
-                job = dict(self._learning_jobs.get(session_id, {}))
-                job.update({
-                    "status": "error",
-                    "finished_at": finished_at,
-                    "elapsed_ms": elapsed_ms,
-                    "error": str(e),
-                })
-                self._learning_jobs[session_id] = job
-            self._emit_layer_event(
-                session_id,
-                "learning",
-                "error",
-                "学习层处理失败",
-                event="learning.reflection.failed",
-                source_layer="learning",
-                target_layer="storage",
-                correlation_id=correlation_id,
-                cause="reflection_pipeline_failed",
-                metrics={"elapsed_ms": elapsed_ms, "error": str(e), "async": job.get("async", False)},
-                sink=sink,
-            )
+    def _learning_transition_detail(self, transition: str) -> str:
+        return {
+            "queued": "Learning job queued.",
+            "skipped": "Learning skipped because the trajectory is too short.",
+            "started": "Learning job started.",
+            "retry_queued": "Learning job retry queued after a failed attempt.",
+            "cancel_requested": "Learning cancellation requested; running work stops at the next boundary.",
+            "cancelled": "Learning job cancelled.",
+            "finished": "Learning job finished; knowledge is available on demand.",
+            "failed": "Learning job failed; user task result is kept separate.",
+        }.get(transition, "Learning job state changed.")
 
     def _extract_budget_stats(self, trajectory: List[Dict[str, Any]]) -> Dict[str, float]:
         """从最后一步中提取 budget stats。"""
@@ -896,11 +863,25 @@ class TapMakerAgent:
         session_id: str,
         task: str,
         result: Dict[str, Any],
-    ) -> None:
+    ) -> Dict[str, Any]:
         try:
             insights = self.reflection.reflect(session_id, task, result["trajectory"])
             for item in insights:
                 self.knowledge_base.store(item)
+
+            # Archive insights privately before shared-memory promotion review.
+            shared_summary: Dict[str, Any] = {}
+            cold_memory = getattr(self.memory_manager, "cold", None)
+            if cold_memory is not None and self.config.get("learning.shared_memory_outcomes_enabled", True):
+                shared_summary = archive_learning_insights_to_shared_memory(
+                    cold_memory,
+                    session_id=session_id,
+                    task=task,
+                    insights=insights,
+                    result=result,
+                    agent_id=str(self.config.get("agent.id", "default")),
+                    workspace_profile=str(result.get("workspace_profile") or "general"),
+                )
 
             # 如果反思发现可复用模式，生成技能
             if self.config.get("learning.skill_generation_enabled", True):
@@ -915,6 +896,7 @@ class TapMakerAgent:
                         source="learning",
                         payload={"skill": skill},
                     ))
+            return {"insight_count": len(insights), "shared_memory": shared_summary}
         except Exception as e:
             self.event_log.append(Event.create(
                 "learning_failed",
@@ -922,6 +904,7 @@ class TapMakerAgent:
                 source="learning",
                 payload={"error": str(e)},
             ))
+            return {"insight_count": 0, "shared_memory": {}, "error": str(e)}
 
     def _on_repair_success(self, session_id: str, info: Dict[str, Any]) -> None:
         """修复成功后，触发学习转化层从修复中学习。"""

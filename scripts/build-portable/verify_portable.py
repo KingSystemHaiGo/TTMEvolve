@@ -1,17 +1,16 @@
-"""verify_portable.py — 验证 portable runtime 完整性（离线可用性）
+"""Verify portable runtime completeness for offline use.
 
-检查项：
-1. portable Python 存在 + 可执行
-2. portable Node 存在 + 可执行（可选）
-3. site-packages 关键包可 import
-4. Maker MCP stdio 入口存在
-5. portable/ 总大小 < 预算
+Checks:
+1. portable Python exists and runs
+2. portable Node exists and runs, if present
+3. key site-packages import through portable Python
+4. Maker MCP stdio launcher exists, if present
+5. portable/ size is under budget
 """
 
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -99,7 +98,6 @@ def check_site_packages() -> Tuple[bool, str]:
         site_dir = py_dir / "site-packages" if py_dir else None
     if site_dir is None or not site_dir.exists():
         return False, f"site-packages missing: {site_dir}"
-    # Smoke test: import key packages
     env = os.environ.copy()
     env["PYTHONPATH"] = str(site_dir)
     result = subprocess.run(
@@ -145,15 +143,15 @@ def main(max_budget_mb: int = 500) -> int:
     ]
     failures = 0
     for ok, msg in checks:
-        marker = "✓" if ok else "✗"
+        marker = "OK" if ok else "FAIL"
         print(f"  [{marker}] {msg}")
         if not ok:
             failures += 1
     print("=" * 60)
     if failures == 0:
-        print("✅ portable runtime verification passed (offline-ready)")
+        print("portable runtime verification passed (offline-ready)")
         return 0
-    print(f"❌ {failures} check(s) failed")
+    print(f"{failures} check(s) failed")
     return 1
 
 

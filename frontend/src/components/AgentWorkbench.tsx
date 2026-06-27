@@ -239,15 +239,202 @@ interface LearningEventPreview {
   timestamp?: number
 }
 
+interface LearningJobPolicyPreview {
+  managed?: boolean
+  mode?: string
+  source?: string
+  max_attempts?: number
+  retry_delay_seconds?: number
+  worker_idle_timeout_seconds?: number
+  cancellation?: string
+  truthfulness_rule?: string
+}
+
+interface LearningJobPreview {
+  session_id?: string
+  status?: string
+  source?: string
+  event?: string
+  state?: string
+  health?: string
+  job_status?: string
+  queue_depth?: number
+  eligible?: boolean
+  async?: boolean
+  attempts?: number
+  max_attempts?: number
+  retryable?: boolean
+  cancel_requested?: boolean
+  cancelled?: boolean
+  retried?: boolean
+  reason?: string
+  elapsed_ms?: number
+  error?: string
+  insight_count?: number
+  shared_memory?: {
+    counts?: {
+      archived?: number
+      promoted?: number
+      conflicts?: number
+    }
+  }
+  policy?: LearningJobPolicyPreview
+}
+
 interface LearningPreview {
   count?: number
   latest?: LearningEventPreview | null
+  job?: LearningJobPreview | null
+  policy?: LearningJobPolicyPreview
+}
+
+interface RagBenchmarkPreview {
+  status?: string
+  budget_status?: string
+  endpoint?: string
+  record_count?: number
+  cache?: string
+  cache_ttl_seconds?: number
+  checked_at?: number
+  no_network_call?: boolean
+  truthfulness?: string
+  embedding_quality?: {
+    status?: string
+    coverage?: string
+    can_claim_production_embedding_quality?: boolean
+  }
+  closure_gate?: {
+    can_claim_deterministic_rag_speed?: boolean
+    can_claim_production_embedding_quality?: boolean
+  }
+  config?: {
+    record_count?: number
+    requested_record_count?: number
+    warm_runs?: number
+  }
+  metrics?: {
+    index_size?: number
+    build_ms?: number
+    cold_start_ms?: number
+    first_recall_ms?: number
+    warm_recall_p95_ms?: number
+    warm_recall_max_ms?: number
+    profile_hit_rate?: number
+    fallback_hit_rate?: number
+  }
+  budgets?: Record<string, {
+    value?: number
+    threshold?: number
+    relation?: string
+    ok?: boolean
+  }>
+  note?: string
+}
+
+interface ProjectControlActionPreview {
+  id?: string
+  source?: string
+  priority?: number
+  owner_layer?: string
+  domain?: string
+  reason?: string
+}
+
+interface ProjectControlLayerSummary {
+  status?: string
+  decision?: string
+  signal_count?: number
+  action_count?: number
+  can_claim_layer_independence?: boolean
+  can_continue_user_task?: boolean
+  top_action?: ProjectControlActionPreview
+}
+
+interface ProjectControlEngineeringSummary {
+  status?: string
+  decision?: string
+  signal_count?: number
+  action_count?: number
+  memory_total_hits?: number
+  tool_failure_count?: number
+  plan_verdict?: string
+  can_claim_engineering_control_ready?: boolean
+  can_continue_user_task?: boolean
+  can_claim_memory_rag_optimized?: boolean
+  top_action?: ProjectControlActionPreview
+}
+
+interface ProjectControlPreview {
+  version?: string
+  status?: string
+  current_focus?: string
+  next_action?: string
+  blockers?: Array<{
+    id?: string
+    severity?: string
+    detail?: string
+  }>
+  classification?: {
+    task_type?: string
+    task_type_label?: string
+    level?: string
+    mode?: string
+    understanding_status?: string
+    declaration?: string
+  }
+  required_gates?: string[]
+  completed_gates?: string[]
+  pending_gates?: string[]
+  memory_updates_due?: Array<{
+    gate?: string
+    file?: string
+  }>
+  verification?: {
+    status?: string
+    requires_evidence?: boolean
+    rule?: string
+    evidence_sources?: string[]
+  }
+  project_manager?: {
+    role?: string
+    health_check_required?: boolean
+    owns_next_action?: boolean
+  }
+  layer_control?: ProjectControlLayerSummary
+  engineering_control?: ProjectControlEngineeringSummary
+  control_actions?: ProjectControlActionPreview[]
+}
+
+interface ProjectWritebackPreview {
+  version?: string
+  status?: string
+  applicable?: boolean
+  operation_count?: number
+  files?: string[]
+  invalid_target_count?: number
+  reason?: string
+  endpoint?: string
+}
+
+interface ProjectStatePreview {
+  status?: string
+  source?: string
+  next_action?: string
+  next_focus?: string
+  goal_overall?: string
+  plan_verdict?: string
+  last_tool?: string
+  risk_flags?: string[]
+  project_control?: ProjectControlPreview
 }
 
 interface EvidenceBundlePreview {
   version?: string
   session_id?: string
   task?: string
+  project_state?: ProjectStatePreview
+  project_control?: ProjectControlPreview
+  project_writeback?: ProjectWritebackPreview
   runtime_advice?: RuntimeAdvicePreview
   maker_mcp?: {
     readiness?: string
@@ -272,6 +459,18 @@ interface EvidenceBundlePreview {
     remote_tool_count?: number
   }
   latest_context_sync?: HandoffPreview['latest_context_sync']
+  resume_drill?: {
+    status?: string
+    capability_levels?: {
+      durable_handoff?: { status?: string }
+      warm_process?: { status?: string }
+      hot_tool_call?: { status?: string }
+    }
+    closure_gate?: {
+      can_claim_long_task_durable_handoff?: boolean
+      can_claim_hot_tool_call_resume?: boolean
+    }
+  }
   layer_summary?: {
     event_count?: number
     latest_by_layer?: Record<string, {
@@ -281,8 +480,29 @@ interface EvidenceBundlePreview {
       target_layer?: string
     }>
   }
+  layer_health?: {
+    layers?: {
+      learning?: LearningJobPreview
+    }
+  }
   runtime_metrics_summary?: RuntimeMetricsSummary
   learning_latest?: LearningEventPreview | null
+  learning_job?: LearningJobPreview
+  learning_policy?: LearningJobPolicyPreview
+  rag_benchmark?: RagBenchmarkPreview
+  layer_control?: {
+    status?: string
+    decision?: string
+  }
+  engineering_control?: {
+    status?: string
+    decision?: string
+    summary?: {
+      memory_total_hits?: number
+      tool_failure_count?: number
+      plan_verdict?: string
+    }
+  }
   maker_guard_latest?: HandoffPreview['maker_guard_latest']
   llm_probe_latest?: HandoffPreview['llm_probe_latest']
   llm_call_proof?: {
@@ -617,6 +837,10 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
   const [runtimeMetricsState, setRuntimeMetricsState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [learningPreview, setLearningPreview] = useState<LearningPreview | null>(null)
   const [learningPreviewState, setLearningPreviewState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [learningControlState, setLearningControlState] = useState<'idle' | 'canceling' | 'retrying' | 'done' | 'error'>('idle')
+  const [learningControlMessage, setLearningControlMessage] = useState('')
+  const [ragBenchmarkPreview, setRagBenchmarkPreview] = useState<RagBenchmarkPreview | null>(null)
+  const [ragBenchmarkState, setRagBenchmarkState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [evidencePreview, setEvidencePreview] = useState<EvidenceBundlePreview | null>(null)
   const [evidencePreviewState, setEvidencePreviewState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [onboardingCopyState, setOnboardingCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
@@ -696,18 +920,40 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
       : ''
   )
   const metricsUrl = metricsPath ? `${API_BASE}${metricsPath}` : ''
+  const projectWritebackPath = communication.project_writeback || (
+    state.sessionId
+      ? `/sessions/${state.sessionId}/project-writeback`
+      : ''
+  )
+  const projectWritebackUrl = projectWritebackPath ? `${API_BASE}${projectWritebackPath}` : ''
   const learningPath = communication.learning_status || (
     state.sessionId
       ? `/sessions/${state.sessionId}/learning?steps=20`
       : ''
   )
   const learningUrl = learningPath ? `${API_BASE}${learningPath}` : ''
+  const learningCancelPath = communication.learning_cancel || (
+    state.sessionId
+      ? `/sessions/${state.sessionId}/learning/cancel`
+      : ''
+  )
+  const learningCancelUrl = learningCancelPath ? `${API_BASE}${learningCancelPath}` : ''
+  const learningRetryPath = communication.learning_retry || (
+    state.sessionId
+      ? `/sessions/${state.sessionId}/learning/retry`
+      : ''
+  )
+  const learningRetryUrl = learningRetryPath ? `${API_BASE}${learningRetryPath}` : ''
+  const ragBenchmarkPath = communication.rag_benchmark || '/memory/rag-benchmark'
+  const ragBenchmarkUrl = ragBenchmarkPath ? `${API_BASE}${ragBenchmarkPath}` : ''
   const tokenRules = contract.tokenEfficiency?.rules || []
   const status = readiness === 'ready'
     ? 'ready'
     : readiness === 'disconnected'
       ? 'offline'
       : 'degraded'
+  const projectControlPreview = evidencePreview?.project_state?.project_control || evidencePreview?.project_control || null
+  const projectWritebackPreview = evidencePreview?.project_writeback || null
 
   useEffect(() => {
     setQuickstartPreview(null)
@@ -725,12 +971,17 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
     setRuntimeMetricsState('idle')
     setLearningPreview(null)
     setLearningPreviewState('idle')
+    setLearningControlState('idle')
+    setLearningControlMessage('')
+    setRagBenchmarkPreview(null)
+    setRagBenchmarkState('idle')
     setEvidencePreview(null)
     setEvidencePreviewState('idle')
     setEvidenceCopyState('idle')
   }, [state.sessionId])
 
   const applyEvidenceBundle = useCallback((data: EvidenceBundlePreview) => {
+    const learningJob = data.learning_job || learningJobFromLayerHealth(data.layer_health)
     setEvidencePreview(data)
     setAdvicePreview(data.runtime_advice || null)
     setAdvicePreviewState('idle')
@@ -743,8 +994,12 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
     setLearningPreview({
       count: data.counts?.learning,
       latest: data.learning_latest || null,
+      job: learningJob || null,
+      policy: learningJob?.policy || data.learning_policy || {},
     })
     setLearningPreviewState('idle')
+    setRagBenchmarkPreview(data.rag_benchmark || null)
+    setRagBenchmarkState('idle')
   }, [])
 
   const loadEvidenceBundle = useCallback(async (mode: 'manual' | 'auto' = 'manual') => {
@@ -874,12 +1129,58 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
       setLearningPreview({
         count: data.count,
         latest: data.latest || null,
+        job: data.job || null,
+        policy: data.policy || data.job?.policy || {},
       })
       setLearningPreviewState('idle')
     } catch {
       setLearningPreviewState('error')
     }
   }, [learningUrl])
+
+  const postLearningControl = useCallback(async (kind: 'cancel' | 'retry') => {
+    const url = kind === 'cancel' ? learningCancelUrl : learningRetryUrl
+    if (!url) return
+    setLearningControlState(kind === 'cancel' ? 'canceling' : 'retrying')
+    setLearningControlMessage('')
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      })
+      let data: Record<string, unknown> = {}
+      try {
+        data = await response.json()
+      } catch {
+        data = {}
+      }
+      const job = (data.job && typeof data.job === 'object'
+        ? data.job
+        : data) as LearningJobPreview
+      if (!response.ok || data.ok === false) {
+        const reason = String(data.error || data.reason || `${kind} failed with ${response.status}`)
+        setLearningControlState('error')
+        setLearningControlMessage(`blocked: ${reason}`)
+      } else {
+        setLearningPreview((previous) => ({
+          ...(previous || {}),
+          job,
+          policy: job.policy || previous?.policy || {},
+        }))
+        setLearningControlState('done')
+        setLearningControlMessage(learningControlResultSummary(kind, job))
+        window.setTimeout(() => setLearningControlState('idle'), 1600)
+      }
+      await loadLearningStatus('auto')
+      if (evidenceUrl) {
+        await loadEvidenceBundle('auto')
+      }
+    } catch (error) {
+      setLearningControlState('error')
+      setLearningControlMessage(`failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }, [evidenceUrl, learningCancelUrl, learningRetryUrl, loadEvidenceBundle, loadLearningStatus])
 
   useEffect(() => {
     if (evidenceUrl || !learningUrl || !state.sessionId) return
@@ -897,6 +1198,23 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
     state.layers.learning.event,
     state.layers.learning.timestamp,
   ])
+
+  const loadRagBenchmark = useCallback(async (force = false) => {
+    if (!ragBenchmarkUrl || ragBenchmarkState === 'loading') return
+    setRagBenchmarkState('loading')
+    try {
+      const separator = ragBenchmarkUrl.includes('?') ? '&' : '?'
+      const response = await fetch(force ? `${ragBenchmarkUrl}${separator}force=true` : ragBenchmarkUrl)
+      if (!response.ok) {
+        throw new Error(`rag benchmark ${response.status}`)
+      }
+      const data = await response.json()
+      setRagBenchmarkPreview(data)
+      setRagBenchmarkState('idle')
+    } catch {
+      setRagBenchmarkState('error')
+    }
+  }, [ragBenchmarkState, ragBenchmarkUrl])
 
   const copyHandoff = async () => {
     if (!handoffUrl) return
@@ -1041,6 +1359,10 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
     }
   }
 
+  const learningJob = learningPreview?.job || null
+  const learningActionBusy = learningControlState === 'canceling' || learningControlState === 'retrying'
+  const learningBoundary = learningControlBoundary(learningJob)
+
   return (
     <div className={`workbench-runtime-contract contract-${status}`}>
       <div className="workbench-contract-head">
@@ -1133,6 +1455,41 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
               <small key={`${line}-${index}`}>{line}</small>
             ))}
           </div>
+        </div>
+      )}
+      {projectControlPreview && (
+        <div className={`workbench-project-control project-${projectControlClass(projectControlPreview)}`}>
+          <div className="workbench-project-control-head">
+            <span>项目控制</span>
+            <strong>{projectControlSummary(projectControlPreview)}</strong>
+          </div>
+          <div className="workbench-project-control-grid">
+            <Metric label="状态" value={projectControlStatusLabel(projectControlPreview.status)} />
+            <Metric label="门槛" value={projectControlGateSummary(projectControlPreview)} />
+            <Metric label="验证" value={projectControlPreview.verification?.status || '-'} />
+            <Metric label="POST" value={String(projectControlPreview.memory_updates_due?.length ?? 0)} />
+          </div>
+          {projectControlPreview.next_action && (
+            <small>下一步：{projectControlPreview.next_action}</small>
+          )}
+          {projectControlLayerSummary(projectControlPreview) && (
+            <small>Layer control: {projectControlLayerSummary(projectControlPreview)}</small>
+          )}
+          {projectControlEngineeringSummary(projectControlPreview) && (
+            <small>Engineering control: {projectControlEngineeringSummary(projectControlPreview)}</small>
+          )}
+          {projectControlActionSummary(projectControlPreview) && (
+            <em>{projectControlActionSummary(projectControlPreview)}</em>
+          )}
+          {projectControlBlockerSummary(projectControlPreview) && (
+            <em>{projectControlBlockerSummary(projectControlPreview)}</em>
+          )}
+          {projectControlMemoryDue(projectControlPreview) && (
+            <code>{projectControlMemoryDue(projectControlPreview)}</code>
+          )}
+          {projectWritebackPreview && (
+            <small>写回计划：{projectWritebackSummary(projectWritebackPreview, projectWritebackUrl)}</small>
+          )}
         </div>
       )}
       {quickstartUrl && (
@@ -1241,6 +1598,12 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
           <strong>{communication.runtime_metrics}</strong>
         </div>
       )}
+      {communication.project_writeback && (
+        <div className="workbench-contract-line">
+          <span>写回</span>
+          <strong>{communication.project_writeback}</strong>
+        </div>
+      )}
       {metricsUrl && (
         <div className="workbench-runtime-metrics">
           <div className="workbench-runtime-metrics-head">
@@ -1262,6 +1625,32 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
           </div>
           {runtimeMetricsPreview?.latest && (
             <small>{runtimeLatestMetricSummary(runtimeMetricsPreview.latest)}</small>
+          )}
+        </div>
+      )}
+      {ragBenchmarkUrl && (
+        <div className={`workbench-rag-benchmark benchmark-${ragBenchmarkClass(ragBenchmarkPreview, ragBenchmarkState)}`}>
+          <div className="workbench-rag-benchmark-head">
+            <span>记忆基准</span>
+            <strong>{ragBenchmarkSummary(ragBenchmarkPreview, ragBenchmarkState)}</strong>
+            <button type="button" onClick={() => loadRagBenchmark(true)}>
+              {ragBenchmarkState === 'loading'
+                ? '读取中'
+                : ragBenchmarkState === 'error'
+                  ? '重试'
+                  : '刷新'}
+            </button>
+          </div>
+          <div className="workbench-rag-benchmark-grid">
+            <Metric label="预算" value={ragBenchmarkPreview?.budget_status || '-'} />
+            <Metric label="Quality" value={ragBenchmarkPreview?.embedding_quality?.status || '-'} />
+            <Metric label="记录" value={String(ragBenchmarkRecordCount(ragBenchmarkPreview))} />
+            <Metric label="首召回" value={formatMs(ragBenchmarkPreview?.metrics?.first_recall_ms)} />
+            <Metric label="Warm p95" value={formatMs(ragBenchmarkPreview?.metrics?.warm_recall_p95_ms)} />
+          </div>
+          <small>{ragBenchmarkDetailLine(ragBenchmarkPreview, ragBenchmarkUrl)}</small>
+          {(ragBenchmarkPreview?.truthfulness || ragBenchmarkPreview?.note) && (
+            <code>{ragBenchmarkPreview.truthfulness || ragBenchmarkPreview.note}</code>
           )}
         </div>
       )}
@@ -1312,7 +1701,7 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
         </div>
       )}
       {learningUrl && (
-        <div className={`workbench-learning-status learning-${learningPreview?.latest?.state || state.layers.learning.status || 'idle'}`}>
+        <div className={`workbench-learning-status learning-${learningStatusClass(learningPreview, state.layers.learning.status)}`}>
           <div className="workbench-learning-status-head">
             <span>学习状态</span>
             <strong>{learningStatusSummary(learningPreview, state.layers.learning.detail)}</strong>
@@ -1324,6 +1713,32 @@ function RuntimeContractPanel({ state }: { state: AgentWorkbenchState }) {
                   : '刷新'}
             </button>
           </div>
+          {learningJob && (
+            <small>{learningJobSummary(learningJob, learningPreview?.policy)}</small>
+          )}
+          {(learningCanCancel(learningJob) || learningCanRetry(learningJob) || learningControlMessage || learningBoundary) && (
+            <div className="workbench-learning-actions">
+              {learningCanCancel(learningJob) && (
+                <button
+                  type="button"
+                  onClick={() => void postLearningControl('cancel')}
+                  disabled={learningActionBusy}
+                >
+                  {learningControlState === 'canceling' ? 'Canceling' : 'Cancel'}
+                </button>
+              )}
+              {learningCanRetry(learningJob) && (
+                <button
+                  type="button"
+                  onClick={() => void postLearningControl('retry')}
+                  disabled={learningActionBusy}
+                >
+                  {learningControlState === 'retrying' ? 'Retrying' : 'Retry'}
+                </button>
+              )}
+              <small>{learningControlMessage || learningBoundary || learningControlIdleSummary(learningJob)}</small>
+            </div>
+          )}
           {learningPreview?.latest?.detail && <small>{learningPreview.latest.detail}</small>}
           {learningPreview?.latest?.metrics && (
             <code>{learningMetricsSummary(learningPreview.latest.metrics)}</code>
@@ -1816,6 +2231,143 @@ function runtimeAdviceEvidenceSummary(evidence: Record<string, unknown>): string
   return rows.length > 0 ? rows.join(' | ') : 'evidence=none'
 }
 
+function projectControlClass(control?: ProjectControlPreview | null): string {
+  const status = control?.status || 'instrumented'
+  const layerStatus = control?.layer_control?.status
+  const engineeringStatus = control?.engineering_control?.status
+  if (engineeringStatus === 'blocked') return 'blocked'
+  if (layerStatus === 'blocked') return 'blocked'
+  if (engineeringStatus === 'needs_action') return 'action'
+  if (layerStatus === 'needs_action') return 'action'
+  if (engineeringStatus === 'watch' && status === 'ready') return 'instrumented'
+  if (layerStatus === 'watch' && status === 'ready') return 'instrumented'
+  if (status === 'blocked') return 'blocked'
+  if (status === 'needs_confirmation') return 'confirm'
+  if (status === 'needs_action') return 'action'
+  if (status === 'ready') return 'ready'
+  return 'instrumented'
+}
+
+function projectControlStatusLabel(status?: string): string {
+  switch (status) {
+    case 'ready':
+      return '就绪'
+    case 'needs_confirmation':
+      return '待确认'
+    case 'needs_action':
+      return '需处理'
+    case 'blocked':
+      return '阻断'
+    case 'instrumented':
+      return '已观测'
+    default:
+      return status || '-'
+  }
+}
+
+function projectControlSummary(control?: ProjectControlPreview | null): string {
+  if (!control) return 'waiting for project control evidence'
+  const classification = control.classification || {}
+  return [
+    `status=${control.status || '-'}`,
+    classification.level ? `level=${classification.level}` : '',
+    classification.mode ? `mode=${classification.mode}` : '',
+    control.current_focus ? `focus=${control.current_focus}` : '',
+  ].filter(Boolean).join(' | ')
+}
+
+function projectControlGateSummary(control?: ProjectControlPreview | null): string {
+  if (!control) return '-'
+  const required = control.required_gates?.length ?? 0
+  const completed = control.completed_gates?.length ?? 0
+  const pending = control.pending_gates || []
+  if (pending.length > 0) {
+    return `${pending[0]}${pending.length > 1 ? ` +${pending.length - 1}` : ''}`
+  }
+  if (required > 0) return `${completed}/${required}`
+  return '-'
+}
+
+function projectControlBlockerSummary(control?: ProjectControlPreview | null): string {
+  const blockers = control?.blockers || []
+  if (blockers.length === 0) return ''
+  return blockers.slice(0, 2).map((blocker) => (
+    `${blocker.severity || 'warn'}:${blocker.id || blocker.detail || 'blocker'}`
+  )).join(' | ')
+}
+
+function projectControlMemoryDue(control?: ProjectControlPreview | null): string {
+  const due = control?.memory_updates_due || []
+  if (due.length === 0) return ''
+  return `POST ${due
+    .map((item) => [item.gate, item.file].filter(Boolean).join('='))
+    .filter(Boolean)
+    .join(' | ')}`
+}
+
+function projectControlLayerSummary(control?: ProjectControlPreview | null): string {
+  const layer = control?.layer_control
+  if (!layer || layer.status === 'missing') return ''
+  const claim = layer.can_claim_layer_independence === undefined
+    ? 'claim=-'
+    : layer.can_claim_layer_independence
+      ? 'claim=ready'
+      : 'claim=hold'
+  return [
+    `status=${layer.status || '-'}`,
+    `decision=${layer.decision || '-'}`,
+    `signals=${layer.signal_count ?? '-'}`,
+    claim,
+  ].join(' | ')
+}
+
+function projectControlEngineeringSummary(control?: ProjectControlPreview | null): string {
+  const engineering = control?.engineering_control
+  if (!engineering || engineering.status === 'missing') return ''
+  const claim = engineering.can_claim_engineering_control_ready === undefined
+    ? 'claim=-'
+    : engineering.can_claim_engineering_control_ready
+      ? 'claim=ready'
+      : 'claim=hold'
+  return [
+    `status=${engineering.status || '-'}`,
+    `decision=${engineering.decision || '-'}`,
+    `signals=${engineering.signal_count ?? '-'}`,
+    `mem_hits=${engineering.memory_total_hits ?? '-'}`,
+    `tool_fail=${engineering.tool_failure_count ?? '-'}`,
+    `plan=${engineering.plan_verdict || '-'}`,
+    claim,
+  ].join(' | ')
+}
+
+function projectControlActionSummary(control?: ProjectControlPreview | null): string {
+  const action = (
+    (control?.control_actions || [])[0]
+    || control?.engineering_control?.top_action
+    || control?.layer_control?.top_action
+  )
+  if (!action || !action.id) return ''
+  return [
+    `control=${action.source || action.domain || action.owner_layer || '-'}`,
+    action.id,
+    action.reason ? `reason=${action.reason}` : '',
+  ].filter(Boolean).join(' | ')
+}
+
+function projectWritebackSummary(preview?: ProjectWritebackPreview | null, fallbackEndpoint = ''): string {
+  if (!preview) return 'waiting for writeback evidence'
+  const files = preview.files?.length ? preview.files.join(',') : 'files=-'
+  return [
+    `status=${preview.status || '-'}`,
+    preview.applicable ? 'apply=ready' : 'apply=hold',
+    `ops=${preview.operation_count ?? '-'}`,
+    files,
+    preview.invalid_target_count ? `invalid=${preview.invalid_target_count}` : '',
+    preview.endpoint || fallbackEndpoint ? `endpoint=${preview.endpoint || fallbackEndpoint}` : '',
+    preview.reason ? `reason=${preview.reason}` : '',
+  ].filter(Boolean).join(' | ')
+}
+
 function runtimeMetricsSummary(summary?: RuntimeMetricsSummary): string {
   if (!summary) return '等待指标'
   const latency = summary.max_latency || {}
@@ -1858,12 +2410,174 @@ function runtimeLatestMetricSummary(metric: RuntimeMetricLatest): string {
   ].filter(Boolean).join(' | ')
 }
 
+function ragBenchmarkClass(
+  preview?: RagBenchmarkPreview | null,
+  state: 'idle' | 'loading' | 'error' = 'idle',
+): string {
+  if (state === 'loading') return 'loading'
+  if (state === 'error') return 'error'
+  if (!preview || preview.status === 'not_run') return 'not-run'
+  if (preview.status === 'ready' && preview.budget_status === 'pass') return 'pass'
+  if (preview.status === 'ready' && preview.budget_status !== 'pass') return 'warn'
+  return preview.status || 'unknown'
+}
+
+function ragBenchmarkSummary(
+  preview?: RagBenchmarkPreview | null,
+  state: 'idle' | 'loading' | 'error' = 'idle',
+): string {
+  if (state === 'loading') return 'running deterministic local benchmark'
+  if (state === 'error') return 'benchmark endpoint unavailable'
+  if (!preview) return 'waiting for benchmark evidence'
+  const metrics = preview.metrics || {}
+  return [
+    `status=${preview.status || '-'}`,
+    `budget=${preview.budget_status || '-'}`,
+    `quality=${preview.embedding_quality?.status || 'unproven'}`,
+    `p95=${formatMs(metrics.warm_recall_p95_ms)}`,
+    `first=${formatMs(metrics.first_recall_ms)}`,
+  ].join(' | ')
+}
+
+function ragBenchmarkRecordCount(preview?: RagBenchmarkPreview | null): number | string {
+  return preview?.record_count
+    ?? preview?.config?.record_count
+    ?? preview?.metrics?.index_size
+    ?? '-'
+}
+
+function ragBenchmarkDetailLine(preview: RagBenchmarkPreview | null | undefined, fallbackEndpoint: string): string {
+  if (!preview) return `endpoint=${fallbackEndpoint}`
+  const metrics = preview.metrics || {}
+  const parts = [
+    `endpoint=${preview.endpoint || fallbackEndpoint}`,
+    preview.cache ? `cache=${preview.cache}` : '',
+    preview.no_network_call === true ? 'no_network=true' : '',
+    preview.embedding_quality?.status ? `quality=${preview.embedding_quality.status}` : '',
+    typeof metrics.build_ms === 'number' ? `build=${formatMs(metrics.build_ms)}` : '',
+    typeof metrics.cold_start_ms === 'number' ? `cold=${formatMs(metrics.cold_start_ms)}` : '',
+    typeof metrics.profile_hit_rate === 'number' ? `profile_hit=${metrics.profile_hit_rate}` : '',
+    typeof metrics.fallback_hit_rate === 'number' ? `fallback_hit=${metrics.fallback_hit_rate}` : '',
+  ]
+  return parts.filter(Boolean).join(' | ')
+}
+
+function learningJobFromLayerHealth(
+  layerHealth?: EvidenceBundlePreview['layer_health'],
+): LearningJobPreview | null {
+  const learning = layerHealth?.layers?.learning
+  if (!learning) return null
+  const status = learning.job_status || learning.status || learning.state
+  if (!status && !learning.event && !learning.health) return null
+  return {
+    ...learning,
+    status: status || 'missing',
+    source: learning.source || 'layer_health',
+  }
+}
+
+function learningStatusClass(preview?: LearningPreview | null, fallback = ''): string {
+  const raw = preview?.job?.status || preview?.latest?.state || fallback || 'idle'
+  return String(raw).toLowerCase().replace(/[^a-z0-9_-]+/g, '-') || 'idle'
+}
+
+function learningJobSummary(
+  job?: LearningJobPreview | null,
+  fallbackPolicy?: LearningJobPolicyPreview,
+): string {
+  if (!job) return 'job=missing'
+  const policy = job.policy || fallbackPolicy || {}
+  const attempts = job.attempts ?? '-'
+  const maxAttempts = job.max_attempts ?? policy.max_attempts ?? '-'
+  const shared = job.shared_memory?.counts
+  return [
+    `job=${job.status || job.job_status || '-'}`,
+    `attempts=${attempts}/${maxAttempts}`,
+    `retryable=${learningBoolLabel(job.retryable)}`,
+    `cancel=${job.cancel_requested ? 'requested' : 'no'}`,
+    job.elapsed_ms !== undefined ? `elapsed=${formatMs(job.elapsed_ms)}` : '',
+    job.insight_count !== undefined ? `insights=${job.insight_count}` : '',
+    shared ? `shared=${shared.archived ?? 0}/${shared.promoted ?? 0}/${shared.conflicts ?? 0}` : '',
+    policy.mode ? `mode=${policy.mode}` : '',
+    policy.source ? `source=${policy.source}` : '',
+  ].filter(Boolean).join(' | ')
+}
+
+function learningCanCancel(job?: LearningJobPreview | null): boolean {
+  const status = learningJobStatus(job)
+  return learningLiveQueueAvailable(job)
+    && !job?.cancel_requested
+    && (status === 'queued' || status === 'running')
+}
+
+function learningCanRetry(job?: LearningJobPreview | null): boolean {
+  const status = learningJobStatus(job)
+  return learningLiveQueueAvailable(job)
+    && (status === 'error' || status === 'cancelled' || status === 'canceled')
+    && job?.retryable !== false
+}
+
+function learningControlBoundary(job?: LearningJobPreview | null): string {
+  if (!job) return ''
+  const status = learningJobStatus(job)
+  if (isDurableReplayLearningJob(job) && (status === 'queued' || status === 'running' || job.retryable)) {
+    return 'live queue unavailable: durable replay cannot be controlled'
+  }
+  if (job.cancel_requested && status === 'running') {
+    return 'cancel requested: running jobs stop at learning step boundaries'
+  }
+  if (job.error) return `error=${job.error}`
+  return ''
+}
+
+function learningControlIdleSummary(job?: LearningJobPreview | null): string {
+  if (!job) return ''
+  if (learningCanCancel(job) || learningCanRetry(job)) return 'live queue control ready'
+  const reason = job.reason ? `reason=${job.reason}` : ''
+  return reason || `control=${learningLiveQueueAvailable(job) ? 'idle' : 'unavailable'}`
+}
+
+function learningControlResultSummary(kind: 'cancel' | 'retry', job?: LearningJobPreview | null): string {
+  return [
+    `${kind}=accepted`,
+    `job=${job?.status || '-'}`,
+    job?.reason ? `reason=${job.reason}` : '',
+  ].filter(Boolean).join(' | ')
+}
+
+function learningJobStatus(job?: LearningJobPreview | null): string {
+  return String(job?.status || job?.job_status || job?.state || '').toLowerCase()
+}
+
+function learningLiveQueueAvailable(job?: LearningJobPreview | null): boolean {
+  if (!job || learningJobStatus(job) === 'missing') return false
+  return !isDurableReplayLearningJob(job)
+}
+
+function isDurableReplayLearningJob(job?: LearningJobPreview | null): boolean {
+  const source = String(job?.source || job?.policy?.source || '')
+  return source.includes('session_store_learning_history') || source.includes('durable_event_replay')
+}
+
+function learningBoolLabel(value: boolean | undefined): string {
+  if (value === undefined) return '-'
+  return value ? 'yes' : 'no'
+}
+
 function learningStatusSummary(preview?: LearningPreview | null, fallback = ''): string {
   const latest = preview?.latest
+  const job = preview?.job
+  if (!latest && job) {
+    return [
+      `job=${job.status || job.job_status || '-'}`,
+      preview?.count !== undefined ? `events=${preview.count}` : '',
+    ].filter(Boolean).join(' | ')
+  }
   if (!latest) return preview?.count ? `events=${preview.count}` : fallback || 'waiting for learning event'
   return [
     latest.event || latest.state || 'learning',
     latest.state ? `state=${latest.state}` : '',
+    job?.status ? `job=${job.status}` : '',
     preview?.count !== undefined ? `events=${preview.count}` : '',
   ].filter(Boolean).join(' | ')
 }
@@ -1937,6 +2651,9 @@ function evidenceBundleSummary(
   const context = preview.latest_context_sync?.revision !== undefined
     ? `ctx=rev ${preview.latest_context_sync.revision}`
     : `ctx=${counts.context_sync ?? 0}`
+  const resume = preview.resume_drill
+    ? `resume=${preview.resume_drill.status || '-'}:${preview.resume_drill.capability_levels?.durable_handoff?.status || '-'}`
+    : 'resume=-'
   const metrics = `metrics=${counts.runtime_metrics ?? 0}`
   const learning = preview.learning_latest?.state || preview.learning_latest?.event || `learning=${counts.learning ?? 0}`
   const layerLatest = preview.layer_summary?.latest_by_layer || {}
@@ -1951,7 +2668,7 @@ function evidenceBundleSummary(
   const feedback = preview.llm_feedback_summary
     ? `feedback=${preview.llm_feedback_summary.total_runs ?? 0}/${feedbackLatest?.failure_type || (feedbackLatest?.ok ? 'ok' : '-')}`
     : 'feedback=-'
-  return [`advice=${advice}`, maker, setup, audit, context, layers, metrics, learning, guard, probe, proof, feedback].filter(Boolean).join(' | ')
+  return [`advice=${advice}`, maker, setup, audit, context, resume, layers, metrics, learning, guard, probe, proof, feedback].filter(Boolean).join(' | ')
 }
 
 function userFacingWorkbenchStatus(value?: string): string {
@@ -2009,10 +2726,12 @@ function externalAgentBootLines({
     metricsUrl ? `9. Inspect Runtime Metrics: ${metricsUrl}` : '',
     learningUrl ? `10. 查看学习状态: ${learningUrl}` : '',
     communication.context_sync ? `11. Pull Context Sync: ${API_BASE}${communication.context_sync}` : '',
-    communication.llm_probe_history ? `12. Check LLM Probe History: ${API_BASE}${communication.llm_probe_history}` : '',
-    communication.llm_feedback_summary ? `13. Read LLM Feedback Summary: ${API_BASE}${communication.llm_feedback_summary}` : '',
-    communication.maker_setup_status ? `14. Check Maker Setup Doctor: ${API_BASE}${communication.maker_setup_status}` : '',
-    communication.maker_tool_audit ? `15. Audit Maker Tools: ${API_BASE}${communication.maker_tool_audit}` : '',
+    communication.resume_drill ? `12. Check Resume Drill: ${API_BASE}${communication.resume_drill}` : '',
+    communication.project_writeback ? `13. Plan Project Writeback: ${API_BASE}${communication.project_writeback}` : '',
+    communication.llm_probe_history ? `14. Check LLM Probe History: ${API_BASE}${communication.llm_probe_history}` : '',
+    communication.llm_feedback_summary ? `15. Read LLM Feedback Summary: ${API_BASE}${communication.llm_feedback_summary}` : '',
+    communication.maker_setup_status ? `16. Check Maker Setup Doctor: ${API_BASE}${communication.maker_setup_status}` : '',
+    communication.maker_tool_audit ? `17. Audit Maker Tools: ${API_BASE}${communication.maker_tool_audit}` : '',
   ]
   return lines.filter(Boolean)
 }
