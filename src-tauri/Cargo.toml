@@ -1,6 +1,6 @@
 [package]
 name = "ttmevolve"
-version = "0.7.0"
+version = "1.0.0"
 description = "TTMEvolve — Self-evolving TapMaker Development Agent"
 authors = ["灰語 & 嗒啦啦"]
 license = "MIT"

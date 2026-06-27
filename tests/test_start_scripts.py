@@ -46,30 +46,30 @@ def test_start_tauri_sh_is_executable():
 
 
 def test_start_tauri_bat_priority_order():
-    """The Windows launcher must prefer portable → venv → system."""
+    """The Windows launcher must prefer vendor → venv → system."""
     text = (_PROJECT_ROOT / "start-tauri.bat").read_text(encoding="utf-8")
-    # The labels appear in this order: portable → venv → where python
-    portable_pos = text.find("portable\\python")
+    # The labels appear in this order: vendor → venv → where python
+    vendor_pos = text.find("vendor\\python")
     venv_pos = text.find(".venv\\Scripts\\python")
     system_pos = text.find("where python")
-    assert portable_pos != -1, "portable check missing"
+    assert vendor_pos != -1, "vendor check missing"
     assert venv_pos != -1, "venv check missing"
     assert system_pos != -1, "system fallback missing"
-    assert portable_pos < venv_pos < system_pos, (
-        f"priority order broken: portable={portable_pos} venv={venv_pos} system={system_pos}"
+    assert vendor_pos < venv_pos < system_pos, (
+        f"priority order broken: vendor={vendor_pos} venv={venv_pos} system={system_pos}"
     )
 
 
 def test_start_tauri_sh_priority_order():
     text = (_PROJECT_ROOT / "start-tauri.sh").read_text(encoding="utf-8")
-    portable_pos = text.find("./portable/python/bin/python3")
+    vendor_pos = text.find("./vendor/python/bin/python3")
     venv_pos = text.find("./.venv/bin/python3")
     system_pos = text.find("command -v python3")
-    assert portable_pos != -1, "portable check missing"
+    assert vendor_pos != -1, "vendor check missing"
     assert venv_pos != -1, "venv check missing"
     assert system_pos != -1, "system fallback missing"
-    assert portable_pos < venv_pos < system_pos, (
-        f"priority order broken: portable={portable_pos} venv={venv_pos} system={system_pos}"
+    assert vendor_pos < venv_pos < system_pos, (
+        f"priority order broken: vendor={vendor_pos} venv={venv_pos} system={system_pos}"
     )
 
 
@@ -90,9 +90,9 @@ def test_start_tauri_sh_supports_cli_mode():
 
 def test_start_tauri_bat_includes_friendly_error_messages():
     text = (_PROJECT_ROOT / "start-tauri.bat").read_text(encoding="utf-8")
-    # v0.9.0 enhanced error messages
+    # v1.0.0 stable error messages
     assert "ERROR" in text, "launcher should print ERROR on missing python"
-    assert "build-portable" in text or "build_all" in text, "should hint at build_portable"
+    assert "build_embedded" in text or "build_embedded.py" in text, "should hint at build_embedded.py"
 
 
 def test_start_tauri_bat_gui_launches_release_detached():
@@ -116,7 +116,7 @@ def test_visible_windows_vbs_launchers_target_tauri_launcher():
 def test_start_tauri_sh_includes_friendly_error_messages():
     text = (_PROJECT_ROOT / "start-tauri.sh").read_text(encoding="utf-8")
     assert "ERROR" in text, "launcher should print ERROR on missing python"
-    assert "build-portable" in text or "build_all" in text, "should hint at build_portable"
+    assert "build_embedded" in text or "build_embedded.py" in text, "should hint at build_embedded.py"
 
 
 # ---------- platform detection ----------
@@ -135,12 +135,12 @@ def test_start_turi_sh_detects_platform():
 
 def test_start_tauri_bat_includes_v090_marker():
     text = (_PROJECT_ROOT / "start-tauri.bat").read_text(encoding="utf-8")
-    assert "v0.9.0" in text
+    assert "v1.0.0" in text
 
 
 def test_start_tauri_sh_includes_v090_marker():
     text = (_PROJECT_ROOT / "start-tauri.sh").read_text(encoding="utf-8")
-    assert "v0.9.0" in text
+    assert "v1.0.0" in text
 
 
 # ---------- shellcheck / bash sanity ----------

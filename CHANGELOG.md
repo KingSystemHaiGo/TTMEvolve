@@ -4,6 +4,19 @@
 
 All notable public changes should be summarized here. This project uses evidence-based release wording: unproven capabilities are called out explicitly.
 
+## v1.0.0 第一个稳定分发 / v1.0.0 First Stable Distribution
+
+- 第一个可分发的自包含 zip 产物，内嵌 Python 3.12.10 + Node 20.15.1 + MinGit 2.45.2 + 所有 Python 依赖 + embedding 模型 + Playwright Chromium。
+- First distributable self-contained zip artifact, embedding Python 3.12.10 + Node 20.15.1 + MinGit 2.45.2 + all Python dependencies + embedding models + Playwright Chromium.
+- 首次 build Tauri release exe 并将其与 vendor/ 运行时一起打包。
+- First Tauri release exe built and packaged together with the vendor/ embedded runtime.
+- 路径统一：`portable/` → `vendor/`（start-tauri.bat、release_readiness.py 全部更新）。
+- Path unification: `portable/` → `vendor/` (start-tauri.bat, release_readiness.py all updated).
+- 验证：Windows 11 干净机器解压后双击启动无 error，/health 端点返回 200。
+- Verified: Windows 11 clean machine, extract and double-click launch, no error in launcher.log, /health returns 200.
+- Defer 到 v1.0.x：签名安装包、GitHub Release、updater 自动更新、Maker 远程构建 smoke、RAG 语义质量证明。
+- Deferred to v1.0.x: signed installer, GitHub Release publishing, tauri-plugin-updater, Maker remote build smoke, production RAG semantic-quality proof.
+
 ## Unreleased / 未发布
 
 - 公开文档改为中英双语，中文优先。

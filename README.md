@@ -12,17 +12,18 @@ English: TTMEvolve is a desktop AI Agent workbench for TapTap Maker game develop
 | 项目 / Item | 状态 / Status |
 | --- | --- |
 | 源码 checkpoint / Source checkpoint | Ready |
-| 版本线 / Version line | `0.4.5-one-click-practice-entry+gui-chat-readable` |
+| 版本线 / Version line | `1.0.0` |
 | 主桌面壳 / Primary desktop shell | Tauri 2.x + Rust + WebView2 |
 | 前端 / Frontend | React + Vite workbench |
 | 后端 / Backend | Python App Server on `http://127.0.0.1:7345` |
 | LLM 运行时 / LLM runtime | API providers first; local GGUF is an explicit fallback |
 | Maker 集成 / Maker integration | Maker setup, readiness, tool audit, and MCP reconnect flows |
-| 完整离线发布 / Full offline release | Partial / not claimed |
+| 离线发布 / Offline release | Ready (自包含 zip，含 vendor/ 嵌入运行时) / Ready (self-contained zip with vendor/ embedded runtime) |
+| 可分发产物 / Distributable artifact | `release-artifacts/TTMEvolve-v1.0.0-windows-x64.zip` |
 
-当前 GitHub 状态是稳定源码发布 checkpoint。它不声明签名安装包、Maker 远程构建 smoke、生产 RAG 语义质量证明，也不把本机 `portable/` 缓存状态作为公开发布承诺。
+当前 v1.0.0 是第一个可分发的稳定版本。产物是自包含 zip，解压后双击 `TTMEvolve.vbs` 即可启动，内嵌 Python 3.12.10 + Node 20.15.1 + MinGit 2.45.2 + 所有 Python 依赖 + embedding 模型 + Playwright Chromium。
 
-The current GitHub state is a stable source release checkpoint. It does not claim a signed installer, Maker remote build smoke, production RAG semantic-quality proof, or a public guarantee for the current local `portable/` cache state.
+The current v1.0.0 is the first distributable stable release. The artifact is a self-contained zip — extract and double-click `TTMEvolve.vbs` to launch, embedding Python 3.12.10 + Node 20.15.1 + MinGit 2.45.2 + all Python dependencies + embedding models + Playwright Chromium.
 
 ## 快速开始 / Quick Start
 
@@ -45,9 +46,9 @@ CLI 与无界面模式 / CLI and headless modes:
 python main.py --serve --mock
 ```
 
-启动器会优先使用 `portable/` 下的嵌入式运行时，然后是 `.venv/`，最后才是系统工具。源码 checkout 中如果没有 Tauri 二进制产物，启动器会构建前端并通过 Cargo 启动 Tauri。
+启动器会优先使用 `vendor/` 下的嵌入式运行时，然后是 `.venv/`，最后才是系统工具。源码 checkout 中如果没有 Tauri 二进制产物，启动器会构建前端并通过 Cargo 启动 Tauri。
 
-The launcher prefers embedded runtimes under `portable/`, then `.venv/`, then system tools. In a source checkout, if no Tauri binary exists, the launcher builds the frontend and starts Tauri with Cargo.
+The launcher prefers embedded runtimes under `vendor/`, then `.venv/`, then system tools. In a source checkout, if no Tauri binary exists, the launcher builds the frontend and starts Tauri with Cargo.
 
 ## 能力概览 / What TTMEvolve Provides
 

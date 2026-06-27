@@ -1,6 +1,6 @@
 {
   "name": "ttmevolve-electron-main",
-  "version": "0.4.5-one-click-practice-entry",
+  "version": "1.0.0",
   "private": true,
   "main": "./dist/main/index.js",
   "scripts": {

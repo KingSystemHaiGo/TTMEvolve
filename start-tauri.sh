@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # =============================================================================
-# TTMEvolve launcher (Linux/macOS) - prefers portable runtime
+# TTMEvolve launcher (Linux/macOS) - prefers vendor runtime
 #
-# v0.9.0 enhanced:
+# v1.0.0 stable:
 #   - cross-platform: Linux + macOS
-#   - portable Python first, then .venv, then system Python
+#   - vendor Python first, then .venv, then system Python
 #   - GUI / CLI / headless modes
 #   - source checkout GUI fallback builds frontend and runs Tauri with Cargo
 #   - friendly error messages
@@ -23,11 +23,11 @@ echo "[start-tauri] platform: $PLATFORM_TAG"
 
 PYTHON_EXE=""
 
-if [ -x "./portable/python/bin/python3" ]; then
-    PYTHON_EXE="$(pwd)/portable/python/bin/python3"
+if [ -x "./vendor/python/bin/python3" ]; then
+    PYTHON_EXE="$(pwd)/vendor/python/bin/python3"
     echo "[start-tauri] using embedded python: $PYTHON_EXE"
-elif [ -x "./portable/python/bin/python" ]; then
-    PYTHON_EXE="$(pwd)/portable/python/bin/python"
+elif [ -x "./vendor/python/bin/python" ]; then
+    PYTHON_EXE="$(pwd)/vendor/python/bin/python"
     echo "[start-tauri] using embedded python: $PYTHON_EXE"
 elif [ -x "./.venv/bin/python3" ]; then
     PYTHON_EXE="$(pwd)/.venv/bin/python3"
@@ -37,7 +37,7 @@ elif command -v python3 >/dev/null 2>&1; then
     echo "[start-tauri] using system python: $PYTHON_EXE"
 else
     echo "[start-tauri] ERROR: no python found"
-    echo "[start-tauri] please install Python 3.10+ or run scripts/build-portable/build_all.py"
+    echo "[start-tauri] please install Python 3.10+ or run scripts/build_embedded.py --mode full --skip-model"
     exit 1
 fi
 
@@ -71,7 +71,7 @@ case "$MODE" in
         fi
         if ! command -v npm >/dev/null 2>&1; then
             echo "[start-tauri] ERROR: npm not found; cannot build frontend for Tauri"
-            echo "[start-tauri] please install Node.js or run scripts/build-portable/build_all.py"
+            echo "[start-tauri] please install Node.js or run scripts/build_embedded.py --mode full --skip-model"
             exit 1
         fi
 

@@ -2,8 +2,8 @@
 REM =============================================================================
 REM TTMEvolve launcher (Windows) - prefers portable runtime
 REM
-REM v0.9.0 enhanced:
-REM   - portable Python first, then .venv, then system Python
+REM v1.0.0 stable:
+REM   - vendor Python first, then .venv, then system Python
 REM   - GUI / CLI / headless modes
 REM   - source checkout GUI fallback builds frontend and release Tauri
 REM   - friendly error messages
@@ -14,9 +14,9 @@ cd /d "%~dp0"
 
 set "PYTHON_EXE="
 
-REM 1. Embedded Python (portable)
-if exist "portable\python\python.exe" (
-    set "PYTHON_EXE=%CD%\portable\python\python.exe"
+REM 1. Embedded Python (vendor)
+if exist "vendor\python\python.exe" (
+    set "PYTHON_EXE=%CD%\vendor\python\python.exe"
     echo [start-tauri] using embedded python: !PYTHON_EXE!
     goto :python_found
 )
@@ -38,8 +38,8 @@ if %errorlevel%==0 (
     )
 )
 
-echo [start-tauri] ERROR: no python found (portable, venv, or system)
-echo [start-tauri] please install Python or run scripts\build-portable\build_all.bat
+echo [start-tauri] ERROR: no python found (vendor, .venv, or system)
+echo [start-tauri] run scripts\build_embedded.py --mode full --skip-model to prepare vendor runtime
 exit /b 1
 
 :python_found
@@ -82,7 +82,7 @@ if errorlevel 1 (
 where npm.cmd >nul 2>nul
 if errorlevel 1 (
     echo [start-tauri] ERROR: npm.cmd not found; cannot build frontend for Tauri
-    echo [start-tauri] please install Node.js or run scripts\build-portable\build_all.bat
+    echo [start-tauri] please install Node.js or run scripts\build_embedded.py --mode full --skip-model
     exit /b 1
 )
 

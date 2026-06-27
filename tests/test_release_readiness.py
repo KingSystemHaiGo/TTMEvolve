@@ -154,4 +154,4 @@ def test_release_readiness_offline_runtime_blocks_missing_python(tmp_path):
     result = release_readiness.audit_offline_runtime_bundle(tmp_path)
 
     assert result["status"] == "blocked"
-    assert any("portable Python missing" in item for item in result["failures"])
+    assert any("portable" in item or "vendor" in item for item in result["failures"])

@@ -137,6 +137,7 @@ def audit_launch_surface(project_root: Path) -> Dict[str, Any]:
         project_root / "TTMEvolve-Practice.vbs",
         project_root / "start-tauri.bat",
         project_root / "src-tauri" / "target" / "release" / "ttmevolve.exe",
+        project_root / "vendor" / "python" / "python.exe",
     ]
     missing = [str(path) for path in required if not path.exists()]
     return _check(
@@ -181,35 +182,35 @@ def _dir_size(path: Path) -> int:
 
 
 def audit_offline_runtime_bundle(project_root: Path, *, max_budget_mb: int = 500) -> Dict[str, Any]:
-    portable = project_root / "portable"
-    python_exe = portable / "python" / ("python.exe" if sys.platform.startswith("win") else "bin/python3")
-    node_exe = portable / "node" / ("node.exe" if sys.platform.startswith("win") else "bin/node")
-    site_packages = portable / "python" / ("Lib/site-packages" if sys.platform.startswith("win") else "lib")
-    size_bytes = _dir_size(portable)
+    vendor = project_root / "vendor"
+    python_exe = vendor / "python" / ("python.exe" if sys.platform.startswith("win") else "bin/python3")
+    node_exe = vendor / "node" / ("node.exe" if sys.platform.startswith("win") else "bin/node")
+    site_packages = vendor / "python" / ("Lib/site-packages" if sys.platform.startswith("win") else "lib")
+    size_bytes = _dir_size(vendor)
     budget_bytes = max_budget_mb * 1024 * 1024
     failures: List[str] = []
     warnings: List[str] = []
 
-    if not portable.exists():
-        failures.append(f"portable directory missing: {portable}")
+    if not vendor.exists():
+        failures.append(f"vendor directory missing: {vendor}")
     if not python_exe.exists():
-        failures.append(f"portable Python missing: {python_exe}")
+        failures.append(f"vendor Python missing: {python_exe}")
     if python_exe.exists() and not site_packages.exists():
-        failures.append(f"portable site-packages missing: {site_packages}")
+        failures.append(f"vendor site-packages missing: {site_packages}")
     if not node_exe.exists():
-        warnings.append(f"portable Node missing: {node_exe}")
+        warnings.append(f"vendor Node missing: {node_exe}")
     if size_bytes == 0:
-        failures.append("portable directory is empty")
+        failures.append("vendor directory is empty")
     elif size_bytes > budget_bytes:
         failures.append(
-            f"portable size {size_bytes / (1024 * 1024):.1f}MB exceeds budget {max_budget_mb}MB"
+            f"vendor size {size_bytes / (1024 * 1024):.1f}MB exceeds budget {max_budget_mb}MB"
         )
 
     return _check(
         not failures,
         "ready" if not failures else "blocked",
         "offline runtime bundle audit passed" if not failures else "offline runtime bundle audit failed",
-        portable_root=str(portable),
+        vendor_root=str(vendor),
         python=str(python_exe),
         node=str(node_exe),
         site_packages=str(site_packages),

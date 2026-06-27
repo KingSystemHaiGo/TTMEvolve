@@ -1,6 +1,6 @@
 {
   "name": "ttmevolve-frontend",
-  "version": "0.4.5-one-click-practice-entry",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
