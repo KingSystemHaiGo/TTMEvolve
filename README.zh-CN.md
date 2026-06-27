@@ -53,6 +53,18 @@ python main.py --serve --mock
 - Plan-first Agent 执行，包含 sandbox、approval、tool validation、runtime events 和持久会话回放。
 - 记忆与学习证据，并明确区分 deterministic RAG speed 与 production embedding quality 的 claim gate。
 
+## 公开文档
+
+- [文档索引](docs/README.md)
+- [开发指南](docs/DEVELOPMENT.md)
+- [App Server API](docs/API.md)
+- [路线图](docs/ROADMAP.md)
+- [架构说明](docs/architecture/README.md)
+- [发布说明](docs/releases/README.md)
+- [变更记录](CHANGELOG.md)
+- [贡献指南](CONTRIBUTING.md)
+- [安全策略](SECURITY.md)
+
 ## 架构
 
 ```mermaid

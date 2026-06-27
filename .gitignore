@@ -40,3 +40,27 @@ src-tauri/gen/
 
 # Release packaging output
 release-artifacts/
+
+# Local/private project memory and planning notes
+AGENT.md
+AGENTS.md
+docs/memory-index.md
+docs/memory-health.md
+docs/sprint-board.md
+docs/persona.md
+docs/CHANGELOG.md
+docs/analysis-taptap-maker-plus.md
+docs/cos-integration.md
+docs/next-steps-roadmap.md
+docs/seven-grand-goals.md
+docs/tauri-migration.md
+docs/v*.md
+docs/architecture/agent-core-health-audit-*.md
+docs/architecture/architecture-control-roadmap-*.md
+docs/releases/v0.4.1-*.md
+docs/releases/v0.4.2-*.md
+docs/releases/v0.4.3-*.md
+docs/releases/v0.4.4-*.md
+docs/releases/v0.4.5-one-click-practice-entry.md
+docs/releases/v0.5.0-*.md
+docs/releases/v0.7.0-*.md

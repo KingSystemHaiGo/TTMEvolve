@@ -53,6 +53,18 @@ The launcher prefers embedded runtimes under `portable/`, then `.venv/`, then sy
 - Plan-first Agent execution with sandbox, approval, tool validation, runtime events, and durable session replay.
 - Memory and learning evidence with explicit claim gates for deterministic RAG speed versus production embedding quality.
 
+## Public Documentation
+
+- [Documentation index](docs/README.md)
+- [Development guide](docs/DEVELOPMENT.md)
+- [App Server API](docs/API.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Architecture notes](docs/architecture/README.md)
+- [Release notes](docs/releases/README.md)
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+
 ## Architecture
 
 ```mermaid

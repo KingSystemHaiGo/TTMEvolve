@@ -15,6 +15,10 @@ def test_package_release_excludes_private_runtime_and_build_state(tmp_path, monk
     (root / ".env.embedded").write_text("SECRET=1\n", encoding="utf-8")
     (root / ".mcp.json").write_text("{}\n", encoding="utf-8")
     (root / "TTMEvolve.vbs").write_text("' launcher\n", encoding="utf-8")
+    (root / "AGENTS.md").write_text("private memory\n", encoding="utf-8")
+    (root / "docs").mkdir()
+    (root / "docs" / "memory-index.md").write_text("private memory\n", encoding="utf-8")
+    (root / "docs" / "README.md").write_text("public docs\n", encoding="utf-8")
     (root / "scripts" / "build-portable").mkdir(parents=True)
     (root / "scripts" / "build-portable" / "config.json").write_text("{}\n", encoding="utf-8")
 
@@ -43,7 +47,10 @@ def test_package_release_excludes_private_runtime_and_build_state(tmp_path, monk
     assert "main.py" in names
     assert "config.example.json" in names
     assert "TTMEvolve.vbs" in names
+    assert "docs/README.md" in names
     assert "scripts/build-portable/config.json" in names
+    assert "AGENTS.md" not in names
+    assert "docs/memory-index.md" not in names
     assert "config.json" not in names
     assert ".env.embedded" not in names
     assert ".mcp.json" not in names
