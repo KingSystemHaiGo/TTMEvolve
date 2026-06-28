@@ -1,0 +1,95 @@
+{
+  "version": "release-readiness.v1",
+  "mode": "source-checkpoint",
+  "status": "ready",
+  "project_root": "D:\\CC\\TTMEvolve",
+  "package": "D:\\CC\\TTMEvolve\\release-artifacts\\TTMEvolve-source-v0.4.5-one-click-practice-entry.zip",
+  "checks": {
+    "source_package": {
+      "ok": true,
+      "status": "ready",
+      "message": "source package audit passed",
+      "package": "D:\\CC\\TTMEvolve\\release-artifacts\\TTMEvolve-source-v0.4.5-one-click-practice-entry.zip",
+      "manifest": "D:\\CC\\TTMEvolve\\release-artifacts\\TTMEvolve-source-v0.4.5-one-click-practice-entry.zip.manifest.json",
+      "file_count": 386,
+      "size_bytes": 910664,
+      "sha256": "030157c55a3c90063ccebb76abb3ee31014a1c18caf8c61fe6d11af2a9a88352",
+      "forbidden_count": 0,
+      "forbidden_preview": [],
+      "probe_hits": {},
+      "manifest_mismatches": []
+    },
+    "launch_surface": {
+      "ok": true,
+      "status": "ready",
+      "message": "visible launch surface is present",
+      "missing": [],
+      "checked": [
+        "D:\\CC\\TTMEvolve\\TTMEvolve.vbs",
+        "D:\\CC\\TTMEvolve\\TTMEvolve-Practice.vbs",
+        "D:\\CC\\TTMEvolve\\start-tauri.bat",
+        "D:\\CC\\TTMEvolve\\src-tauri\\target\\release\\ttmevolve.exe",
+        "D:\\CC\\TTMEvolve\\vendor\\python\\python.exe"
+      ]
+    },
+    "release_artifacts_ignored": {
+      "ok": true,
+      "status": "ready",
+      "message": "release-artifacts is git-ignored",
+      "path": "D:\\CC\\TTMEvolve\\release-artifacts"
+    },
+    "offline_runtime_bundle": {
+      "ok": false,
+      "status": "blocked",
+      "message": "offline runtime bundle audit failed",
+      "vendor_root": "D:\\CC\\TTMEvolve\\vendor",
+      "python": "D:\\CC\\TTMEvolve\\vendor\\python\\python.exe",
+      "node": "D:\\CC\\TTMEvolve\\vendor\\node\\node.exe",
+      "site_packages": "D:\\CC\\TTMEvolve\\vendor\\python\\Lib\\site-packages",
+      "size_bytes": 7205260191,
+      "budget_bytes": 524288000,
+      "failures": [
+        "vendor size 6871.5MB exceeds budget 500MB"
+      ],
+      "warnings": []
+    },
+    "signed_installer": {
+      "ok": false,
+      "status": "unproven",
+      "message": "signed installer artifacts are not claimed by the source checkpoint"
+    },
+    "maker_remote_build": {
+      "ok": false,
+      "status": "unproven",
+      "message": "Maker remote build side-effect smoke has not been proven by this audit"
+    },
+    "production_rag_quality": {
+      "ok": false,
+      "status": "unproven",
+      "message": "production RAG semantic quality needs a real golden corpus and embedding artifact"
+    }
+  },
+  "required_checks": [
+    "source_package",
+    "launch_surface",
+    "release_artifacts_ignored"
+  ],
+  "informational_checks": [
+    "offline_runtime_bundle",
+    "signed_installer",
+    "maker_remote_build",
+    "production_rag_quality"
+  ],
+  "blockers": [],
+  "unproven": [],
+  "out_of_scope": {
+    "offline_runtime_bundle": "blocked",
+    "signed_installer": "unproven",
+    "maker_remote_build": "unproven",
+    "production_rag_quality": "unproven"
+  },
+  "closure_gate": {
+    "can_claim_source_checkpoint_ready": true,
+    "can_claim_full_publishable_release": false
+  }
+}

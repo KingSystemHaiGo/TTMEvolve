@@ -13,7 +13,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 
-PLAN_FORMAT_VERSION = "plan-format.v1"
+PLAN_FORMAT_VERSION = "plan-format.v2"
 
 
 def empty_plan(task: str = "") -> Dict[str, Any]:
@@ -57,15 +57,19 @@ def normalize_plan(plan: Optional[Dict[str, Any]], task: str = "") -> Dict[str, 
 def _normalize_step(raw: Any, index: int) -> Optional[Dict[str, Any]]:
     if not isinstance(raw, dict):
         return None
+    kind = str(raw.get("kind") or "tool").strip()
+    # For tool steps the tool field is required; for sub_plan / branch /
+    # loop the tool field is optional and may be empty.
     tool = str(raw.get("tool") or "").strip()
-    if not tool:
+    if kind == "tool" and not tool:
         return None
     params = raw.get("params") if isinstance(raw.get("params"), dict) else {}
     expected = [str(item) for item in raw.get("expected_evidence") or []]
     step_id = str(raw.get("id") or f"step-{index + 1}")
     depends_on = [str(item) for item in raw.get("depends_on") or []]
-    return {
+    out = {
         "id": step_id,
+        "kind": kind,
         "tool": tool,
         "params": params,
         "intent": str(raw.get("intent") or ""),
@@ -74,6 +78,11 @@ def _normalize_step(raw: Any, index: int) -> Optional[Dict[str, Any]]:
         "status": "pending",
         "notes": str(raw.get("notes") or ""),
     }
+    # Phase D: carry through v2-only fields when present.
+    for opt in ("sub_plan", "condition", "max_iterations", "then", "else", "body", "vsm_layer"):
+        if opt in raw:
+            out[opt] = raw[opt]
+    return out
 
 
 def plan_to_context_block(plan: Dict[str, Any], max_steps: int = 8) -> str:

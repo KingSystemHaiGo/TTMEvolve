@@ -7,7 +7,7 @@ so that all LLM providers share the same budget logic.
 
 from __future__ import annotations
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
@@ -31,6 +31,15 @@ class BudgetStats:
     cold_recall_ms: float = 0.0
     context_build_ms: float = 0.0
     workspace_profile: str = "general"
+    # Phase C: fragment-aware stats. Kept at default 0 for the legacy
+    # ``fit_parts`` path so old callers see a stable shape.
+    fragment_count: int = 0
+    deferred_count: int = 0
+    stubbed_count: int = 0
+    graph_recall_hits: int = 0
+    posterior_pruned_count: int = 0
+    occam_pruned_count: int = 0
+    deferred_ids: list = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -50,6 +59,13 @@ class BudgetStats:
             "cold_recall_ms": self.cold_recall_ms,
             "context_build_ms": self.context_build_ms,
             "workspace_profile": self.workspace_profile,
+            "fragment_count": self.fragment_count,
+            "deferred_count": self.deferred_count,
+            "stubbed_count": self.stubbed_count,
+            "graph_recall_hits": self.graph_recall_hits,
+            "posterior_pruned_count": self.posterior_pruned_count,
+            "occam_pruned_count": self.occam_pruned_count,
+            "deferred_ids": list(self.deferred_ids),
         }
 
 
@@ -253,6 +269,142 @@ class ContextBudgetManager:
             dropped_parts=dropped_parts,
             truncated_chars=truncated_chars,
         )
+
+    # ------------------------------------------------------------------
+    # Phase C: fragment-based fitting
+    # ------------------------------------------------------------------
+
+    def fit_fragments(
+        self,
+        system: str,
+        fragments: List["PromptFragment"],
+        max_tokens: int,
+    ) -> Tuple[str, BudgetStats]:
+        """Fit fragment-based prompts under a token budget.
+
+        Mirrors ``fit_parts`` but operates on ``PromptFragment`` objects
+        so callers can preserve ``full_ref`` for later expansion. When
+        a fragment does not fit, the loader first attempts a stub; if
+        the stub still does not fit, the fragment's ``full_ref`` is
+        added to the deferred list and the fragment is dropped.
+
+        The returned ``BudgetStats`` carries the Phase C fields
+        (``fragment_count``, ``deferred_count``, ``stubbed_count``,
+        ``graph_recall_hits``, ``posterior_pruned_count``,
+        ``occam_pruned_count``, ``deferred_ids``).
+        """
+        # Local import keeps ``llm.context_budget`` independent of
+        # ``llm.prompt_loader`` at module load time.
+        from llm.prompt_loader import PromptFragment, PromptLoader
+
+        budget = self.n_ctx - self.reserve_tokens - max_tokens
+        if budget <= 0:
+            return "", self._stats(0, max_tokens)
+        system_tokens = self.estimate_tokens(system)
+        budget -= system_tokens
+        if budget <= 0:
+            return "", self._stats(system_tokens, max_tokens)
+
+        # Group fragments by priority (descending). Within the same
+        # priority, the order in the input list is preserved.
+        priority_order = sorted({f.priority for f in fragments}, reverse=True)
+        active: List[PromptFragment] = list(fragments)
+        deferred: List[str] = []
+        stubbed: List[str] = []
+        dropped = 0
+        truncated_chars = 0
+
+        def total_active_tokens() -> int:
+            return system_tokens + sum(
+                self.estimate_tokens(f.content) for f in active
+            )
+
+        # Walk priority groups from lowest up. Each time the budget is
+        # violated, drop the *first* fragment at the lowest priority,
+        # stub it if possible, else drop entirely and record the
+        # ``full_ref`` in the deferred list.
+        while total_active_tokens() > budget and priority_order:
+            lowest = priority_order[-1]
+            for f in list(active):
+                if f.priority == lowest:
+                    active.remove(f)
+                    if f.full_ref:
+                        # Stub first
+                        stub = PromptLoader._stub_text(f.content)
+                        if stub and stub != f.content:
+                            stub_frag = PromptFragment(
+                                id=f.id + "-stub",
+                                role=f.role,
+                                content=stub,
+                                priority=f.priority,
+                                full_ref=f.full_ref,
+                                stub=True,
+                                source=f.source,
+                                meta=dict(f.meta),
+                            )
+                            new_total = total_active_tokens() + self.estimate_tokens(stub)
+                            if new_total <= budget:
+                                active.append(stub_frag)
+                                stubbed.append(f.full_ref)
+                                break
+                        # Stub didn't fit; defer the full ref
+                        deferred.append(f.full_ref)
+                    dropped += 1
+                    break
+            if not any(f.priority == lowest for f in active):
+                priority_order.pop()
+
+        # If still over budget (e.g. a single huge priority-10 fragment),
+        # truncate the joined result from the top.
+        # Sort active fragments by priority descending so the output
+        # places task + plan + policy before trajectory (priority 1-3).
+        active_sorted = sorted(active, key=lambda f: f.priority, reverse=True)
+        result_parts = [f.content for f in active_sorted]
+        result = "\n\n".join(result_parts)
+        while system_tokens + self.estimate_tokens(result) > budget and len(result) > 0:
+            over = system_tokens + self.estimate_tokens(result) - budget
+            chars_to_drop = max(1, over * self._fallback_ratio) if self.tokenizer is None else max(1, over)
+            if len(result) <= chars_to_drop:
+                truncated_chars += len(result)
+                result = ""
+                break
+            truncated_chars += int(chars_to_drop)
+            result = result[int(chars_to_drop):].lstrip()
+
+        compression_applied = (dropped + stubbed.__len__() + truncated_chars) > 0
+        if compression_applied and result:
+            marker = (
+                f"[context_compressed dropped={dropped} "
+                f"stubbed={len(stubbed)} deferred={len(deferred)} "
+                f"truncated_chars={truncated_chars}]"
+            )
+            marked = f"{marker}\n\n{result}"
+            if system_tokens + self.estimate_tokens(marked) <= budget:
+                result = marked
+
+        # Counters
+        graph_recall_hits = sum(
+            1 for f in fragments
+            if f.meta.get("source") == "graph_recall"
+        )
+        stats = self._stats(
+            system_tokens + self.estimate_tokens(result),
+            max_tokens,
+            compression_applied=compression_applied,
+            dropped_parts=dropped,
+            truncated_chars=truncated_chars,
+        )
+        # Phase C extra fields via replace (BudgetStats is frozen)
+        from dataclasses import replace
+        stats = replace(
+            stats,
+            fragment_count=len(fragments),
+            deferred_count=len(deferred),
+            stubbed_count=len(stubbed),
+            graph_recall_hits=graph_recall_hits,
+            deferred_ids=list(deferred),
+        )
+        return result, stats
 
     def slice_trajectory(
         self,

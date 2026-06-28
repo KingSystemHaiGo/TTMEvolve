@@ -13,6 +13,7 @@ slow down, switch tools, or escalate to a higher-tier model.
 
 from __future__ import annotations
 
+import time
 from typing import Any, Dict, List
 
 
@@ -77,6 +78,11 @@ class ControlLoop:
         self._last_error = error
         signal = self.kp * error + self.ki * self._integral + self.kd * derivative
         verdict = self._verdict(error, signal)
+        # Phase D: persist the latest values for VSMShell / external
+        # consumers that read the loop state outside the call site.
+        self._last_signal = round(signal, 4)
+        self._last_verdict = verdict
+        self._last_evaluated_at = time.time()
         return {
             "version": CONTROL_LOOP_VERSION,
             "signal": round(signal, 4),
@@ -87,6 +93,16 @@ class ControlLoop:
             "recommendation": self._recommend(verdict, window),
             "stats": self._stats(window),
         }
+
+    def last_signal(self) -> float:
+        """Return the most recent control signal. ``0.0`` before any
+        ``evaluate()`` call."""
+        return float(getattr(self, "_last_signal", 0.0))
+
+    def last_verdict(self) -> str:
+        """Return the most recent verdict. ``"stable"`` before any
+        ``evaluate()`` call (a safe default for S3* consumers)."""
+        return str(getattr(self, "_last_verdict", "stable"))
 
     # ------------------------------------------------------------------
     # internal helpers

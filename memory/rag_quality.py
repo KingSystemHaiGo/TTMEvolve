@@ -114,22 +114,30 @@ def run_embedding_quality_evaluation(
         per_query: List[Dict[str, Any]] = []
         for query in queries:
             expected_ids = [str(item) for item in query.get("expected_ids", [])]
+            expected_linked_ids = [str(item) for item in query.get("expected_linked_ids", [])]
             results = index.search(str(query["query"]), top_k=top_k)
             result_ids = [chunk.id for _score, chunk in results]
             first_rank = _first_relevant_rank(result_ids, expected_ids)
             hit_count = len(set(result_ids) & set(expected_ids))
+            linked_hit_count = len(set(result_ids) & set(expected_linked_ids))
             per_query.append({
                 "id": str(query.get("id") or ""),
                 "hit": first_rank > 0,
                 "first_rank": first_rank or None,
                 "expected_ids": expected_ids,
+                "expected_linked_ids": expected_linked_ids,
                 "result_ids": result_ids,
                 "hit_count": hit_count,
+                "linked_hit_count": linked_hit_count,
             })
 
     metrics = _quality_metrics(per_query, top_k=top_k)
     budget_results = _evaluate_quality_budgets(metrics, budgets)
     budget_status = "pass" if all(item["ok"] for item in budget_results.values()) else "fail"
+    # Phase B: graph corpus ids — distinct node ids the corpus expects
+    # to be linked from a primary hit. Used by graph recall to compute
+    # linked recall@k against the same labelled corpus.
+    graph_corpus_ids = corpus.get("graph_corpus_ids") or {}
     return {
         "version": RAG_QUALITY_EVAL_VERSION,
         "status": "ready" if budget_status == "pass" else "fail",
@@ -147,6 +155,7 @@ def run_embedding_quality_evaluation(
         "metrics": metrics,
         "budgets": budget_results,
         "per_query": per_query[:20],
+        "graph_corpus_ids": graph_corpus_ids,
         "required_evidence": [
             "configured production embedding model or local embedding artifact",
             "labelled evaluation corpus or golden query set",

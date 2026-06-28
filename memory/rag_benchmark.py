@@ -389,6 +389,120 @@ def _p95(values: List[float]) -> float:
     return ordered[index]
 
 
+# ---------------------------------------------------------------------------
+# Phase B: graph-on vs graph-off comparison
+# ---------------------------------------------------------------------------
+
+GRAPH_ON_OFF_VERSION = "rag-graph-on-off.v1"
+DEFAULT_GRAPH_RATIO_BUDGET = 1.5  # graph-on p95 must be <= 1.5x graph-off
+
+
+def run_graph_on_off_comparison(
+    *,
+    cold_factory,
+    query: str = "alpha",
+    warm_runs: int = 16,
+    top_k: int = 5,
+    ratio_budget: float = DEFAULT_GRAPH_RATIO_BUDGET,
+    seed_items: Optional[List[Tuple[Dict[str, Any], str]]] = None,
+) -> Dict[str, Any]:
+    """Compare graph-on and graph-off retrieval latency and ranking.
+
+    The factory is called twice with two distinct storage directories so the
+    two paths do not share state. ``cold_factory(root: Path) -> ColdMemory``
+    should produce a fully initialized instance. The factory is responsible
+    for passing the right ``graph_config`` to each instance — the caller
+    builds the comparison by running the factory once with graph-enabled
+    config and once with graph-disabled config.
+
+    This helper intentionally only times the public ``retrieve_with_graph``
+    (when enabled) and ``search`` (when disabled) APIs, not the
+    pre-warm bulk_index, so the ratio reflects user-visible cost.
+    """
+    if not callable(cold_factory):
+        raise ValueError("cold_factory must be a callable taking a Path")
+
+    if seed_items is None:
+        seed_items = [
+            ({"id": f"g-{i}", "type": "fact", "workspace_profile": "general",
+              "agent_id": "default", "visibility": "private"},
+             f"alpha bravo charlie delta {i}")
+            for i in range(50)
+        ]
+        # Add a few edges worth of nodes
+        for i in range(10, 30):
+            seed_items.append(
+                ({"id": f"g-{i}", "type": "fact", "workspace_profile": "general",
+                  "agent_id": "default", "visibility": "private"},
+                 f"alpha extra charlie {i}")
+            )
+
+    def _measure(off: bool) -> Dict[str, Any]:
+        with tempfile.TemporaryDirectory(prefix="ttm-graph-") as tmp:
+            root = Path(tmp)
+            cold = cold_factory(root)
+            cold.bulk_index(seed_items)
+            if not off and cold.graph_enabled():
+                graph = cold._graph  # type: ignore[attr-defined]
+                if graph is not None:
+                    from memory.graph import MemoryEdge, MemoryNode
+                    for i in range(20):
+                        try:
+                            graph.upsert_node(MemoryNode(
+                                id=f"g-{i}", type="fact", summary=f"alpha bravo {i}"))
+                        except Exception:
+                            continue
+                    for i in range(15):
+                        try:
+                            graph.add_edge(MemoryEdge(
+                                id=f"ge-{i}", src=f"g-{i}", dst=f"g-{i+1}", type="references"))
+                        except Exception:
+                            continue
+            # Warmup
+            for _ in range(3):
+                if off:
+                    cold.search(query, top_k=top_k)
+                else:
+                    cold.retrieve_with_graph(query, top_k=top_k)
+            latencies: List[float] = []
+            for _ in range(max(1, int(warm_runs))):
+                started = time.perf_counter()
+                if off:
+                    cold.search(query, top_k=top_k)
+                else:
+                    cold.retrieve_with_graph(query, top_k=top_k)
+                latencies.append((time.perf_counter() - started) * 1000.0)
+            return {
+                "warm_p50_ms": round(_p50(latencies), 4),
+                "warm_p95_ms": round(_p95(latencies), 4),
+                "warm_runs": len(latencies),
+            }
+
+    off = _measure(off=True)
+    on = _measure(off=False)
+    ratio = None
+    if off["warm_p95_ms"] > 0 and on["warm_p95_ms"] > 0:
+        ratio = on["warm_p95_ms"] / off["warm_p95_ms"]
+    budget_status = "pass" if (ratio is None or ratio <= ratio_budget) else "fail"
+    return {
+        "version": GRAPH_ON_OFF_VERSION,
+        "status": "ready",
+        "graph_on": on,
+        "graph_off": off,
+        "ratio_warm_p95": round(ratio, 4) if ratio is not None else None,
+        "ratio_budget": ratio_budget,
+        "budget_status": budget_status,
+        "truthfulness": "deterministic speed only; embedding_quality remains unproven",
+    }
+
+
+def _p50(values: List[float]) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    return ordered[len(ordered) // 2]
+
+
 def _fake_faiss_module():
     class FakeFlatIndex:
         def __init__(self, dim):

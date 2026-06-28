@@ -1057,6 +1057,11 @@ def build_runtime_readiness(
         if session_id != "{session_id}"
         else {"status": "not_requested"}
     )
+    # Phase C: extract the most-recent prompt-loader stats from the memory
+    # recall summary so the evidence surface can show fragment counts
+    # without leaking full prompt content. The compact view exposes
+    # counters only.
+    prompt_loader = _prompt_loader_from_recall(memory_recall)
     layer_health = build_layer_health_snapshot(
         session_id=session_id,
         session_status=session_status_from_server(server, session_id),
@@ -1101,6 +1106,17 @@ def build_runtime_readiness(
         if isinstance(rag_benchmark.get("closure_gate"), dict)
         else {}
     )
+    # Phase B: graph-on vs graph-off evidence (opt-in, only meaningful
+    # when memory.graph.enabled=true).
+    try:
+        graph_recall = server.rag_graph_status()
+    except Exception:
+        graph_recall = {
+            "version": "rag-graph-on-off.v1",
+            "status": "not_enabled",
+            "graph_enabled": False,
+            "truthfulness": "graph memory is opt-in; enable memory.graph.enabled to produce this evidence",
+        }
     learning_latest = learning_history[-1] if learning_history else learning_observer_summary.get("latest")
     issues: List[Dict[str, str]] = []
     next_actions: List[str] = []
@@ -1218,6 +1234,13 @@ def build_runtime_readiness(
             {"id": "cos_gate", "ok": cos_gate.get("status") in {"ready", "computed", "not_requested"}},
             {"id": "rag_benchmark", "ok": rag_benchmark.get("status") != "error" and rag_benchmark.get("budget_status") != "fail"},
             {
+                "id": "rag_graph_on_off",
+                "ok": graph_recall.get("status") in {"ready", "not_run", "not_enabled"},
+                "graph_enabled": graph_recall.get("graph_enabled", False),
+                "ratio_warm_p95": graph_recall.get("ratio_warm_p95"),
+                "ratio_budget": graph_recall.get("ratio_budget", 1.5),
+            },
+            {
                 "id": "rag_embedding_quality",
                 "ok": rag_closure.get("can_claim_production_embedding_quality") is True,
             },
@@ -1252,8 +1275,10 @@ def build_runtime_readiness(
             "engineering_control": engineering_control.get("status"),
             "learning_observer": learning_observer_summary.get("status"),
             "memory_recall": memory_recall.get("status"),
+            "prompt_loader": prompt_loader.get("status") if isinstance(prompt_loader, dict) else "not_run",
             "rag_benchmark": rag_benchmark.get("status"),
             "rag_embedding_quality": rag_quality.get("status") or "unproven",
+            "graph_recall": graph_recall.get("status"),
         },
         "issues": issues,
         "next_actions": next_actions,
@@ -1288,6 +1313,7 @@ def build_runtime_readiness(
         "learning_observer": learning_observer_summary,
         "memory_recall": memory_recall,
         "rag_benchmark": rag_benchmark,
+        "graph_recall": graph_recall,
         "latest_context_sync": context_history[-1] if context_history else None,
         "learning_latest": learning_latest,
         "maker_guard_latest": maker_guard_history[-1] if maker_guard_history else None,
@@ -1353,6 +1379,96 @@ def build_portable_runtime_status(*, server: Any) -> Dict[str, Any]:
         else "Portable runtime paths are observable; continue with Maker setup/readiness checks."
     )
     return diagnostics
+
+
+def _prompt_loader_from_recall(memory_recall: Any) -> Dict[str, Any]:
+    """Return a compact prompt-loader status payload derived from
+    ``memory_recall`` evidence. The recall summary already carries
+    per-call ``BudgetStats`` (including fragment_count / deferred_count
+    / stubbed_count when ``loader.enabled=true``). This helper extracts
+    just the compact counters and never leaks full prompt content.
+    """
+    if not isinstance(memory_recall, dict):
+        return {"version": "prompt-loader.v1", "status": "not_run"}
+    # Some recall summaries nest per-call stats under ``latest`` or
+    # ``recall_metrics``; we probe each known shape.
+    candidates: List[Dict[str, Any]] = []
+    latest = memory_recall.get("latest") if isinstance(memory_recall.get("latest"), dict) else None
+    if latest:
+        candidates.append(latest)
+    if isinstance(memory_recall.get("recall_metrics"), dict):
+        candidates.append(memory_recall["recall_metrics"])
+    if isinstance(memory_recall.get("budget_stats"), dict):
+        candidates.append(memory_recall["budget_stats"])
+    # Pick the most recent candidate that has at least one fragment field.
+    picked: Dict[str, Any] = {}
+    for c in candidates:
+        if "fragment_count" in c or "deferred_count" in c or "stubbed_count" in c:
+            picked = c
+            break
+    if not picked:
+        return {"version": "prompt-loader.v1", "status": "not_run"}
+    return {
+        "version": "prompt-loader.v1",
+        "status": "ready" if picked.get("fragment_count", 0) > 0 else "not_run",
+        "fragment_count": int(picked.get("fragment_count", 0)),
+        "deferred_count": int(picked.get("deferred_count", 0)),
+        "stubbed_count": int(picked.get("stubbed_count", 0)),
+        "graph_recall_hits": int(picked.get("graph_recall_hits", 0)),
+        "compression_applied": bool(picked.get("compression_applied", False)),
+    }
+
+
+def _plan_v2_summary(plan: Any) -> Dict[str, Any]:
+    """Compact plan v2 evidence payload.
+
+    The plan may be ``None`` (no approved plan yet) or a dict carrying
+    either ``plan-format.v1`` or ``plan-format.v2``. We never leak the
+    full plan; only counters and the latest verdict.
+    """
+    if not isinstance(plan, dict):
+        return {"version": "plan-format.v2", "status": "no_plan"}
+    version = str(plan.get("version") or "plan-format.v1")
+    progress = plan.get("progress") if isinstance(plan.get("progress"), dict) else {}
+    counts = progress.get("counts") if isinstance(progress.get("counts"), dict) else {}
+    return {
+        "version": "plan-format.v2",
+        "status": progress.get("overall") or "draft",
+        "source_version": version,
+        "current_step": progress.get("current_step"),
+        "counts": {
+            "pending": int(counts.get("pending", 0)),
+            "in_progress": int(counts.get("in_progress", 0)),
+            "done": int(counts.get("done", 0)),
+            "skipped": int(counts.get("skipped", 0)),
+            "failed": int(counts.get("failed", 0)),
+        },
+        "control_signal": plan.get("control_signal") if isinstance(plan.get("control_signal"), dict) else None,
+    }
+
+
+def _control_loop_summary(control_loop: Any) -> Dict[str, Any]:
+    """Compact ControlLoop evidence payload. Reads ``last_signal()`` and
+    ``last_verdict()`` when present; otherwise returns the ``not_run``
+    boundary. Never invents a verdict.
+    """
+    if control_loop is None:
+        return {"version": "control-loop.v1", "status": "not_provided"}
+    last_signal = 0.0
+    last_verdict = "stable"
+    try:
+        if hasattr(control_loop, "last_signal"):
+            last_signal = float(control_loop.last_signal() or 0.0)
+        if hasattr(control_loop, "last_verdict"):
+            last_verdict = str(control_loop.last_verdict() or "stable")
+    except Exception:
+        return {"version": "control-loop.v1", "status": "error"}
+    return {
+        "version": "control-loop.v1",
+        "status": "ready",
+        "last_signal": round(last_signal, 4),
+        "last_verdict": last_verdict,
+    }
 
 
 def build_shared_memory_policy_summary(*, server: Any, agent_id: str = "default") -> Dict[str, Any]:

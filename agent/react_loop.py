@@ -76,6 +76,7 @@ class ReActLoop:
         runtime_contract_provider: Optional[Callable[[str], Dict[str, Any]]] = None,
         plan_first_enabled: bool = False,
         plan_approval_provider: Optional[Callable[[Dict[str, Any]], bool]] = None,
+        vsm_shell: Optional["VSMShell"] = None,
     ):
         self.llm = llm
         self.tools = tools
@@ -97,6 +98,11 @@ class ReActLoop:
         self.runtime_contract_provider = runtime_contract_provider
         self._plan_first_enabled = bool(plan_first_enabled)
         self._plan_approval_provider = plan_approval_provider
+        # Phase D: thin VSM adapter. When ``is_active()`` is False the
+        # pre/post step hooks short-circuit; the iteration loop is
+        # unchanged for the default ``vsm.enabled=false`` configuration.
+        self._vsm_shell = vsm_shell
+        self._vsm_replan_requested: bool = False
 
         # 专家救援相关状态
         self._expert_context: str = ""
@@ -238,6 +244,8 @@ class ReActLoop:
         for i in range(self.max_iterations):
             iteration_started_at = time.perf_counter()
             self._check_cancelled()
+            # Phase D: VSM pre_step hook (no-op when shell inactive).
+            self._vsm_pre_step(i)
             step = self._run_iteration(i)
             self._check_cancelled()
             self._emit_latency("iteration_planning", iteration_started_at, iteration=i)
@@ -252,6 +260,9 @@ class ReActLoop:
                     refresh_goal=self._refresh_goal_checklist,
                     emit_context_sync=self._maybe_emit_context_sync,
                 )
+                # VSM post_step on the final step (treat as the closing
+                # observation so the shell can surface a verdict).
+                self._vsm_post_step(step, {"ok": True}, i)
                 break
 
             # 执行动作前先进行 tool-call schema 校验
@@ -509,6 +520,46 @@ class ReActLoop:
             "diff_keys": diff_keys,
             "snapshot": snapshot,
         })
+
+    def _vsm_pre_step(self, iteration: int) -> None:
+        """Phase D: VSM pre_step hook. No-op when the shell is inactive."""
+        if not self._vsm_shell or not self._vsm_shell.is_active():
+            return
+        step = {
+            "id": f"iter-{iteration}",
+            "kind": "tool",
+            "vsm_layer": "S1",
+        }
+        try:
+            self._vsm_shell.pre_step(
+                step=step,
+                plan=self._plan,
+                trajectory=self._trajectory,
+                policy=None,
+                emit=self._emit,
+            )
+        except Exception:
+            return
+
+    def _vsm_post_step(self, step, observation, iteration) -> str:
+        """Phase D: VSM post_step hook. Returns the shell's verdict and
+        sets ``_vsm_replan_requested`` when the shell asks for re-plan.
+        """
+        if not self._vsm_shell or not self._vsm_shell.is_active():
+            return "continue"
+        try:
+            verdict = self._vsm_shell.post_step(
+                step=step,
+                observation=observation or {},
+                trajectory=self._trajectory,
+                plan=self._plan,
+                emit=self._emit,
+            )
+        except Exception:
+            return "continue"
+        if verdict == "replan":
+            self._vsm_replan_requested = True
+        return verdict
 
     def _run_iteration(self, iteration: int) -> Dict[str, Any]:
         """执行单轮思考+动作选择。"""

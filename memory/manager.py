@@ -95,6 +95,11 @@ class MemoryManager:
 
         优先级（从高到低）：任务、AGENTS.md 项目规范、当前上下文、
         工具描述、思考提示、历史轨迹。当预算不足时，优先丢弃/截断历史轨迹。
+
+        Phase C: when ``loader.enabled=true`` in config, delegates to
+        ``llm.prompt_loader.PromptLoader.build`` for fragment-based
+        assembly. Otherwise the legacy ``fit_parts`` path is preserved
+        so existing tests stay green.
         """
         from llm.context_budget import BudgetStats
 
@@ -165,7 +170,29 @@ class MemoryManager:
         ]
         # Drop empty parts so they do not affect priority handling.
         parts = [(text, priority) for text, priority in parts if text.strip()]
-        text, stats = self.budget_manager.fit_parts(system, parts, max_tokens)
+
+        # Phase C: opt-in progressive loader. When loader.enabled=false
+        # (the default), the legacy fit_parts path is used and the
+        # returned shape is byte-equivalent to the pre-Phase-C version.
+        loader_enabled = bool(self.config.get("loader.enabled", False))
+        if loader_enabled:
+            from llm.prompt_loader import PromptLoader
+            loader = PromptLoader(budget_manager=self.budget_manager)
+            loaded = loader.build(
+                system=system,
+                task=task,
+                workspace_profile=profile,
+                tools_description=tools_description,
+                trajectory_str=trajectory_str,
+                project_rules=agents_context,
+                cold_memory_hits=cold_context,
+                plan_step=context if context else "",
+                max_tokens=max_tokens,
+            )
+            text = loaded.text
+            stats = loaded.budget_stats
+        else:
+            text, stats = self.budget_manager.fit_parts(system, parts, max_tokens)
         stats = replace(
             stats,
             agents_md_hits=agents_md_hits,

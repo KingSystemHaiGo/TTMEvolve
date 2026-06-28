@@ -204,6 +204,18 @@ class AppServer:
     def rag_quality_report(self, *, force: bool = False) -> Dict[str, Any]:
         return self.rag_evidence_service.quality_report(force=force)
 
+    def rag_graph_status(self) -> Dict[str, Any]:
+        """Phase B: graph-on vs graph-off evidence payload.
+
+        Returns the ``not_enabled`` boundary payload when
+        ``memory.graph.enabled=false``. This keeps callers from
+        branching on the existence of the field.
+        """
+        return self.rag_evidence_service.graph_status()
+
+    def rag_graph_report(self, *, force: bool = False) -> Dict[str, Any]:
+        return self.rag_evidence_service.graph_report(force=force)
+
     def maker_mcp_probe(self, *, force: bool = False) -> Dict[str, Any]:
         ttl_seconds = 30.0
         now = time.time()
