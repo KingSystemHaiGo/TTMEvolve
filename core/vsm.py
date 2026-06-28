@@ -105,6 +105,24 @@ class VSMShell:
         self._replan_steps_remaining = 0
         self._last_replan_at_step = -10_000
         self._step_counter = 0
+        # Phase R4: S2 anti-oscillation. Tools that the shell has
+        # blacklisted are filtered from rank_tools until the
+        # ``until_iter`` is reached. ``disable_tool`` is the only
+        # public write; the shell decides when to call it.
+        self._disabled: Dict[str, int] = {}
+        # Persistent S3* counter; reset to 0 when we leave the
+        # diverging state.
+        self._s3_star_run: int = 0
+        # Phase R4: S5 policy gate. ``off`` lets the shell write
+        # silently. ``audit`` (default for cautious) emits a
+        # ``vsm.write_audit`` event for every write. ``cautious``
+        # additionally emits a ``policy_check_pending`` event so a
+        # future R5 operator-approval flow can hook here.
+        self._policy = str(cfg.get("policy", "audit"))
+        # Phase R4: persistent S3* counter. When S3* fires this
+        # many iterations in a row, the shell calls ``disable_tool``
+        # on the offending tool. Three is a conservative threshold.
+        self._s3_star_persistence = int(cfg.get("s3_star_persistence", 3))
 
     # ------------------------------------------------------------------
     # State
@@ -188,6 +206,23 @@ class VSMShell:
                 "verdict": verdict,
                 "signal": signal,
             }, emit=emit)
+            # Phase R4: S2 anti-oscillation. When S3* persists for
+            # ``s3_star_persistence`` consecutive iterations, the
+            # shell disables the current tool. This is the
+            # write-action that gives the shell actual control
+            # over the loop instead of just observation.
+            self._s3_star_run += 1
+            if self._s3_star_run >= self._s3_star_persistence:
+                action = (step.get("action") or {})
+                tool = action.get("tool")
+                if tool:
+                    self._do_disable_tool(
+                        tool,
+                        until_iter=self._step_counter
+                        + int(self._replan_cooldown_steps),
+                        reason="s3_star_persistence",
+                    )
+                self._s3_star_run = 0
             return self._s4_escalate(step, plan, observation, verdict, signal, emit=emit)
         # S2 anti-oscillation: same step id running too often
         if self._is_repeating(trajectory):
@@ -196,6 +231,23 @@ class VSMShell:
                 "step_id": step.get("id"),
                 "consecutive_same_step": self._consecutive_same_step(trajectory),
             }, emit=emit)
+            # Same-tool-repeat is a different signal from a
+            # persistent S3*. Disable after a smaller threshold.
+            if self._consecutive_same_step(trajectory) >= 2:
+                action = (step.get("action") or {})
+                tool = action.get("tool")
+                if tool:
+                    self._do_disable_tool(
+                        tool,
+                        until_iter=self._step_counter
+                        + int(self._replan_cooldown_steps),
+                        reason="s2_repeat",
+                    )
+        # Reset the S3* counter when we leave the diverging
+        # state; persistent divergence is the trigger, not a
+        # one-off.
+        if self._s3_star_run > 0:
+            self._s3_star_run = 0
         return "continue"
 
     # ------------------------------------------------------------------
@@ -271,11 +323,103 @@ class VSMShell:
                 break
         return count
 
+    # ------------------------------------------------------------------
+    # Phase R4: S2 writes — disable_tool + is_tool_disabled
+    # ------------------------------------------------------------------
+
+    def disable_tool(
+        self,
+        name: str,
+        *,
+        until_iter: Optional[int] = None,
+        reason: str = "vsm_decision",
+    ) -> bool:
+        """Public S2 write. Filter the tool from rank_tools until
+        ``until_iter``. If ``until_iter`` is ``None``, the cooldown
+        length defaults to ``replan_cooldown_steps``.
+        Returns True if the write was actually applied.
+        """
+        if not self._enabled:
+            return False
+        if not name:
+            return False
+        if until_iter is None:
+            until_iter = self._step_counter + int(self._replan_cooldown_steps)
+        return self._do_disable_tool(
+            name, until_iter=int(until_iter), reason=reason,
+        )
+
+    def _do_disable_tool(
+        self,
+        name: str,
+        *,
+        until_iter: int,
+        reason: str,
+    ) -> bool:
+        # Policy gate: ``off`` lets writes pass; ``audit`` emits a
+        # ``vsm.write_audit`` event; ``cautious`` additionally emits
+        # ``policy_check_pending`` so a future R5 operator-approval
+        # flow can hook here. The write itself always happens
+        # because the shell is the only writer and a stuck tool is
+        # worse than a gated write.
+        already = self._disabled.get(name)
+        new_until = max(int(until_iter), int(already or 0))
+        self._disabled[name] = new_until
+        if self._policy in {"audit", "cautious"}:
+            self._emit_event(None, "vsm_write_audit", {
+                "layer": "S2",
+                "action": "disable_tool",
+                "tool": name,
+                "until_iter": new_until,
+                "reason": reason,
+                "policy": self._policy,
+            })
+        if self._policy == "cautious":
+            self._emit_event(None, "policy_check_pending", {
+                "layer": "S5",
+                "action": "disable_tool",
+                "tool": name,
+                "until_iter": new_until,
+            })
+        return True
+
+    def is_tool_disabled(self, name: str) -> bool:
+        """Return True if the tool is currently blacklisted. The
+        blacklist expires when ``self._step_counter`` passes
+        ``until_iter``.
+        """
+        if not self._enabled:
+            return False
+        until = self._disabled.get(name)
+        if until is None:
+            return False
+        if self._step_counter >= until:
+            # Expired; clean up.
+            del self._disabled[name]
+            return False
+        return True
+
+    def disabled_tools(self) -> List[str]:
+        """Return a snapshot of the currently blacklisted tool names."""
+        if not self._enabled:
+            return []
+        # Drop expired entries.
+        expired = [
+            n for n, u in self._disabled.items()
+            if self._step_counter >= u
+        ]
+        for n in expired:
+            del self._disabled[n]
+        return list(self._disabled.keys())
+
     def _emit_event(self, plan, name, payload, emit: Optional[EmitFn] = None):
         emit_fn = emit or self._emit
         if not emit_fn:
             return
         try:
-            emit_fn(str(plan.get("_session_id") or ""), name, payload)
+            session_id = ""
+            if isinstance(plan, dict):
+                session_id = str(plan.get("_session_id") or "")
+            emit_fn(session_id, name, payload)
         except Exception:
             return

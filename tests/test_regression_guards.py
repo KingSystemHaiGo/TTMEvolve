@@ -301,3 +301,18 @@ def test_tool_contracts_module_exists():
     assert hasattr(tool_contracts, "PredicateRegistry")
     assert hasattr(tool_contracts, "default_contract_store")
     assert hasattr(tool_contracts, "default_predicate_registry")
+
+
+def test_vsm_shell_has_disable_tool_api():
+    """Phase R4: VSMShell must expose the S2 write surface. The
+    disable_tool / is_tool_disabled / disabled_tools API is the
+    contract between observation and tool selection.
+    """
+    from core.vsm import VSMShell
+    shell = VSMShell(control_loop=__import__("core.control_loop", fromlist=["ControlLoop"]).ControlLoop(), config={"enabled": True, "policy": "audit"})
+    assert hasattr(shell, "disable_tool")
+    assert hasattr(shell, "is_tool_disabled")
+    assert hasattr(shell, "disabled_tools")
+    # Disabled state defaults: no tools blacklisted, nothing disabled
+    assert shell.disabled_tools() == []
+    assert shell.is_tool_disabled("anything") is False

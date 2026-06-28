@@ -671,9 +671,17 @@ class ReActLoop:
 
         # 准备上下文：如果注入了 MemoryManager，由它统一编排并返回预算统计。
         raw_context = self._context + self._expert_context
+        # Phase R4: VSMShell S2 anti-oscillation. Disabled tools
+        # are filtered from rank_tools here. The blacklist is
+        # consulted on every iteration; expired entries are
+        # dropped inside ``disabled_tools()``.
+        disabled = []
+        if self._vsm_shell is not None and self._vsm_shell.is_active():
+            disabled = self._vsm_shell.disabled_tools()
         think_tools = self.tools.rank_tools(
             query=f"{self._task}\n{raw_context}",
             limit=10,
+            disabled_tools=disabled,
         )
         think_rank_stats = self.tools.last_rank_stats() if hasattr(self.tools, "last_rank_stats") else {}
         think_tools_description = self.tools.schema_for_llm(tools=think_tools)
@@ -735,9 +743,13 @@ class ReActLoop:
         self._emit_llm_usage("think")
 
         # 决定动作：根据刚产生的思考再裁剪一次工具，减少 action prompt 体积和误选概率。
+        # Phase R4: same S2 anti-oscillation blacklist; the action
+        # phase must not pick a tool the think phase already
+        # blacklisted.
         action_tools = self.tools.rank_tools(
             query=f"{self._task}\n{thought}\n{raw_context}",
             limit=8,
+            disabled_tools=disabled,
         )
         action_rank_stats = self.tools.last_rank_stats() if hasattr(self.tools, "last_rank_stats") else {}
         action_tools_description = self.tools.schema_for_llm(tools=action_tools)

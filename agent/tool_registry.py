@@ -260,12 +260,23 @@ class ToolRegistry:
             if tool.get("source", "").startswith("generated:")
         ]
 
-    def rank_tools(self, query: str = "", limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    def rank_tools(
+        self,
+        query: str = "",
+        limit: Optional[int] = None,
+        disabled_tools: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
         """Return tools ordered by likely relevance to the current task.
 
         This is intentionally lightweight and deterministic. It keeps the
         runtime fast, avoids another LLM call, and still gives Maker MCP tools a
         chance to surface for Maker-specific work.
+
+        Phase R4: ``disabled_tools`` is the S2 anti-oscillation
+        blacklist. Tools in this list are filtered out of the
+        returned ranking. The caller (ReActLoop) passes the
+        blacklist from VSMShell. ``disabled_tools`` is *not* part
+        of the cache key because it changes every step.
         """
         started_at = time.perf_counter()
         query_l = (query or "").lower()
@@ -276,6 +287,9 @@ class ToolRegistry:
         cached_names = self._rank_cache.get(cache_key)
         if cached_names is not None:
             tools = [self._tools[name] for name in cached_names if name in self._tools]
+            if disabled_tools:
+                blocked = set(disabled_tools)
+                tools = [t for t in tools if t.get("name") not in blocked]
             self._last_rank_stats = self._rank_stats(
                 started_at=started_at,
                 cache_hit=True,
@@ -495,13 +509,21 @@ def _pin_foundation_tools(
 
     seen = set()
     pinned = []
+    blocked = set(disabled_tools or ())
     for name in pinned_names:
         if name in seen:
+            continue
+        if name in blocked:
+            # Phase R4: do not promote blacklisted tools even if
+            # the intent would normally pin them.
             continue
         seen.add(name)
         pinned.append(registry[name])
 
-    return pinned + [tool for tool in ranked_tools if tool.get("name") not in seen]
+    return pinned + [
+        tool for tool in ranked_tools
+        if tool.get("name") not in seen and tool.get("name") not in blocked
+    ]
 
 
 def _workspace_profile_score(profile: str, name: str, source: str) -> int:
