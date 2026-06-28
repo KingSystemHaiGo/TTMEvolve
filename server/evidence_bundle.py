@@ -1062,6 +1062,12 @@ def build_runtime_readiness(
     # without leaking full prompt content. The compact view exposes
     # counters only.
     prompt_loader = _prompt_loader_from_recall(memory_recall)
+    # Phase D: plan v2 and control loop summaries. We probe the
+    # agent's plan and control loop state when available; otherwise
+    # return the ``not_provided`` / ``no_plan`` boundary so the
+    # Workbench always sees a stable shape.
+    plan_v2 = _plan_v2_summary(_safe_getattr(server.agent, "plan", None))
+    control_loop = _control_loop_summary(_safe_getattr(server.agent, "control_loop", None))
     layer_health = build_layer_health_snapshot(
         session_id=session_id,
         session_status=session_status_from_server(server, session_id),
@@ -1276,6 +1282,8 @@ def build_runtime_readiness(
             "learning_observer": learning_observer_summary.get("status"),
             "memory_recall": memory_recall.get("status"),
             "prompt_loader": prompt_loader.get("status") if isinstance(prompt_loader, dict) else "not_run",
+            "plan_v2": plan_v2.get("status") if isinstance(plan_v2, dict) else "no_plan",
+            "control_loop": control_loop.get("status") if isinstance(control_loop, dict) else "not_provided",
             "rag_benchmark": rag_benchmark.get("status"),
             "rag_embedding_quality": rag_quality.get("status") or "unproven",
             "graph_recall": graph_recall.get("status"),
@@ -1312,6 +1320,9 @@ def build_runtime_readiness(
         "resume_drill": resume_drill,
         "learning_observer": learning_observer_summary,
         "memory_recall": memory_recall,
+        "prompt_loader": prompt_loader,
+        "plan_v2": plan_v2,
+        "control_loop": control_loop,
         "rag_benchmark": rag_benchmark,
         "graph_recall": graph_recall,
         "latest_context_sync": context_history[-1] if context_history else None,
@@ -1379,6 +1390,18 @@ def build_portable_runtime_status(*, server: Any) -> Dict[str, Any]:
         else "Portable runtime paths are observable; continue with Maker setup/readiness checks."
     )
     return diagnostics
+
+
+def _safe_getattr(obj: Any, name: str, default: Any = None) -> Any:
+    """Safe attribute accessor that returns ``default`` when the
+    attribute is missing or raises. The evidence bundle is built
+    even when the agent is not fully wired (e.g. smoke tests with
+    a stub agent).
+    """
+    try:
+        return getattr(obj, name)
+    except Exception:
+        return default
 
 
 def _prompt_loader_from_recall(memory_recall: Any) -> Dict[str, Any]:
@@ -1674,6 +1697,14 @@ def build_session_evidence_bundle(
     event_bus_summary = build_runtime_event_bus_summary(server=server, session_id=session_id)
     learning_observer_summary = learning_state_from_server(server, session_id, limit=steps)
     memory_recall = memory_recall_from_server(server, session_id, limit=steps)
+    # Phase C/D: extract compact summaries for the new evidence fields.
+    prompt_loader = _prompt_loader_from_recall(memory_recall)
+    try:
+        graph_recall = server.rag_graph_status()
+    except Exception:
+        graph_recall = {"version": "rag-graph-on-off.v1", "status": "not_enabled", "graph_enabled": False}
+    plan_v2 = _plan_v2_summary(_safe_getattr(server.agent, "plan", None))
+    control_loop = _control_loop_summary(_safe_getattr(server.agent, "control_loop", None))
     layer_health = build_layer_health_snapshot(
         session_id=session_id,
         session_status=session_status_from_server(server, session_id),
@@ -1795,6 +1826,10 @@ def build_session_evidence_bundle(
         "shared_memory": shared_memory,
         "learning_observer": learning_observer_summary,
         "memory_recall": memory_recall,
+        "prompt_loader": prompt_loader,
+        "plan_v2": plan_v2,
+        "control_loop": control_loop,
+        "graph_recall": graph_recall,
         "rag_benchmark": rag_benchmark,
         "learning_latest": learning_latest,
         "maker_guard_latest": maker_guard_latest,
