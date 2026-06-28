@@ -41,6 +41,8 @@ def test_feature_flags_default_off():
         ("loader", "enabled"),
         ("plan", "v2_enabled"),
         ("vsm", "enabled"),
+        # Phase L: error-log subsystem; same default-off contract.
+        ("runtime.errors", "enabled"),
     ]
     with tempfile.TemporaryDirectory() as tmp:
         # Minimal config with no flag overrides
@@ -273,6 +275,7 @@ def test_release_docs_exist():
     for relpath in (
         "docs/feature-flags.md",
         "docs/release-gates.md",
+        "docs/runtime-errors.md",
         "docs/research/2026-memory-and-control.md",
         "docs/architecture/adr-0004-profile-aware-graph-memory.md",
         "docs/architecture/adr-0007-progressive-context-loader.md",

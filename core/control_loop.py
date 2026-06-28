@@ -16,6 +16,8 @@ from __future__ import annotations
 import time
 from typing import Any, Dict, List
 
+from . import error_hooks
+
 
 CONTROL_LOOP_VERSION = "control-loop.v1"
 
@@ -83,6 +85,25 @@ class ControlLoop:
         self._last_signal = round(signal, 4)
         self._last_verdict = verdict
         self._last_evaluated_at = time.time()
+        # Phase L: surface a diverging verdict through the error
+        # hooks. Stable and drift verdicts are not errors; the
+        # agent is "stuck" when this fires repeatedly.
+        if verdict == "diverging":
+            fails = sum(
+                1 for s in window
+                if isinstance(s.get("observation"), dict)
+                and s["observation"].get("ok") is False
+            )
+            error_hooks.fire(
+                "vsm",
+                message=f"control loop diverging (signal={self._last_signal})",
+                severity="critical",
+                extra={
+                    "verdict": verdict,
+                    "signal": self._last_signal,
+                    "failures_in_window": int(fails),
+                },
+            )
         return {
             "version": CONTROL_LOOP_VERSION,
             "signal": round(signal, 4),

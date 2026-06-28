@@ -21,6 +21,8 @@ import subprocess
 import time
 
 from .event_log import EventLog, Event
+from .error_hooks import fire as _fire_error_hook  # noqa: F401  (re-exported via error_hooks)
+from . import error_hooks
 from .version_manager import VersionManager
 from .sandbox import Sandbox, SandboxMode
 from .approval import ApprovalEngine, ApprovalPolicy
@@ -178,6 +180,13 @@ class Executor:
                 source="runtime",
                 payload={"tool": tool_name, "reason": sandbox_verdict["reason"]},
             ))
+            error_hooks.fire(
+                "sandbox",
+                message=sandbox_verdict["reason"],
+                session_id=session_id,
+                tool_name=tool_name,
+                extra={"stage": "sandbox"},
+            )
             return {"ok": False, "error": sandbox_verdict["reason"]}
 
         # 2. Approval 校验
@@ -189,6 +198,13 @@ class Executor:
                 source="runtime",
                 payload={"tool": tool_name, "reason": approval_verdict["reason"]},
             ))
+            error_hooks.fire(
+                "approval",
+                message=approval_verdict["reason"],
+                session_id=session_id,
+                tool_name=tool_name,
+                extra={"stage": "approval"},
+            )
             return {"ok": False, "error": approval_verdict["reason"]}
 
         result = self._execute(session_id, tool_name, params)
@@ -241,6 +257,13 @@ class Executor:
                 self.commit_state_store.record(result)
             return result
         except subprocess.TimeoutExpired as e:
+            error_hooks.fire(
+                "tool_timeout",
+                message=str(e),
+                session_id=session_id,
+                tool_name=tool_name,
+                error=e,
+            )
             return self._timeout_result(
                 tool_name=tool_name,
                 timeout_seconds=e.timeout or self.tool_timeout_seconds,
@@ -251,6 +274,13 @@ class Executor:
                 stderr=e.stderr,
             )
         except TimeoutError as e:
+            error_hooks.fire(
+                "tool_timeout",
+                message=str(e),
+                session_id=session_id,
+                tool_name=tool_name,
+                error=e,
+            )
             return self._timeout_result(
                 tool_name=tool_name,
                 timeout_seconds=self.tool_timeout_seconds,
@@ -260,6 +290,13 @@ class Executor:
                 stderr=str(e),
             )
         except Exception as e:
+            error_hooks.fire(
+                "tool_call",
+                message=str(e),
+                session_id=session_id,
+                tool_name=tool_name,
+                error=e,
+            )
             result = {
                 "ok": False,
                 "error": str(e),

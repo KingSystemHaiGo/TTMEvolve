@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from core.config import Config
 from core.health import AgentHealthState
+from core import error_hooks
 
 
 class RescueRequired(Exception):
@@ -66,6 +67,18 @@ class RescueTrigger:
         """如果满足触发条件，抛出 RescueRequired（带具体原因）。"""
         reason = self._first_trigger_reason(trajectory, health_state)
         if reason:
+            # Phase L: surface a rescue trigger through the error
+            # hook. The agent is "stuck" at this point; the
+            # operator should see why and how often it recurs.
+            error_hooks.fire(
+                "vsm",
+                message=f"rescue trigger fired: {reason}",
+                severity="critical",
+                extra={
+                    "trigger_reason": reason,
+                    "trajectory_len": len(trajectory),
+                },
+            )
             raise RescueRequired(reason=reason)
 
     def _first_trigger_reason(
