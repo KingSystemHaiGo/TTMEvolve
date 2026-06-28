@@ -32,6 +32,7 @@ from core.sandbox import SandboxMode
 from core.approval import ApprovalPolicy
 from core.cancellation import TaskCancelled
 from core.layer_events import make_layer_event
+from core.vsm import VSMShell
 from core.runtime_events import RuntimeEventBus
 from core.resource_registry import ResourceRegistry
 from core.evolution_protocol import EvolutionProtocol
@@ -155,6 +156,10 @@ class TapMakerAgent:
             runtime_contract_provider=self.runtime_contract,
             plan_first_enabled=self.config.get("agent.plan_first_enabled", False),
             plan_approval_provider=self._plan_approval_provider,
+            # Phase G: VSMShell is built from config; returns None
+            # when ``vsm.enabled=false`` so the loop's pre/post step
+            # hooks short-circuit naturally.
+            vsm_shell=VSMShell.from_config(self.config),
         )
 
         # 学习转化层

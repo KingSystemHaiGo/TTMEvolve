@@ -49,6 +49,43 @@ class VSMShell:
         ``emit(session_id, event_name, payload)`` for observability.
     """
 
+    @classmethod
+    def from_config(
+        cls,
+        config: Any,
+        *,
+        control_loop: Any = None,
+        emit: Optional[EmitFn] = None,
+    ) -> Optional["VSMShell"]:
+        """Build a VSMShell from a TTMEvolve config object.
+
+        Returns ``None`` when ``vsm.enabled=false`` so callers can
+        write ``self._vsm_shell = VSMShell.from_config(cfg)`` and
+        the loop's hooks short-circuit naturally.
+
+        ``config`` may be a ``Config`` instance or any object with a
+        ``get(key, default)`` method. Unknown keys fall back to
+        VSMShell's constructor defaults.
+        """
+        if config is None:
+            return None
+        try:
+            vsm_cfg = config.get("vsm", {}) if hasattr(config, "get") else {}
+        except Exception:
+            return None
+        if not isinstance(vsm_cfg, dict):
+            vsm_cfg = {}
+        if not bool(vsm_cfg.get("enabled", False)):
+            return None
+        if control_loop is None:
+            from core.control_loop import ControlLoop
+            control_loop = ControlLoop()
+        return cls(
+            control_loop=control_loop,
+            config=vsm_cfg,
+            emit=emit,
+        )
+
     def __init__(
         self,
         control_loop: Any,
