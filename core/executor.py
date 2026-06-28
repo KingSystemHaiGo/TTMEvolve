@@ -171,6 +171,84 @@ class Executor:
             payload={"tool": tool_name, "params": params},
         ))
 
+        # Phase R2: contract preflight. The tool's contract (if
+        # declared) is checked BEFORE sandbox/approval. This is
+        # the hard block that fixes Issue 5 from the redesign:
+        # a tool whose preconditions are not satisfied is rejected
+        # here, before any side effect or sandbox call. Tools
+        # without a contract are not affected.
+        from agent.tool_contracts import (
+            default_contract_store,
+            default_predicate_registry,
+            ToolState,
+        )
+        contract = default_contract_store.get(tool_name)
+        if contract is not None:
+            tool_state = default_contract_store.get_state(tool_name)
+            if tool_state != ToolState.AVAILABLE:
+                self.event_log.append(Event.create(
+                    event_type="action_rejected",
+                    session_id=session_id,
+                    source="runtime",
+                    payload={
+                        "tool": tool_name,
+                        "reason": f"tool_state={tool_state.value}",
+                    },
+                ))
+                error_hooks.fire(
+                    "tool_blocked",
+                    message=f"tool {tool_name} is {tool_state.value}",
+                    session_id=session_id,
+                    tool_name=tool_name,
+                    extra={"stage": "preflight", "tool_state": tool_state.value},
+                )
+                return {
+                    "ok": False,
+                    "error": f"tool {tool_name} is {tool_state.value}",
+                    "error_type": "precondition_not_satisfied",
+                    "tool": tool_name,
+                }
+            pre_results = default_contract_store.evaluate_preconditions(
+                tool_name, {}, default_predicate_registry,
+            )
+            failed = [r for r in pre_results if not r["satisfied"]]
+            if failed:
+                self.event_log.append(Event.create(
+                    event_type="action_rejected",
+                    session_id=session_id,
+                    source="runtime",
+                    payload={
+                        "tool": tool_name,
+                        "reason": "precondition_not_satisfied",
+                        "failed": failed,
+                    },
+                ))
+                error_hooks.fire(
+                    "tool_blocked",
+                    message=(
+                        f"tool {tool_name} preconditions not satisfied: "
+                        f"{[r['precondition'] for r in failed]}"
+                    ),
+                    session_id=session_id,
+                    tool_name=tool_name,
+                    extra={
+                        "stage": "preflight",
+                        "failed_preconditions": [
+                            r["precondition"] for r in failed
+                        ],
+                    },
+                )
+                return {
+                    "ok": False,
+                    "error": (
+                        f"tool {tool_name} preconditions not satisfied: "
+                        f"{[r['precondition'] for r in failed]}"
+                    ),
+                    "error_type": "precondition_not_satisfied",
+                    "tool": tool_name,
+                    "failed_preconditions": [r["precondition"] for r in failed],
+                }
+
         # 1. Sandbox 校验
         sandbox_verdict = self.sandbox.validate(tool_name, params)
         if not sandbox_verdict["allowed"]:

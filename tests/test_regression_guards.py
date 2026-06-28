@@ -280,9 +280,24 @@ def test_release_docs_exist():
         "docs/feature-flags.md",
         "docs/release-gates.md",
         "docs/runtime-errors.md",
+        "docs/react-loop-redesign.md",
         "docs/research/2026-memory-and-control.md",
         "docs/architecture/adr-0004-profile-aware-graph-memory.md",
         "docs/architecture/adr-0007-progressive-context-loader.md",
         "docs/architecture/adr-0008-plan-v2-cybernetic-control.md",
     ):
         assert (_PROJECT_ROOT / relpath).exists(), f"missing {relpath}"
+
+
+def test_tool_contracts_module_exists():
+    """Phase R2: the tool contract module must exist and expose
+    the canonical API. Adding a tool without going through the
+    contract store is the failure mode the redesign targets.
+    """
+    from agent import tool_contracts
+    assert hasattr(tool_contracts, "ToolContract")
+    assert hasattr(tool_contracts, "ToolState")
+    assert hasattr(tool_contracts, "ContractStore")
+    assert hasattr(tool_contracts, "PredicateRegistry")
+    assert hasattr(tool_contracts, "default_contract_store")
+    assert hasattr(tool_contracts, "default_predicate_registry")
