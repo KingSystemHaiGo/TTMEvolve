@@ -78,6 +78,7 @@ class ReActLoop:
         plan_approval_provider: Optional[Callable[[Dict[str, Any]], bool]] = None,
         vsm_shell: Optional["VSMShell"] = None,
         homeostasis: Optional["LoopHomeostasis"] = None,
+        thought_chain_strict: bool = False,
     ):
         self.llm = llm
         self.tools = tools
@@ -104,6 +105,11 @@ class ReActLoop:
         # unchanged for the default ``vsm.enabled=false`` configuration.
         self._vsm_shell = vsm_shell
         self._vsm_replan_requested: bool = False
+        # Phase R1: when true, the LLM's think() output is parsed
+        # into a structured ThoughtRecord (plan_step, hypothesis,
+        # confidence, ...). When false (default), the existing
+        # free-text path runs unchanged. The flag is opt-in.
+        self._thought_chain_strict = bool(thought_chain_strict)
         # Phase R3: homeostatic dead-man's switch. When enabled,
         # the controller detects three stuck patterns and forces
         # the loop to terminate. The flag ``homeostasis.enabled``
@@ -718,6 +724,13 @@ class ReActLoop:
         self._emit_latency("llm_think", think_started_at, iteration=iteration)
         self._emit_first_response_latency("thought")
         step["thought"] = thought
+        # Phase R1: optionally parse the thought into a structured
+        # record. The flag is off by default; when off, the parser
+        # is a no-op and the existing free-text path runs unchanged.
+        from llm.thought_record import parse_thought_record
+        record = parse_thought_record(thought, enabled=self._thought_chain_strict)
+        if record is not None and not record.is_empty:
+            step["thought_record"] = record.to_dict()
         self._emit(self._session_id, "thought", {"iteration": iteration, "thought": thought})
         self._emit_llm_usage("think")
 

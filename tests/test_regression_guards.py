@@ -45,6 +45,8 @@ def test_feature_flags_default_off():
         ("runtime.errors", "enabled"),
         # Phase R3: homeostatic dead-man's switch; same default-off.
         ("homeostasis", "enabled"),
+        # Phase R1: structured thought chain; same default-off.
+        ("thought_chain", "strict"),
     ]
     with tempfile.TemporaryDirectory() as tmp:
         # Minimal config with no flag overrides

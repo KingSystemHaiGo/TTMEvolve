@@ -160,6 +160,7 @@ class TapMakerAgent:
             # when ``vsm.enabled=false`` so the loop's pre/post step
             # hooks short-circuit naturally.
             vsm_shell=VSMShell.from_config(self.config),
+            thought_chain_strict=bool(self.config.get("thought_chain.strict", False)),
         )
 
         # 学习转化层
