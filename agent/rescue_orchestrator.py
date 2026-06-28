@@ -80,13 +80,24 @@ class RescueOrchestrator:
                         max_rescue_per_session=self._max_rescue_per_session,
                     )
                     self._emit("rescue_skipped", telemetry.to_event_payload())
-                    # 不能再救援，让本地模型继续直到自然结束
+                    # Phase R3: when rescue is skipped because the
+                    # local model has hit max_rescue, the homeostatic
+                    # controller should be told that rescue did not
+                    # help. The controller may then fire a
+                    # ``rescue_failure`` stuck event and the loop
+                    # terminates cleanly with a "I am stuck" output
+                    # instead of the previous infinite "thinking".
                     result = self.react.run(
                         task=task,
                         session_id=session_id,
                         on_step=None,
                         resume=resumed,
                     )
+                    # If the run produced a stuck output, surface
+                    # it; otherwise return the local result.
+                    output = result.get("output") if isinstance(result, dict) else None
+                    if isinstance(output, dict) and output.get("stuck"):
+                        return result
                     break
 
                 self._emit("rescue_calling", {"reason": self._last_trigger_reason})

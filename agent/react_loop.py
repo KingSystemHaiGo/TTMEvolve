@@ -77,6 +77,7 @@ class ReActLoop:
         plan_first_enabled: bool = False,
         plan_approval_provider: Optional[Callable[[Dict[str, Any]], bool]] = None,
         vsm_shell: Optional["VSMShell"] = None,
+        homeostasis: Optional["LoopHomeostasis"] = None,
     ):
         self.llm = llm
         self.tools = tools
@@ -103,6 +104,12 @@ class ReActLoop:
         # unchanged for the default ``vsm.enabled=false`` configuration.
         self._vsm_shell = vsm_shell
         self._vsm_replan_requested: bool = False
+        # Phase R3: homeostatic dead-man's switch. When enabled,
+        # the controller detects three stuck patterns and forces
+        # the loop to terminate. The flag ``homeostasis.enabled``
+        # is read by the caller; when None is passed, the
+        # controller is disabled and the loop runs unchanged.
+        self._homeostasis = homeostasis
 
         # 专家救援相关状态
         self._expert_context: str = ""
@@ -249,6 +256,32 @@ class ReActLoop:
             step = self._run_iteration(i)
             self._check_cancelled()
             self._emit_latency("iteration_planning", iteration_started_at, iteration=i)
+
+            # Phase R3: homeostatic dead-man's switch. If the
+            # controller detects a stuck pattern, force the loop to
+            # terminate with a structured "stuck" output. We do
+            # this *after* the iteration's observation is recorded
+            # so the controller has the full step to inspect.
+            stuck = self._homeostasis_check(step)
+            if stuck is not None:
+                self._emit_stuck(stuck, i)
+                step["done"] = True
+                step["output"] = {
+                    "stuck": True,
+                    "reason": stuck.get("reason"),
+                    "homeostasis": stuck,
+                }
+                record_output_step(
+                    trajectory=self._trajectory,
+                    step=step,
+                    iteration=i,
+                    session_id=self._session_id,
+                    emit=self._emit,
+                    refresh_goal=self._refresh_goal_checklist,
+                    emit_context_sync=self._maybe_emit_context_sync,
+                )
+                self._vsm_post_step(step, {"ok": False, "stuck": True}, i)
+                break
 
             if step.get("done"):
                 record_output_step(
@@ -519,6 +552,66 @@ class ReActLoop:
             "previous_signature": previous_signature,
             "diff_keys": diff_keys,
             "snapshot": snapshot,
+        })
+
+    def _homeostasis_check(self, step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Phase R3: consult the homeostatic dead-man's switch.
+
+        Returns a stuck record if the controller fires. Returns
+        ``None`` when the controller is disabled or has not
+        detected a stuck pattern.
+
+        The controller is consulted with the current step's
+        ``action`` (for tool+params keying) and the ``observation``
+        (for result stability). The plan_progress fingerprint
+        comes from the current goal checklist; we use a simple
+        hash of the counts to detect "no progress" without
+        coupling to a specific plan format.
+        """
+        if self._homeostasis is None or not self._homeostasis.enabled:
+            return None
+        observation = step.get("observation")
+        # Build a tiny plan_progress fingerprint from the
+        # goal checklist. If the checklist is not present, we
+        # only check result stability and rescue failure.
+        fingerprint: Optional[Dict[str, Any]] = None
+        if isinstance(self._goal_checklist, dict):
+            counts = self._goal_checklist.get("counts") or {}
+            if isinstance(counts, dict):
+                fingerprint = {
+                    "overall": self._goal_checklist.get("overall"),
+                    "done": int(counts.get("done", 0) or 0),
+                    "pending": int(counts.get("pending", 0) or 0),
+                    "failed": int(counts.get("failed", 0) or 0),
+                }
+        return self._homeostasis.update(
+            step=step,
+            observation=observation,
+            plan_progress=fingerprint,
+            rescue_failed=False,
+        )
+
+    def _emit_stuck(self, stuck: Dict[str, Any], iteration: int) -> None:
+        """Emit a structured ``loop.stuck`` event so the operator
+        and the runtime errors log can see the dead-man's switch
+        fire. This is the operator-facing signal of "I am stuck,
+        please help."
+        """
+        # Phase L: surface the stuck event through the error hook
+        # so the runtime_errors.jsonl log captures it.
+        from core import error_hooks
+        error_hooks.fire(
+            "vsm",
+            message=f"loop stuck: {stuck.get('reason')}",
+            severity="critical",
+            extra={
+                "stuck": stuck,
+                "iteration": iteration,
+            },
+        )
+        self._emit(self._session_id, "loop_stuck", {
+            "iteration": iteration,
+            **stuck,
         })
 
     def _vsm_pre_step(self, iteration: int) -> None:

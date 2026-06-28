@@ -43,6 +43,8 @@ def test_feature_flags_default_off():
         ("vsm", "enabled"),
         # Phase L: error-log subsystem; same default-off contract.
         ("runtime.errors", "enabled"),
+        # Phase R3: homeostatic dead-man's switch; same default-off.
+        ("homeostasis", "enabled"),
     ]
     with tempfile.TemporaryDirectory() as tmp:
         # Minimal config with no flag overrides
