@@ -82,6 +82,34 @@ These are public GitHub-facing bilingual documents, with Chinese first.
 - [安全政策 / Security policy](SECURITY.md)
 - [支持方式 / Support](SUPPORT.md)
 
+### v1.1.0 Slice #1 — RAG / Memory / Cybernetic Control / RAG、记忆、控制论（opt-in）
+
+v1.1.0 在 v1.0.0 之上加了五项 feature flag 关闭的能力，**默认行为完全不变**。
+切任何 flag 之前请跑 `scripts/check_release_ready.py`，确保 13/13 gate READY。
+
+v1.1.0 adds five feature-flagged capabilities on top of v1.0.0;
+**default behaviour is unchanged**. Before flipping any flag, run
+`scripts/check_release_ready.py` and confirm 13/13 gates READY.
+
+| Flag | Default | When on | Doc |
+| --- | --- | --- | --- |
+| `memory.graph.enabled` | `false` | Cold memory becomes a typed-edge graph with five-factor ranking | [ADR-0004](docs/architecture/adr-0004-profile-aware-graph-memory.md) |
+| `memory.bayes.enabled` | `false` | Each memory carries a Beta-Bernoulli posterior + Occam score | [ADR-0004](docs/architecture/adr-0004-profile-aware-graph-memory.md) |
+| `loader.enabled` | `false` | Prompt/context/memory becomes fragment-based with priority, stub, defer | [ADR-0007](docs/architecture/adr-0007-progressive-context-loader.md) |
+| `plan.v2_enabled` | `false` | Plans support `sub_plan` / `branch` / `loop` and recursive execution | [ADR-0008](docs/architecture/adr-0008-plan-v2-cybernetic-control.md) |
+| `vsm.enabled` | `false` | Stafford-Beer VSM thin adapter drives guarded re-plan / expert rescue | [ADR-0008](docs/architecture/adr-0008-plan-v2-cybernetic-control.md) |
+
+完整 inventory 与 on/off 效果：[`docs/feature-flags.md`](docs/feature-flags.md)。
+Research 依据与 anti-patterns：[`docs/research/2026-memory-and-control.md`](docs/research/2026-memory-and-control.md)。
+可发版 gate 列表：[`docs/release-gates.md`](docs/release-gates.md)。
+
+Full flag inventory and on/off effects:
+[`docs/feature-flags.md`](docs/feature-flags.md).
+Research basis and anti-patterns:
+[`docs/research/2026-memory-and-control.md`](docs/research/2026-memory-and-control.md).
+Release gate list:
+[`docs/release-gates.md`](docs/release-gates.md).
+
 ## 架构 / Architecture
 
 ```mermaid

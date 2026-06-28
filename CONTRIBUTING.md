@@ -20,11 +20,15 @@ Thanks for considering a contribution. TTMEvolve is still moving quickly, so the
 npm.cmd --prefix frontend run build
 .venv\Scripts\python.exe -m pytest -q
 cargo test --manifest-path src-tauri\Cargo.toml
+.venv\Scripts\python.exe scripts\check_release_ready.py
 ```
 
-开发中可以先跑更小的 focused tests；提交前请跑相关 release gate。
+前三条是常规 build + test 套件；第四条是 v1.1.0+ 的必跑 gate check。
+提交前**所有四条都要绿**。
 
-Use narrower tests while iterating, then run the relevant release gate before submitting.
+The first three are the standard build + test suite; the fourth is
+the v1.1.0+ required gate check. **All four must be green before
+submitting**.
 
 ## PR 要求 / Pull Request Expectations
 
@@ -32,11 +36,37 @@ Use narrower tests while iterating, then run the relevant release gate before su
 - 写清楚验证命令和结果。
 - 公开能力声明必须有证据；未证明的能力请写 `unproven`、`partial` 或 `experimental`。
 - 不要提交本地/私有项目记忆文件。公开仓库会刻意排除内部 sprint logs 和 agent handoff memory。
+- **v1.1.0+ 提交前必跑**：[`scripts/check_release_ready.py`](scripts/check_release_ready.py) 必须输出 `READY`。
+  PR description 附上 13/13 gate 截图或最后几行输出。
 
 - Explain what changed and why.
 - Include verification commands and results.
 - Keep public claims evidence-based. If a capability is not proven, call it `unproven`, `partial`, or `experimental`.
 - Do not include local/private project memory files. The public repository intentionally excludes internal sprint logs and agent handoff memory.
+- **Required before any v1.1.0+ PR**:
+  [`scripts/check_release_ready.py`](scripts/check_release_ready.py) must
+  print `READY`. Attach the gate output to the PR description.
+
+## v1.1.0 Slice #1 贡献须知 / Slice #1 Contributor Notes
+
+如果你的改动涉及 v1.1.0 的任何 feature flag 或 release gate：
+
+If your change touches any v1.1.0 feature flag or release gate:
+
+1. **新增 feature flag** — 在 `docs/feature-flags.md` 加一行
+   inventory；在 `tests/test_regression_guards.py` 的
+   `test_feature_flags_default_off` 路径里加一行
+   `("scope", "name")`。默认必须 `false`。
+2. **修改 release gate** — 在 `docs/release-gates.md` 同步更新
+   gate 描述；在 `scripts/check_release_ready.py` 同步更新
+   gate 检查。
+3. **覆盖 LLM provider adapter** — 默认禁止；
+   `tests/test_regression_guards.py::test_llm_provider_files_unchanged`
+   会失败，请把改动放到 `MemoryManager` / `PromptLoader` /
+   `VSMShell` 那一层。
+4. **改动 plan v1 解析** — 必须保持 v1 plan 能正常 execute。
+   `tests/test_regression_guards.py::test_plan_v1_backward_compat`
+   会卡住。
 
 ## 文档 / Documentation
 

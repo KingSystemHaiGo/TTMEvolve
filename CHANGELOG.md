@@ -4,6 +4,101 @@
 
 All notable public changes should be summarized here. This project uses evidence-based release wording: unproven capabilities are called out explicitly.
 
+## v1.1.0 Slice #1 — RAG / Memory / Cybernetic Control (opt-in)
+
+这是 v1.0.0 之后的第一个功能切片。所有新能力都通过 feature flag
+关闭，**默认行为与 v1.0.0 完全一致**。任何切换必须先通过
+`docs/release-gates.md` 列出的 13 个 gate。
+
+This is the first feature slice after v1.0.0. Every new capability
+is feature-flagged off, so **default behaviour is identical to
+v1.0.0**. Any flip must pass the 13 gates in
+`docs/release-gates.md` first.
+
+### 新增能力 / New capabilities
+
+- **图 RAG 记忆 / Graph RAG memory** (`memory.graph.enabled`):
+  cold memory 升级为带 8 种类型边的 typed-edge graph
+  (references / supersedes / contradicts / supports / caused_by /
+  temporal_next / decomposes_into / similar_to)。查询路径
+  `ColdMemory.retrieve_with_graph` 返回五因子排序结果
+  (vector + posterior + freshness + edge_support + occam)。
+- **贝叶斯先验 + 奥卡姆评分 / Bayesian prior + Occam score**
+  (`memory.bayes.enabled`): 每条记忆带 Beta-Bernoulli 状态，
+  log1p 长度惩罚 + 0.15 上限的 evidence bonus。auto-share
+  仍 forbidden，可见性决定权仍在
+  `review_shared_memory_outcome()`。
+- **渐进式 prompt/context loader** (`loader.enabled`): 替换
+  `MemoryManager.prepare_think_payload` 的 monolithic 组装；
+  按 ADR-0007 priority table 排序，stub-and-expand 模式，
+  失败时优雅 defer。LLM provider adapters 零修改。
+- **Plan v2 + 递归执行** (`plan.v2_enabled`):
+  `core/plan_executor.py` 支持 `kind: sub_plan / branch / loop`，
+  iterative DFS cycle detection，max_depth 防护。v1 plan
+  自动 promote 保持兼容。
+- **VSM 控制论** (`vsm.enabled`): thin `VSMShell` adapter
+  (S1-S5) 接 `ControlLoop.verdict`，auto-replan 由
+  `vsm.auto_replan=true` AND cooldown AND `max_replan_depth`
+  三重门控；不创建第二个 control dashboard。
+
+### 文档 / Documentation
+
+- `docs/research/2026-memory-and-control.md` — 17 条带直接链接
+  的引文（GraphRAG / HippoRAG / LightRAG / RAPTOR / MemGPT /
+  Letta / A-MEM / Mem0 / DSPy / LongLLMLingua / MemoryBank /
+  Bayesian RL / ADaPT / LATS / PlanBench / VSM 等）。
+- `docs/architecture/adr-0004-profile-aware-graph-memory.md` —
+  graph memory 的架构决策。
+- `docs/architecture/adr-0007-progressive-context-loader.md` —
+  prompt loader 的架构决策（编号 0007 跳过原 backlog 的 0005/0006）。
+- `docs/architecture/adr-0008-plan-v2-cybernetic-control.md` —
+  plan v2 + VSM 的架构决策。
+- `docs/release-gates.md` — 10 个可发版 gate（G1-G10）。
+- `docs/feature-flags.md` — 5 个新 feature flag 的 inventory。
+- `docs/research/baseline/candidate-v1.0.0.md` — release
+  candidate 摘要与升级路径。
+
+### 测试 / Tests
+
+- 30 个新测试（graph + bayes + prompt loader + plan v2 + VSM
+  单元 / 集成），4 个 cross-surface 集成场景，3 个 live
+  evidence smoke，1 个 all-flags-on end-to-end，11 个 regression
+  guards。
+- 30 new tests; 4 cross-surface integration scenarios; 3 live
+  evidence smoke tests; 1 all-flags-on end-to-end; 11 regression
+  guards.
+
+### 可持续发布流程 / Sustainable Release Process
+
+- `scripts/check_release_ready.py` — 一键检查 13/13 gate，
+  退出码 0 表示 READY。任何 contributor 提交前都可跑。
+- `tests/test_regression_guards.py` — 锁住不变量（flag 默认 off、
+  production_rag_quality 保持 unproven、LLM provider 零修改、
+  plan v1 向后兼容、关键文档不被删）。
+- `docs/release-gates.md` 是所有 gate 的唯一真相。
+
+### 边界 / Boundaries
+
+- `production_rag_quality` 仍 `unproven` — 必须保持直到
+  `/memory/rag-quality` 在真实 labelled corpus + 生产 embedding
+  上通过。
+- `signed_installer` / `maker_remote_build` 仍 `unproven` —
+  下个 release 才做。
+- `offline_runtime_bundle` 仍 `blocked`（vendor 6.87GB > 500MB
+  预算）— pre-existing，超出本 slice 范围。
+- LLM provider adapters (`claude_llm` / `local_llm` / `openai_llm` /
+  `minimax_llm` / `mock_llm`) **零修改**。
+- VSM 是 thin naming layer，不创建第二个 control dashboard。
+
+### Deferred to next slice
+
+- v1.0.0 → production cut-over
+  (`scripts/release_readiness.py` 的 `DEFAULT_PACKAGE` 切换)。
+- GUI smoke（Workbench 三块新 evidence 面板的实际 UI 验证）。
+- Maker remote build smoke。
+- Signed installer。
+- Production RAG 语义质量证明。
+
 ## v1.0.0 第一个稳定分发 / v1.0.0 First Stable Distribution
 
 - 第一个可分发的自包含 zip 产物，内嵌 Python 3.12.10 + Node 20.15.1 + MinGit 2.45.2 + 所有 Python 依赖 + embedding 模型 + Playwright Chromium。
