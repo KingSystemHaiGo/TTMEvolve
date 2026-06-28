@@ -523,31 +523,43 @@ These are decisions that affect the plan and need an answer
 before any phase lands. Mark each with your decision; I will
 update this document accordingly.
 
+> **Status (2026-06-28, post-review):** Operator selected "go with
+> your suggestions" — all six Q1-Q6 answers below are **locked in**
+> per the doc's own recommendations. R3 lands first; subsequent
+> phases follow the agreed order.
+
 ### Q1 — Should R1's structured thought chain be mandatory or optional?
 Mandatory means the local model is retrained / prompted to
 produce the contract; some prompts may degrade. Optional means
-the contract is asked-for but lenient-parsed. **My
-recommendation: optional with a feature flag.** The contract is
-enforced only when `thought_chain.strict=true`.
+the contract is asked-for but lenient-parsed.
+
+**Decision (locked):** **optional with a feature flag.** The
+contract is enforced only when `thought_chain.strict=true`.
 
 ### Q2 — Where should the tool contract live?
 Two options: in `core/executor.py` (next to the handler) or
-in a new `agent/tool_contracts.py`. **My recommendation: new
-file.** Keeps `executor.py` from growing another 200 lines and
+in a new `agent/tool_contracts.py`.
+
+**Decision (locked):** **new file `agent/tool_contracts.py`.**
+Keeps `executor.py` from growing another 200 lines and
 makes the contract declarations reviewable independently.
 
 ### Q3 — Should R3's dead-man's switch hard-terminate or ask the user?
 Hard-terminate means the loop sets `done=True` with
 `output={"stuck": true, "reason": "..."}` and the operator
 sees the message. Ask-the-user means the loop pauses and
-emits a `awaiting_user_input` event. **My recommendation:
-hard-terminate first.** The runtime errors hook (Phase L) makes
-this observable. Ask-the-user is a R5 / R6 follow-up.
+emits a `awaiting_user_input` event.
+
+**Decision (locked):** **hard-terminate first.** The runtime
+errors hook (Phase L) makes this observable. Ask-the-user is
+a R5 / R6 follow-up.
 
 ### Q4 — Should R4's VSMShell write-actions go through a policy gate?
 R4 lets VSMShell re-plan, disable tools, and break the loop.
 Without a policy gate, a bug in VSMShell could disable every
-tool. **My recommendation: yes, gate at S5.** The current
+tool.
+
+**Decision (locked):** **yes, gate at S5.** The current
 `approval.policy` is the right surface; a new
 `vsm.policy="cautious"` default would require operator
 confirmation for any VSMShell write.
@@ -555,9 +567,10 @@ confirmation for any VSMShell write.
 ### Q5 — Backward compatibility for v1.1.0 / v1.1.1 deployment?
 The v1.1.0 features (graph, bayes, loader, plan v2, VSM) stay
 on with `enabled=false` by default. R3 lands in v1.1.1, R1 in
-v1.1.2, etc. **My recommendation: yes, version each phase.**
-This keeps `check_release_ready.py` clean and the rollout
-auditable.
+v1.1.2, etc.
+
+**Decision (locked):** **yes, version each phase.** This keeps
+`check_release_ready.py` clean and the rollout auditable.
 
 ### Q6 — Naming for the new sub-flags?
 Proposed:
@@ -567,7 +580,7 @@ Proposed:
 - `loop.fsm_enabled` (R5)
 - `dashboard.fsm` (R6)
 
-**My recommendation:** approve as listed. The naming
+**Decision (locked):** **approved as listed.** The naming
 convention `<area>.<feature>` matches the existing
 `memory.graph.enabled` etc.
 
@@ -603,16 +616,20 @@ def test_2026_06_28_stuck_trace_terminates_cleanly(tmp_path):
 For each "approve" / "request changes" item below, leave a
 note.
 
-- [ ] Q1 mandatory vs optional thought chain
-- [ ] Q2 contract location
-- [ ] Q3 hard-terminate vs ask-user
-- [ ] Q4 VSMShell policy gate
-- [ ] Q5 phase-versioned rollout
-- [ ] Q6 sub-flag naming
-- [ ] R3 first (dead-man's switch)
-- [ ] Total size (~1 800 + 1 200 lines) is acceptable
-- [ ] Non-goals list is complete
-- [ ] Exit gates per phase are sufficient
+> **Status (2026-06-28, post-review):** Operator selected "go with
+> your suggestions" — **all ten checklist items approved** per
+> the recommendations in this doc. R3 lands first.
+
+- [x] Q1 mandatory vs optional thought chain — **optional + flag**
+- [x] Q2 contract location — **new `agent/tool_contracts.py`**
+- [x] Q3 hard-terminate vs ask-user — **hard-terminate first**
+- [x] Q4 VSMShell policy gate — **yes, `vsm.policy="cautious"`**
+- [x] Q5 phase-versioned rollout — **yes (v1.1.1, v1.1.2, ...)**
+- [x] Q6 sub-flag naming — **approved as listed**
+- [x] R3 first (dead-man's switch) — **landing next**
+- [x] Total size (~1 800 + 1 200 lines) is acceptable
+- [x] Non-goals list is complete
+- [x] Exit gates per phase are sufficient
 
 When all items are addressed, the next step is to land R3
 behind `homeostasis.enabled` and run the trace-replay test.
