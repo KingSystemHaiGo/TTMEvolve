@@ -110,6 +110,13 @@ class ReActLoop:
         # confidence, ...). When false (default), the existing
         # free-text path runs unchanged. The flag is opt-in.
         self._thought_chain_strict = bool(thought_chain_strict)
+        # Phase R5: explicit FSM. Each main-loop phase calls
+        # ``self._fsm.enter(STATE)`` so the evidence bundle can
+        # render "what the agent is doing right now." The default
+        # constructor gives a fully-functional FSM; no flag is
+        # required because R5 is purely observational.
+        from core.loop_fsm import LoopFSM, FSMState
+        self._fsm = LoopFSM()
         # Phase R3: homeostatic dead-man's switch. When enabled,
         # the controller detects three stuck patterns and forces
         # the loop to terminate. The flag ``homeostasis.enabled``
@@ -257,8 +264,13 @@ class ReActLoop:
         for i in range(self.max_iterations):
             iteration_started_at = time.perf_counter()
             self._check_cancelled()
+            # Phase R5: enter OBSERVE (collect current state).
+            from core.loop_fsm import FSMState
+            self._fsm_transition(FSMState.OBSERVE, iteration=i)
             # Phase D: VSM pre_step hook (no-op when shell inactive).
             self._vsm_pre_step(i)
+            # Phase R5: ORIENT (memory + budget context).
+            self._fsm_transition(FSMState.ORIENT, iteration=i)
             step = self._run_iteration(i)
             self._check_cancelled()
             self._emit_latency("iteration_planning", iteration_started_at, iteration=i)
@@ -268,9 +280,15 @@ class ReActLoop:
             # terminate with a structured "stuck" output. We do
             # this *after* the iteration's observation is recorded
             # so the controller has the full step to inspect.
+            # Phase R5: mark DECIDE / ACT transitions just before
+            # execution; the actual final state is set in REFLECT
+            # via _homeostasis_check's stuck branch.
+            self._fsm_transition(FSMState.DECIDE, iteration=i)
             stuck = self._homeostasis_check(step)
             if stuck is not None:
                 self._emit_stuck(stuck, i)
+                # Phase R5: terminal state STUCK.
+                self._fsm_transition(FSMState.STUCK, iteration=i)
                 step["done"] = True
                 step["output"] = {
                     "stuck": True,
@@ -303,6 +321,10 @@ class ReActLoop:
                 # observation so the shell can surface a verdict).
                 self._vsm_post_step(step, {"ok": True}, i)
                 break
+
+            # Phase R5: ACT — enter before tool execution and
+            # REFLECT after the observation is recorded below.
+            self._fsm_transition(FSMState.ACT, iteration=i)
 
             # 执行动作前先进行 tool-call schema 校验
             tool_name = step["action"].get("tool")
@@ -433,6 +455,9 @@ class ReActLoop:
             # 触发外部回调（救援触发器在此检查）
             if self._on_step:
                 self._on_step(step, self._trajectory)
+
+            # Phase R5: REFLECT — record outcome and close the cycle.
+            self._fsm_transition(FSMState.REFLECT, iteration=i)
 
         result = self._build_result()
         self._emit_latency("session_total", self._run_started_at, iteration_count=len(self._trajectory))
@@ -620,6 +645,19 @@ class ReActLoop:
             **stuck,
         })
 
+    def _fsm_transition(self, state, *, iteration: int = -1) -> None:
+        """Phase R5: record a transition on the loop FSM and emit
+        a ``fsm_state`` event so the evidence bundle can render
+        the current state. The runtime flow is unchanged; this is
+        observation only.
+        """
+        from core.loop_fsm import FSMState
+        self._fsm.enter(FSMState(state) if not isinstance(state, FSMState) else state)
+        self._emit(self._session_id, "fsm_state", {
+            "iteration": iteration,
+            "state": self._fsm.current.value,
+        })
+
     def _vsm_pre_step(self, iteration: int) -> None:
         """Phase D: VSM pre_step hook. No-op when the shell is inactive."""
         if not self._vsm_shell or not self._vsm_shell.is_active():
@@ -787,13 +825,6 @@ class ReActLoop:
         self._expert_context = ""
 
         return step
-    def _execute_action(
-        self,
-        session_id: str,
-        tool_name: Optional[str],
-        params: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        return self.action_execution.execute(session_id, tool_name, params)
 
     def _build_context(self, task: str) -> str:
         base = f"Task: {task}\nUse the available tools step by step."
