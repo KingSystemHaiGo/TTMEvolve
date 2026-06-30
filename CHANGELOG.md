@@ -4,6 +4,79 @@
 
 All notable public changes should be summarized here. This project uses evidence-based release wording: unproven capabilities are called out explicitly.
 
+## Post-v1.0.0 Slice #2 — Agent Goal Loop Evolution (multimodal, skill packs, typed DAG, feature state)
+
+This slice upgrades the agent goal loop from a single-threaded
+text-only pipeline into a typed, parallel, project-aware orchestrator.
+Default behaviour for end users is unchanged; the new surfaces are
+exposed through the existing agent runtime and the project-side
+``docs/skill_packs/`` and ``.ttmevolve/features.jsonl`` files.
+
+### Agent internal layers
+
+- **Multimodal LLM interface** (`llm/content.py`,
+  `llm/{claude,openai,minimax,local,mock,unconfigured}_llm.py`):
+  ``ContentBlock`` carries text or image blocks through the
+  provider boundary. Each provider translates the blocks into
+  the right wire format (``base64`` for Anthropic, ``data:`` URL
+  for OpenAI-compatible). ``MockLLM`` records every multimodal
+  call so tests can assert what the agent sent. ``LLMInterface``
+  gains a default ``think_multimodal`` that flattens to text
+  when a provider does not opt in via ``supports_multimodal``.
+- **ReAct multimodal observation handling**
+  (`agent/react_loop.py`): when a tool returns image-bearing
+  observations, ``_collect_think_attachments`` extracts the
+  blocks and routes the next ``think`` through
+  ``think_multimodal`` automatically. Text-only observations
+  and text-only LLMs keep the legacy path untouched.
+- **Project introspection tools** (`agent/project_introspection.py`):
+  six read-only tools exposed to the agent — ``project.manifest``,
+  ``project.asset_read`` (returns multimodal content), ``project.asset_search``,
+  ``project.code_search`` (Lua symbol grep), ``project.preview_capture``
+  (writes a placeholder PNG, returns an image block), and
+  ``project.build_state``. All registered through the executor's
+  dynamic-tool path with ``risk_level = "low"``.
+- **Skill pack system** (`agent/skill_packs/`): project-side
+  markdown knowledge base under ``docs/skill_packs/`` (engine / genre
+  / project). Five seed packs ship with the package
+  (UrhoX engine, Maker MCP, platformer, RPG, puzzle) and are
+  auto-seeded when a project has none. The GoalLoop UNDERSTAND
+  stage auto-recalls the top three packs by keyword overlap.
+- **Typed sub-goal DAG** (`agent/goal_dag.py`): every sub-goal
+  carries a type (code / asset / scene / audio / integration /
+  test), a dependency list, a capability hint
+  (``fast`` / ``balanced`` / ``deep``), and an acceptance list.
+  Topological layers, parallel execution bounded by
+  ``max_concurrent_subgoals``, and per-type sub-loops
+  (``agent/typed_subloop.py``) ship in one commit. The legacy
+  ``sub_goal_runner`` callback is still supported for backward
+  compatibility.
+- **Feature / ticket state machine** (`agent/feature_state.py`):
+  append-only ``.ttmevolve/features.jsonl`` ledger keyed by
+  task slug. Lifecycle: proposed -> approved -> in_progress ->
+  blocked -> shipped -> deprecated. GoalLoop POST advances the
+  feature and refreshes ``docs/sprint-board.md`` and
+  ``docs/progress.md``.
+
+### Test isolation
+
+- New ``GoalLoop(artifacts_root=...)`` constructor argument and
+  ``TTMEVOLVE_GOAL_ARTIFACTS_ROOT`` env var redirect every
+  project-side write (decisions, contracts, progress, sprint
+  board, skill packs) to an alternate root. ``tests/conftest.py``
+  installs an autouse fixture that points the env var at a
+  per-test temp dir so no test can accidentally pollute the
+  dev environment. See ``CONTRIBUTING.md`` for the rule.
+
+### Tests
+
+- 47 new test cases across ``test_llm_content``,
+  ``test_llm_multimodal``, ``test_react_multimodal``,
+  ``test_project_introspection``, ``test_skill_packs``,
+  ``test_goal_dag``, ``test_feature_state``,
+  ``test_boss_fight_e2e``. The end-to-end boss-fight test
+  exercises every layer in a single goal run.
+
 ## v1.1.0 Slice #1 — RAG / Memory / Cybernetic Control (opt-in)
 
 这是 v1.0.0 之后的第一个功能切片。所有新能力都通过 feature flag

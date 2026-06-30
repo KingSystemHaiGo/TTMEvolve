@@ -12,7 +12,8 @@ English: TTMEvolve is a desktop AI Agent workbench for TapTap Maker game develop
 | 项目 / Item | 状态 / Status |
 | --- | --- |
 | 源码 checkpoint / Source checkpoint | Ready |
-| 版本线 / Version line | `1.0.0` |
+| 可分发版本线 / Distributable version | `1.0.0`（保持在 1.0.0，新能力作为 Post-1.0.0 Slice 追加） |
+| Agent 内部切片 / Agent internal slices | `Post-v1.0.0 Slice #1`（RAG / Memory / Cybernetic Control）+ `Slice #2`（多模态 / 知识包 / 类型化 DAG / Feature 状态机） |
 | 主桌面壳 / Primary desktop shell | Tauri 2.x + Rust + WebView2 |
 | 前端 / Frontend | React + Vite workbench |
 | 后端 / Backend | Python App Server on `http://127.0.0.1:7345` |
@@ -23,7 +24,11 @@ English: TTMEvolve is a desktop AI Agent workbench for TapTap Maker game develop
 
 当前 v1.0.0 是第一个可分发的稳定版本。产物是自包含 zip，解压后双击 `TTMEvolve.vbs` 即可启动，内嵌 Python 3.12.10 + Node 20.15.1 + MinGit 2.45.2 + 所有 Python 依赖 + embedding 模型 + Playwright Chromium。
 
+**Post-v1.0.0 Slice #2 agent 内部**新增多模态 LLM 接口、知识包系统、类型化 sub-goal DAG、Feature 状态机。版本号保持在 1.0.0。详见 `CHANGELOG.md`。生产行为对外不变，桌面 GUI 无须任何调整。
+
 The current v1.0.0 is the first distributable stable release. The artifact is a self-contained zip — extract and double-click `TTMEvolve.vbs` to launch, embedding Python 3.12.10 + Node 20.15.1 + MinGit 2.45.2 + all Python dependencies + embedding models + Playwright Chromium.
+
+**Post-v1.0.0 Slice #2** adds multimodal LLM interface, project-side skill packs, typed sub-goal DAG, and a feature-state machine. The distributable version stays at 1.0.0. See `CHANGELOG.md`.
 
 ## 快速开始 / Quick Start
 
@@ -64,6 +69,16 @@ The launcher prefers embedded runtimes under `vendor/`, then `.venv/`, then syst
 - Runtime Readiness, Evidence Bundle, LLM Onboarding, and handoff endpoints for debugging and external Agent collaboration.
 - Plan-first Agent 执行，包含 sandbox、approval、tool validation、runtime events 与持久会话回放。
 - Plan-first Agent execution with sandbox, approval, tool validation, runtime events, and durable session replay.
+- **多模态 LLM 工具调用**（Post-v1.0.0 Slice #2）：tool 返回图片时 ReAct 自动把图片附到下一步 think context，Claude / OpenAI 兼容 provider 原生支持。
+- **Multimodal tool calls** (Post-v1.0.0 Slice #2): when a tool returns an image, ReAct attaches it to the next think context. Claude and OpenAI-compatible providers pass images natively.
+- **项目内省工具**（Post-v1.0.0 Slice #2）：agent 暴露 `project.manifest` / `project.asset_read` / `project.code_search` / `project.preview_capture` 等 6 个 read-only 工具，能"看见"项目结构、读 sprite、搜 Lua 符号。
+- **Project introspection** (Post-v1.0.0 Slice #2): six read-only tools — `project.manifest`, `project.asset_read`, `project.asset_search`, `project.code_search`, `project.preview_capture`, `project.build_state` — let the agent see project structure, read sprites, search Lua symbols.
+- **技能包系统**（Post-v1.0.0 Slice #2）：UrhoX / Maker MCP / 三个 genre（platformer / RPG / puzzle）的项目侧知识自动 recall，UNDERSTAND 阶段直接注入。
+- **Skill packs** (Post-v1.0.0 Slice #2): project-side knowledge under `docs/skill_packs/` for UrhoX, Maker MCP, and three genres. Auto-recalled during UNDERSTAND.
+- **类型化 sub-goal DAG**（Post-v1.0.0 Slice #2）：一个 goal 可拆成 code / asset / scene / audio / test 子目标并行跑，自动 INTEGRATION 收口，依赖图调度。
+- **Typed sub-goal DAG** (Post-v1.0.0 Slice #2): a goal can spawn typed sub-goals (code / asset / scene / audio / test) that run in parallel per the dependency graph; an auto-appended integration sub-goal closes the loop.
+- **Feature / Ticket 状态机**（Post-v1.0.0 Slice #2）：每个 goal 关联 feature，跨 session 状态可追踪，`docs/sprint-board.md` / `docs/progress.md` 自动维护。
+- **Feature / ticket state machine** (Post-v1.0.0 Slice #2): every goal attaches to a feature; the state persists across sessions; `docs/sprint-board.md` and `docs/progress.md` are auto-refreshed.
 
 ## 公开文档 / Public Documentation
 
