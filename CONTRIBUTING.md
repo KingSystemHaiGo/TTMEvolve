@@ -77,3 +77,31 @@ If your change touches any v1.1.0 feature flag or release gate:
 - Public user/developer docs belong under `docs/`.
 - Internal project memory stays local and is ignored by Git.
 - Update [CHANGELOG.md](CHANGELOG.md) for user-visible changes.
+
+## 测试隔离 / Test Isolation
+
+开发环境（dev tree）和 GoalLoop 的运行产物（decisions / system-contracts / progress / sprint board / skill packs）**必须严格分开**。任何把测试数据写到真实项目根目录的提交都会被退回。
+
+Production GoalLoop writes and the dev tree **must stay separate**. PRs that leak test data into the real project root will be rejected.
+
+### Rule
+
+- 写测试时**不要**给 `GoalLoop(project_root=<真实项目>)` 同时让 GoalLoop 跑出 side effects（CONFIRM artifacts、progress.md、sprint board、skill packs）。
+- Do **not** pass the real project root to `GoalLoop` while letting it run with side effects (CONFIRM artifacts, progress.md, sprint board, skill packs).
+- 测试用 `tmp_path` 当 `project_root`，**或**显式传 `artifacts_root=tmp_path`。
+- Use `tmp_path` as `project_root`, **or** pass `artifacts_root=tmp_path` explicitly.
+
+### How it works
+
+- `GoalLoop.__init__` 接受可选的 `artifacts_root` 参数。`artifacts_root` 不传时默认等于 `project_root`（生产行为）。`artifacts_root=tmp_path` 把所有写到 `decisions/`、`system-contracts/goals/`、`docs/progress.md`、`docs/sprint-board.md`、`docs/skill_packs/` 的内容重定向到 tmp。
+- `GoalLoop(artifacts_root=...)` defaults to `project_root` (production). Pass `artifacts_root=tmp_path` to redirect every write under decisions, system-contracts, progress, sprint board, and skill packs to a temp dir.
+- `tests/conftest.py` 装了一个 `autouse` fixture：每个测试默认把 `TTMEVOLVE_GOAL_ARTIFACTS_ROOT` 设到 per-test tmp dir。**任何新测试即使传了真项目根，artifacts 也会自动隔离**。
+- `tests/conftest.py` installs an autouse fixture that points `TTMEVOLVE_GOAL_ARTIFACTS_ROOT` at a per-test temp dir. New tests that pass the real project root are isolated automatically.
+- 在 ad-hoc 跑 GoalLoop 演示时也可用环境变量手动覆盖：`TTMEVOLVE_GOAL_ARTIFACTS_ROOT=/tmp/foo`。
+- For ad-hoc demos, override the env var: `TTMEVOLVE_GOAL_ARTIFACTS_ROOT=/tmp/foo`.
+
+### Diagnosing leaks
+
+跑测试后 `git status` 应当不出现 `decisions/`、`system-contracts/`、`docs/progress.md`、`docs/sprint-board.md`、`docs/skill_packs/` 等 untracked 条目。出现就是隔离破坏，立刻定位测试加 `artifacts_root=tmp_path` 或 `project_root=tmp_path`。
+
+After running tests, `git status` should not show `decisions/`, `system-contracts/`, `docs/progress.md`, `docs/sprint-board.md`, or `docs/skill_packs/` as untracked. If they do, isolation is broken — locate the offending test and add `artifacts_root=tmp_path` or use `project_root=tmp_path`.

@@ -38,6 +38,33 @@ def stable_temp_dir() -> None:
             os.environ[key] = str(temp_root)
 
 
+@pytest.fixture(autouse=True)
+def isolate_goal_loop_artifacts(tmp_path_factory) -> None:
+    """Backstop: redirect GoalLoop's project-side writes
+    (decisions, system-contracts, progress, sprint board, skill
+    packs) to a per-test temp dir, regardless of the project_root
+    the test passes.
+
+    Tests that pass ``GoalLoop(artifacts_root=...)`` win (the
+    constructor param takes precedence). Tests that pass
+    ``GoalLoop(project_root=tmp_path)`` already isolate because
+    project_root *is* the temp dir. This fixture catches the
+    third case — tests that pass the real project root, where
+    the unredirected writes would otherwise pollute the dev
+    environment.
+    """
+    isolation_root = tmp_path_factory.mktemp("goal_loop_artifacts")
+    previous = os.environ.get("TTMEVOLVE_GOAL_ARTIFACTS_ROOT")
+    os.environ["TTMEVOLVE_GOAL_ARTIFACTS_ROOT"] = str(isolation_root)
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop("TTMEVOLVE_GOAL_ARTIFACTS_ROOT", None)
+        else:
+            os.environ["TTMEVOLVE_GOAL_ARTIFACTS_ROOT"] = previous
+
+
 @pytest.fixture
 def cfg(tmp_path: Path) -> Config:
     """返回一个指向临时项目的默认 Config。"""
