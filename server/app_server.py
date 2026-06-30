@@ -1222,6 +1222,18 @@ class AppServer:
                         self._json_response(200, session_api.context_sync_payload(sid, steps=steps))
                         return
 
+                if path.startswith("/sessions/") and path.endswith("/goal-loop"):
+                    parts = path.split("/")
+                    if len(parts) >= 4:
+                        sid = parts[2]
+                        if not session_api.exists(sid):
+                            self.send_error(404, "Session not found")
+                            return
+                        params = parse_qs(parsed.query)
+                        steps = parse_step_limit(params, default=100, maximum=500)
+                        self._json_response(200, session_api.goal_loop_payload(sid, steps=steps))
+                        return
+
                 if path.startswith("/sessions/") and path.endswith("/resume-drill"):
                     parts = path.split("/")
                     if len(parts) >= 4:
@@ -1855,6 +1867,19 @@ class AppServer:
                             self._json_response(410, {"error": "No pending approval request", "action_id": action_id})
                             return
                         self._json_response(200, {"action_id": action_id, "allowed": allowed})
+                        return
+
+                if path.startswith("/sessions/") and path.endswith("/goal-loop/confirm"):
+                    parts = path.split("/")
+                    if len(parts) >= 5:
+                        sid = parts[2]
+                        action_id = data.get("action_id", "")
+                        allowed = bool(data.get("allowed", False))
+                        ok = server._approval_bridge.respond(sid, action_id, allowed) if action_id else False
+                        if not ok:
+                            self._json_response(410, {"error": "No pending GoalLoop confirmation", "action_id": action_id})
+                            return
+                        self._json_response(200, {"action_id": action_id, "allowed": allowed, "goal_loop": True})
                         return
 
                 if path.startswith("/sessions/") and path.endswith("/learning/cancel"):

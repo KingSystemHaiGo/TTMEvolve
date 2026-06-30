@@ -13,6 +13,7 @@ from core.intent_classifier import COS_GATE_VERSION, classify_cos_gate
 from core.portable_env import portable_diagnostics
 from llm.provider_presets import provider_preset
 from server.engineering_control import build_engineering_control_snapshot
+from server.goal_loop_api import goal_loop_from_server
 from server.layer_control import build_layer_control_snapshot
 from server.layer_health import build_layer_health_snapshot
 from server.memory_observer import memory_metric_from_runtime_metric, summarize_memory_recall_history
@@ -1057,6 +1058,11 @@ def build_runtime_readiness(
         if session_id != "{session_id}"
         else {"status": "not_requested"}
     )
+    goal_loop = (
+        goal_loop_from_server(server, session_id, steps=20)
+        if session_id != "{session_id}"
+        else {"status": "not_requested"}
+    )
     # Phase C: extract the most-recent prompt-loader stats from the memory
     # recall summary so the evidence surface can show fragment counts
     # without leaking full prompt content. The compact view exposes
@@ -1274,6 +1280,7 @@ def build_runtime_readiness(
             "call_proof": llm_call_proof.get("conclusion"),
             "event_bus": event_bus_summary.get("status"),
             "project_state": project_state.get("status"),
+            "goal_loop": goal_loop.get("status"),
             "cos_gate": cos_gate.get("mode") or cos_gate.get("status"),
             "resume_drill": resume_drill.get("status"),
             "layer_health": layer_health.get("status"),
@@ -1316,6 +1323,7 @@ def build_runtime_readiness(
         "runtime_metrics_observer": runtime_metrics_evidence.get("observer") if runtime_metrics_evidence else {"status": "not_requested"},
         "runtime_metrics_summary": runtime_summary,
         "project_state": project_state,
+        "goal_loop": goal_loop,
         "cos_gate": cos_gate,
         "resume_drill": resume_drill,
         "learning_observer": learning_observer_summary,
@@ -1340,6 +1348,7 @@ def build_runtime_readiness(
                 "maker_briefing",
                 "maker_guard",
                 "context_sync",
+                "goal_loop",
                 "resume_drill",
                 "runtime_metrics",
                 "layer_health",
@@ -1697,6 +1706,7 @@ def build_session_evidence_bundle(
     event_bus_summary = build_runtime_event_bus_summary(server=server, session_id=session_id)
     learning_observer_summary = learning_state_from_server(server, session_id, limit=steps)
     memory_recall = memory_recall_from_server(server, session_id, limit=steps)
+    goal_loop = goal_loop_from_server(server, session_id, steps=steps)
     # Phase C/D: extract compact summaries for the new evidence fields.
     prompt_loader = _prompt_loader_from_recall(memory_recall)
     try:
@@ -1759,6 +1769,7 @@ def build_session_evidence_bundle(
         "layer_control",
         "engineering_control",
         "resume_drill",
+        "goal_loop",
         "project_state",
         "project_writeback",
         "learning_status",
@@ -1822,6 +1833,7 @@ def build_session_evidence_bundle(
         "runtime_metrics_observer": runtime_metrics_evidence.get("observer") if runtime_metrics_evidence else {"status": "not_requested"},
         "runtime_metrics_summary": runtime_summary,
         "project_state": project_state,
+        "goal_loop": goal_loop,
         "project_writeback": project_writeback,
         "shared_memory": shared_memory,
         "learning_observer": learning_observer_summary,
@@ -1852,6 +1864,9 @@ def build_session_evidence_bundle(
             "maker_guard": len(maker_guard_history),
             "llm_probe": len(llm_probe_history),
             "cos_gate": cos_gate.get("event_count", 0),
+            "goal_loop": (goal_loop.get("counts") or {}).get("events", 0)
+                if isinstance(goal_loop.get("counts"), dict)
+                else 0,
         },
         "endpoints": {
             key: communication.get(key)

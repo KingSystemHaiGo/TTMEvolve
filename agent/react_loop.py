@@ -698,6 +698,54 @@ class ReActLoop:
             self._vsm_replan_requested = True
         return verdict
 
+    def _collect_think_attachments(
+        self, trajectory: List[Dict[str, Any]],
+    ) -> tuple[List[Any], str]:
+        """Pull image attachments from the most recent observation that
+        carried them. Returns ``(images, text_summary)``; ``images`` is
+        empty when the last step had no images, and ``text_summary``
+        carries a short caption list so even the text-only fallback
+        mentions what was on screen."""
+        if not trajectory:
+            return [], ""
+        last = trajectory[-1]
+        if not isinstance(last, dict):
+            return [], ""
+        observation = last.get("observation")
+        if not isinstance(observation, dict):
+            return [], ""
+        content = observation.get("content")
+        if not isinstance(content, list) or not content:
+            return [], ""
+        from llm.content import ImageBlock, TextBlock
+        images: List[ImageBlock] = []
+        text_lines: List[str] = []
+        for block in content:
+            if isinstance(block, ImageBlock):
+                images.append(block)
+                if block.caption:
+                    text_lines.append(f"[image: {block.caption}]")
+                else:
+                    text_lines.append(f"[image: {block.source}]")
+            elif isinstance(block, TextBlock) and block.text:
+                text_lines.append(block.text)
+            elif isinstance(block, dict):
+                # Allow pre-serialized blocks in case the trajectory was
+                # reconstructed from a JSON session store.
+                if block.get("type") == "image" or "source" in block:
+                    caption = str(block.get("caption") or "")
+                    if caption:
+                        text_lines.append(f"[image: {caption}]")
+                    try:
+                        images.append(ImageBlock(
+                            source=str(block.get("source") or ""),
+                            media_type=block.get("media_type"),
+                            caption=caption,
+                        ))
+                    except Exception:
+                        pass
+        return images, "\n".join(text_lines)
+
     def _run_iteration(self, iteration: int) -> Dict[str, Any]:
         """执行单轮思考+动作选择。"""
         self._check_cancelled()
@@ -760,12 +808,36 @@ class ReActLoop:
 
         # 思考
         think_started_at = time.perf_counter()
-        thought = self.llm.think(
-            task=self._task,
-            context=prepared_context,
-            trajectory=trajectory_for_llm,
-            tools_description=tools_for_llm,
-        )
+        # Phase Q1 (multimodal): if the last observation carried image
+        # content and the configured LLM supports multimodal, route the
+        # think call through ``think_multimodal`` so the model can see
+        # what the previous tool produced. Text-only observations and
+        # text-only LLMs keep the legacy code path untouched.
+        attachments, attachment_text = self._collect_think_attachments(trajectory_for_llm)
+        if attachments and getattr(self.llm, "supports_multimodal", False):
+            from llm.content import TextBlock
+            content_blocks: List[Any] = []
+            if prepared_context:
+                content_blocks.append(TextBlock(str(prepared_context)))
+            if attachment_text:
+                content_blocks.append(TextBlock(attachment_text))
+            thought = self.llm.think_multimodal(
+                task=self._task,
+                content=content_blocks,
+                trajectory=[],
+                tools_description=tools_for_llm,
+                attachments=attachments,
+            )
+            step["think_mode"] = "multimodal"
+            step["attachment_count"] = len(attachments)
+        else:
+            thought = self.llm.think(
+                task=self._task,
+                context=prepared_context,
+                trajectory=trajectory_for_llm,
+                tools_description=tools_for_llm,
+            )
+            step["think_mode"] = "text"
         self._check_cancelled()
         self._emit_latency("llm_think", think_started_at, iteration=iteration)
         self._emit_first_response_latency("thought")

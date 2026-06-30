@@ -103,6 +103,9 @@ def test_evidence_bundle_exposes_new_fields():
         assert "control_loop" in bundle
         # graph_recall is present
         assert "graph_recall" in bundle
+        # goal_loop is present even before a GoalLoop run starts.
+        assert "goal_loop" in bundle
+        assert bundle["goal_loop"]["status"] in {"not_started", "running", "completed", "blocked"}
         # Existing fields still present
         assert "rag_benchmark" in bundle
         assert "memory_recall" in bundle

@@ -22,6 +22,7 @@ from server.evidence_bundle import (
     runtime_metrics_from_server,
     summarize_runtime_metrics,
 )
+from server.goal_loop_api import goal_loop_from_server
 from server.project_writeback import (
     apply_project_writeback_plan,
     build_project_writeback_plan,
@@ -100,6 +101,9 @@ class SessionRouteApi:
             "latest": history[-1] if history else None,
             "count": len(history),
         }
+
+    def goal_loop_payload(self, session_id: str, *, steps: int) -> Dict[str, Any]:
+        return goal_loop_from_server(self.server, session_id, steps=steps)
 
     def runtime_metrics_payload(self, session_id: str, *, steps: int) -> Dict[str, Any]:
         metrics_evidence = runtime_metrics_from_server(self.server, session_id, limit=steps)

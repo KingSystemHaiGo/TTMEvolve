@@ -64,3 +64,50 @@ def test_session_route_api_status_prefers_live_session_and_falls_back_to_store()
         assert stored_payload["status"] == "done"
         assert missing_payload is None
 
+
+def test_session_route_api_goal_loop_payload_replays_store_events():
+    with tempfile.TemporaryDirectory() as tmp:
+        store = SessionStore(Path(tmp) / "sessions.db")
+        store.create_session("goal1", "goal task")
+        store.append_event(
+            "goal1",
+            "goal_started",
+            {
+                "goal_id": "goal-goal1",
+                "task": "goal task",
+                "status": "running",
+                "current_stage": "UNDERSTAND",
+                "progress": {"stage_order": ["UNDERSTAND"], "completed": 0, "total": 1},
+            },
+            source="goal_loop",
+        )
+        store.append_event(
+            "goal1",
+            "goal_stage_started",
+            {
+                "goal_id": "goal-goal1",
+                "stage": "UNDERSTAND",
+                "stage_run": {"stage": "UNDERSTAND", "status": "running", "output": {}},
+                "progress": {"stage_order": ["UNDERSTAND"], "completed": 0, "total": 1},
+            },
+            source="goal_loop",
+        )
+        store.append_event(
+            "goal1",
+            "goal_completed",
+            {
+                "goal_id": "goal-goal1",
+                "task": "goal task",
+                "status": "completed",
+                "current_stage": "POST",
+                "progress": {"stage_order": ["UNDERSTAND"], "completed": 1, "total": 1},
+            },
+            source="goal_loop",
+        )
+
+        payload = SessionRouteApi(_Server(store)).goal_loop_payload("goal1", steps=20)
+
+        assert payload["status"] == "completed"
+        assert payload["goal_id"] == "goal-goal1"
+        assert payload["current_stage"] == "POST"
+        assert payload["counts"]["events"] == 3
