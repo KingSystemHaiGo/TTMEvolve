@@ -16,6 +16,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from core.config import Config
 from agent.builtin_tools import register_builtin_tools
+from agent.goal_loop import GoalLoop
 from agent.mcp_integration import MCPIntegration
 from agent.learning_queue import LearningJobQueue, LearningJobRequest
 from agent.react_loop import ReActLoop
@@ -627,7 +628,8 @@ class TapMakerAgent:
             payload={"task": task, "warm_context": warm_context},
         ))
 
-        # 执行 ReAct 循环（有专家救援编排器时自动启用救援）
+        # Execute the configured task loop. GoalLoop is the default
+        # engineering-control loop; ReAct remains as an emergency fallback.
         self._emit_layer_event(
             sid,
             "agent",
@@ -640,10 +642,26 @@ class TapMakerAgent:
             cause="user_task",
             metrics={"task_chars": len(task), "warm_context_chars": len(warm_context)},
         )
-        if self.rescue_orchestrator:
-            result = self.rescue_orchestrator.run(task, session_id=sid)
+        if self._loop_engine() == "react":
+            result = self._run_react_task(task, sid)
         else:
-            result = self.react.run(task, session_id=sid)
+            goal_loop = GoalLoop(
+                project_root=self.project_root,
+                emit=lambda event: self._record_event(sid, event),
+                confirm=self.human_confirm_callback,
+                dev_runner=self._run_react_task,
+                cancel_check=self.cancel_check,
+                approval_policy=self.config.approval_policy(),
+                max_depth=int(self.config.get("goal_loop.max_depth", 2) or 2),
+                build_command=str(self.config.get("goal_loop.build_command", "") or ""),
+                llm=self.llm,
+                max_stage_retries=int(self.config.get("goal_loop.max_stage_retries", 1) or 0),
+                max_rework_cycles=int(self.config.get("goal_loop.max_rework_cycles", 1) or 0),
+                max_subgoals=int(self.config.get("goal_loop.max_subgoals", 3) or 0),
+                auto_post=bool(self.config.get("goal_loop.auto_post", False) or False),
+                post_apply=bool(self.config.get("goal_loop.post_apply", False) or False),
+            )
+            result = goal_loop.run(task, session_id=sid)
         self._check_cancelled()
         self._emit_layer_event(
             sid,
@@ -654,7 +672,7 @@ class TapMakerAgent:
             source_layer="agent",
             target_layer="runtime",
             correlation_id=layer_correlation_id,
-            cause="react_loop_completed",
+            cause=f"{self._loop_engine()}_loop_completed",
             metrics={
                 "iteration_count": result.get("iteration_count", 0),
                 "trajectory_steps": len(result.get("trajectory", [])),
@@ -734,6 +752,15 @@ class TapMakerAgent:
         result["repair_status"] = repair_status
         result["learning_job"] = learning_job
         return result
+
+    def _loop_engine(self) -> str:
+        engine = str(self.config.get("agent.loop_engine", "goal") or "goal").strip().lower()
+        return "react" if engine == "react" else "goal"
+
+    def _run_react_task(self, task: str, session_id: str) -> Dict[str, Any]:
+        if self.rescue_orchestrator:
+            return self.rescue_orchestrator.run(task, session_id=session_id)
+        return self.react.run(task, session_id=session_id)
 
     def _check_cancelled(self) -> None:
         if self.cancel_check and self.cancel_check():

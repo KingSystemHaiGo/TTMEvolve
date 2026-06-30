@@ -570,6 +570,7 @@ export default function AgentWorkbench({ state }: Props) {
   )
   const hasMakerGuard = Boolean(state.makerGuard.decision && state.makerGuard.decision !== 'skip')
   const hasLlmProbe = Boolean(state.llmProbe.status || state.llmProbe.provider || state.llmProbe.error)
+  const hasGoalLoop = Boolean(state.goalLoop.goalId || state.goalLoop.currentStage || state.goalLoop.status)
 
   return (
     <section className={`agent-workbench stage-${state.stage}`}>
@@ -605,6 +606,8 @@ export default function AgentWorkbench({ state }: Props) {
         <span>{userFacingWorkbenchStatus(state.currentStatus) || '等待任务'}</span>
         {state.currentTool && <strong>{state.currentTool}</strong>}
       </div>
+
+      {hasGoalLoop && <GoalLoopPanel state={state} />}
 
       {hasRuntimeContract && <RuntimeContractPanel state={state} />}
 
@@ -694,6 +697,41 @@ export default function AgentWorkbench({ state }: Props) {
         </div>
       )}
     </section>
+  )
+}
+
+function GoalLoopPanel({ state }: { state: AgentWorkbenchState }) {
+  const loop = state.goalLoop
+  const order = loop.stageOrder || []
+  const current = loop.currentStage || '-'
+  const total = loop.total ?? (order.length || 10)
+  return (
+    <div className={`workbench-goal-loop loop-${loop.status || 'running'}`}>
+      <div className="workbench-goal-loop-head">
+        <span>GoalLoop</span>
+        <strong>{current}</strong>
+        <small>{loop.completed ?? 0}/{total}</small>
+      </div>
+      {order.length > 0 && (
+        <div className="workbench-goal-loop-track">
+          {order.map((stage) => (
+            <span
+              key={stage}
+              className={stage === current ? 'active' : ''}
+              title={stage}
+            >
+              {stage}
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="workbench-goal-loop-meta">
+        <Metric label="确认" value={String(loop.confirmations ?? 0)} />
+        <Metric label="产物" value={String(loop.artifacts ?? 0)} />
+        <Metric label="状态" value={loop.status || 'running'} />
+      </div>
+      {loop.latestSummary && <p>{loop.latestSummary}</p>}
+    </div>
   )
 }
 

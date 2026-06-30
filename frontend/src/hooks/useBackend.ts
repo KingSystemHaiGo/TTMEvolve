@@ -107,6 +107,18 @@ export interface WorkbenchGoalChecklist {
   nextFocus?: string
 }
 
+export interface WorkbenchGoalLoop {
+  goalId?: string
+  status?: string
+  currentStage?: string
+  stageOrder?: string[]
+  completed?: number
+  total?: number
+  confirmations?: number
+  artifacts?: number
+  latestSummary?: string
+}
+
 export interface WorkbenchSkillSync {
   ok?: boolean
   changed?: boolean
@@ -316,6 +328,7 @@ export interface AgentWorkbenchState {
   toolPreflight: WorkbenchToolPreflight
   planValidation: WorkbenchPlanValidation
   goalChecklist: WorkbenchGoalChecklist
+  goalLoop: WorkbenchGoalLoop
   skillSync: WorkbenchSkillSync
   contextSync: WorkbenchContextSync
   runtimeContract: WorkbenchRuntimeContract
@@ -339,6 +352,7 @@ const emptyWorkbench: AgentWorkbenchState = {
   toolPreflight: {},
   planValidation: {},
   goalChecklist: {},
+  goalLoop: {},
   skillSync: {},
   contextSync: {},
   runtimeContract: {},
@@ -631,6 +645,74 @@ export function useBackend(
                   setApproval(null)
                   runQueuedNext()
                 }
+                break
+              }
+              case 'goal_started':
+              case 'goal_stage_started':
+              case 'goal_stage_output':
+              case 'goal_stage_review':
+              case 'goal_stage_handoff':
+              case 'goal_confirmation_requested':
+              case 'goal_artifact_written':
+              case 'goal_completed':
+              case 'goal_blocked': {
+                const progress = payload.progress && typeof payload.progress === 'object' ? payload.progress : {}
+                const counts = progress.counts && typeof progress.counts === 'object' ? progress.counts : {}
+                const stageRun = payload.stage_run && typeof payload.stage_run === 'object' ? payload.stage_run : {}
+                const output = stageRun.output && typeof stageRun.output === 'object' ? stageRun.output : {}
+                const artifact = payload.artifact && typeof payload.artifact === 'object' ? payload.artifact : null
+                setWorkbench((prev) => {
+                  const completed = typeof progress.completed === 'number'
+                    ? progress.completed
+                    : (counts.done || prev.goalLoop.completed || 0)
+                  const total = typeof progress.total === 'number'
+                    ? progress.total
+                    : (Array.isArray(progress.stage_order) ? progress.stage_order.length : prev.goalLoop.total)
+                  return {
+                    ...prev,
+                    stage: type === 'goal_confirmation_requested' ? 'approval' : prev.stage === 'idle' ? 'running' : prev.stage,
+                    currentStatus:
+                      type === 'goal_blocked'
+                        ? 'GoalLoop blocked'
+                        : type === 'goal_completed'
+                          ? 'GoalLoop completed'
+                          : payload.stage
+                            ? `GoalLoop ${payload.stage}`
+                            : prev.currentStatus,
+                    goalLoop: {
+                      ...prev.goalLoop,
+                      goalId: payload.goal_id || prev.goalLoop.goalId,
+                      status: payload.status || (type === 'goal_completed' ? 'completed' : type === 'goal_blocked' ? 'blocked' : prev.goalLoop.status),
+                      currentStage: payload.current_stage || payload.stage || prev.goalLoop.currentStage,
+                      stageOrder: Array.isArray(progress.stage_order) ? progress.stage_order : prev.goalLoop.stageOrder,
+                      completed,
+                      total,
+                      confirmations:
+                        type === 'goal_confirmation_requested'
+                          ? (prev.goalLoop.confirmations || 0) + 1
+                          : prev.goalLoop.confirmations,
+                      artifacts:
+                        artifact
+                          ? (prev.goalLoop.artifacts || 0) + 1
+                          : prev.goalLoop.artifacts,
+                      latestSummary:
+                        typeof output.summary === 'string'
+                          ? output.summary
+                          : typeof payload.message === 'string'
+                            ? payload.message
+                            : prev.goalLoop.latestSummary,
+                    },
+                    layers: {
+                      ...prev.layers,
+                      agent: {
+                        ...prev.layers.agent,
+                        status: type === 'goal_blocked' ? 'error' : type === 'goal_completed' ? 'done' : 'active',
+                        detail: payload.stage ? `GoalLoop ${payload.stage}` : 'GoalLoop',
+                        event: type,
+                      },
+                    },
+                  }
+                })
                 break
               }
               case 'thought': {
@@ -1568,5 +1650,5 @@ export function useBackend(
 
 function isInternalEventForMainChat(eventType: string, content = ''): boolean {
   const text = `${eventType}\n${content}`
-  return /tool[_\s-]?selection|candidate|候选工具|可选工具|工具筛选|Tool context ranked/i.test(text)
+  return /goal_(started|stage|artifact|completed|blocked)|tool[_\s-]?selection|candidate|候选工具|可选工具|工具筛选|Tool context ranked/i.test(text)
 }
