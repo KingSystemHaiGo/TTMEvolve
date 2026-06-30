@@ -16,7 +16,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from llm.interface import LLMInterface
 
@@ -190,6 +190,59 @@ class LLMRouter(LLMInterface):
 
     def generate_code(self, prompt: str) -> str:
         return str(self._call_with_fallback("generate_code", prompt=prompt))
+
+    # ------------------------------------------------------------------
+    # Multimodal passthrough. ``_call_with_fallback`` already dispatches
+    # to whatever implementation the provider exposes, so all we need
+    # is a thin wrapper that forwards the right kwargs.
+    # ------------------------------------------------------------------
+
+    def think_multimodal(
+        self,
+        task: str,
+        content: List[Any],
+        trajectory: List[Dict[str, Any]],
+        tools_description: str,
+        *,
+        attachments: Optional[List[Any]] = None,
+    ) -> str:
+        # Skip providers that opt out of multimodal so a non-vision
+        # fallback never silently sees an image block.
+        primary_method = getattr(self._primary, "think_multimodal", None)
+        if not callable(primary_method) or not getattr(self._primary, "supports_multimodal", False):
+            # Fall back to text-only when no provider supports multimodal.
+            from llm.content import to_text_fallback
+            text = to_text_fallback(list(content) + list(attachments or []))
+            return self.think(task, text, trajectory, tools_description)
+        return str(
+            self._call_with_fallback(
+                "think_multimodal",
+                task=task,
+                content=list(content),
+                trajectory=trajectory,
+                tools_description=tools_description,
+                attachments=list(attachments or []),
+            )
+        )
+
+    def choose_action_multimodal(
+        self,
+        task: str,
+        thought: str,
+        tools_description: str,
+        *,
+        attachments: Optional[List[Any]] = None,
+    ) -> Dict[str, Any]:
+        primary_method = getattr(self._primary, "choose_action_multimodal", None)
+        if not callable(primary_method) or not getattr(self._primary, "supports_multimodal", False):
+            return self.choose_action(task, thought, tools_description)
+        return self._call_with_fallback(
+            "choose_action_multimodal",
+            task=task,
+            thought=thought,
+            tools_description=tools_description,
+            attachments=list(attachments or []),
+        )
 
 
 def build_router_from_config(config: Any) -> LLMRouter:

@@ -5,12 +5,18 @@ from __future__ import annotations
 import json
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 from urllib import request
 from urllib.error import HTTPError, URLError
 
 from core.config import Config
 from llm.api_errors import LLMAPIError, LLMTimeoutError, failure_stats, is_timeout_error, timeout_message
+from llm.content import (
+    ContentBlock,
+    ImageBlock,
+    TextBlock,
+    to_openai_messages,
+)
 from llm.interface import LLMInterface
 from llm.provider_presets import provider_preset
 from llm.utils import parse_llm_json
@@ -22,6 +28,8 @@ DEFAULT_API_MODEL = "deepseek-v4-pro"
 
 class OpenAILLM(LLMInterface):
     """OpenAI-compatible LLM implementation used by most API providers."""
+
+    supports_multimodal = True
 
     def __init__(self, config: Optional[Config] = None):
         self.cfg = config or Config()
@@ -52,10 +60,29 @@ class OpenAILLM(LLMInterface):
     def _call(
         self,
         system: str,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         max_tokens: int = 1024,
         temperature: float = 0.2,
+        content_blocks: Optional[List[ContentBlock]] = None,
     ) -> str:
+        if content_blocks is not None:
+            # Replace the trailing user message with a list-typed content
+            # carrying both text framing and image blocks.
+            serialized: List[Dict[str, Any]] = []
+            for raw in messages:
+                content = raw.get("content")
+                if isinstance(content, list):
+                    serialized.append({"role": raw.get("role", "user"), "content": content})
+                else:
+                    serialized.append({
+                        "role": raw.get("role", "user"),
+                        "content": [{"type": "text", "text": str(content or "")}],
+                    })
+            serialized.append({
+                "role": "user",
+                "content": to_openai_messages(content_blocks),
+            })
+            messages = serialized
         payload = {
             "model": self.model,
             "messages": [{"role": "system", "content": system}, *messages],
@@ -172,6 +199,38 @@ class OpenAILLM(LLMInterface):
                     "content": f"上一步：{last.get('action')}\n观察：{last.get('observation')}",
                 })
         return self._call(system, messages)
+
+    def think_multimodal(
+        self,
+        task: str,
+        content: Sequence[ContentBlock],
+        trajectory: List[Dict[str, Any]],
+        tools_description: str,
+        *,
+        attachments: Optional[List[ImageBlock]] = None,
+    ) -> str:
+        """OpenAI-format multimodal think. The trailing user message is
+        a list of content blocks; images come last so the model can map
+        them to the text framing."""
+        system = "你是一个为 TapTap Maker 游戏开发而生的 Agent。请用中文思考。可以看图片。"
+        merged: List[ContentBlock] = []
+        framing_lines: List[str] = []
+        if trajectory:
+            last = trajectory[-1]
+            framing_lines.append(
+                f"上一步：{last.get('action')}\n观察：{last.get('observation')}"
+            )
+        if tools_description:
+            framing_lines.append(tools_description)
+        if framing_lines:
+            merged.append(TextBlock("\n\n".join(framing_lines)))
+        for block in content:
+            merged.append(block)
+        for image in attachments or []:
+            merged.append(image)
+        if not any(isinstance(b, TextBlock) and b.text for b in merged):
+            merged.append(TextBlock("请思考下一步。"))
+        return self._call(system, [], content_blocks=merged)
 
     def choose_action(
         self,

@@ -400,6 +400,24 @@ class LocalLLM(LLMInterface):
         enable_thinking = self._enable_thinking_for_reasoning
         return self._call(system, user, max_tokens=512, enable_thinking=enable_thinking)
 
+    def think_multimodal(
+        self,
+        task: str,
+        content,
+        trajectory,
+        tools_description,
+        *,
+        attachments=None,
+    ) -> str:
+        """Local LLM multimodal think. Most local models do not support
+        image inputs; the default implementation degrades to a text
+        description. Subclasses that wire a multimodal local model
+        (e.g. llama.cpp with mmproj) should override and set
+        ``supports_multimodal = True``."""
+        from llm.content import to_text_fallback
+        text = to_text_fallback(list(content) + list(attachments or []))
+        return self.think(task, text, trajectory, tools_description)
+
     def choose_action(
         self,
         task: str,

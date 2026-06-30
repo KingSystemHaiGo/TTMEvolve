@@ -12,13 +12,22 @@ class UnconfiguredLLM(LLMInterface):
 
     This is not a mock model: it never returns synthetic agent output. It only
     lets the desktop app boot so the user can configure a real API provider.
+
+    Multimodal: we keep ``supports_multimodal = False``. The default
+    ``think_multimodal`` would just render text and call ``think`` (which
+    raises), so we override it to raise directly with the same message.
     """
+
+    supports_multimodal = False
 
     def __init__(self, reason: str):
         self.reason = reason
 
     def _raise(self) -> None:
         raise RuntimeError(self.reason)
+
+    def think_multimodal(self, *args: Any, **kwargs: Any) -> str:
+        self._raise()
 
     def think(
         self,

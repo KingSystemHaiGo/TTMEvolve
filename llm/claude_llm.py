@@ -11,6 +11,13 @@ import json
 
 from core.config import Config
 from llm.api_errors import LLMAPIError, LLMTimeoutError, failure_stats, is_timeout_error, timeout_message
+from llm.content import (
+    ContentBlock,
+    ImageBlock,
+    TextBlock,
+    to_anthropic_messages,
+    to_text_fallback,
+)
 from llm.interface import LLMInterface
 from llm.provider_presets import provider_preset
 from llm.utils import parse_llm_json
@@ -18,6 +25,8 @@ from llm.utils import parse_llm_json
 
 class ClaudeLLM(LLMInterface):
     """Claude implementation without requiring the optional Anthropic SDK."""
+
+    supports_multimodal = True
 
     def __init__(self, config: Optional[Config] = None):
         self.cfg = config or Config()
@@ -40,7 +49,31 @@ class ClaudeLLM(LLMInterface):
         if not self.api_key or self.api_key.startswith("sk-..."):
             raise ValueError("Claude needs an API key. Set llm.api_key in the GUI or export ANTHROPIC_API_KEY.")
 
-    def _call(self, system: str, messages: List[Dict[str, str]], max_tokens: int = 1024) -> str:
+    def _call(
+        self,
+        system: str,
+        messages: List[Dict[str, Any]],
+        max_tokens: int = 1024,
+        content_blocks: Optional[List[ContentBlock]] = None,
+    ) -> str:
+        """Single API call. ``messages`` may use either a string
+        ``content`` (legacy) or a list of content blocks (multimodal)."""
+        if content_blocks is not None:
+            serialized: List[Dict[str, Any]] = []
+            for raw in messages:
+                content = raw.get("content")
+                if isinstance(content, list):
+                    serialized.append({"role": raw.get("role", "user"), "content": content})
+                else:
+                    serialized.append({
+                        "role": raw.get("role", "user"),
+                        "content": [{"type": "text", "text": str(content or "")}],
+                    })
+            serialized.append({
+                "role": "user",
+                "content": to_anthropic_messages(content_blocks),
+            })
+            messages = serialized
         payload = {
             "model": self.model,
             "system": system,
@@ -141,6 +174,39 @@ class ClaudeLLM(LLMInterface):
                     "content": f"上一步：{last.get('action')}\n观察：{last.get('observation')}",
                 })
         return self._call(system, messages)
+
+    def think_multimodal(
+        self,
+        task: str,
+        content: List[ContentBlock],
+        trajectory: List[Dict[str, Any]],
+        tools_description: str,
+        *,
+        attachments: Optional[List[ImageBlock]] = None,
+    ) -> str:
+        """Claude-native multimodal think. The trailing user message
+        contains the text prompt + any image blocks in Anthropic format."""
+        system = "你是一个为 TapTap Maker 游戏开发而生的 Agent。请用中文思考，逐步推理。可以看图片。"
+        merged: List[ContentBlock] = []
+        for block in content:
+            merged.append(block)
+        for image in attachments or []:
+            merged.append(image)
+        # Prepend the trajectory/turn framing as a text block so the
+        # model sees both the structured context and the images.
+        framing_lines: List[str] = []
+        if trajectory:
+            last = trajectory[-1]
+            framing_lines.append(
+                f"上一步：{last.get('action')}\n观察：{last.get('observation')}"
+            )
+        if tools_description:
+            framing_lines.append(tools_description)
+        if framing_lines:
+            merged.insert(0, TextBlock("\n\n".join(framing_lines)))
+        if not any(isinstance(b, TextBlock) and b.text for b in merged):
+            merged.append(TextBlock("请思考下一步。"))
+        return self._call(system, [], content_blocks=merged)
 
     def choose_action(
         self,
