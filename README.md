@@ -129,15 +129,15 @@ Release gate list:
 
 ```mermaid
 flowchart TB
-    User["用户 / User"] --> GUI["Tauri + React Workbench"]
+    User["用户 / User"] --> GUI["Tauri + React Workbench<br/>(含 GoalLoopPanel)"]
     User --> CLI["CLI / Headless"]
 
     GUI --> Server["Python App Server<br/>127.0.0.1:7345"]
     CLI --> Server
 
-    Server --> Agent["TapMakerAgent<br/>Plan / ReAct / Tools"]
-    Agent --> LLM["LLM Router<br/>API providers / local GGUF"]
-    Agent --> Tools["Tool Registry<br/>Files / Shell / Browser / Maker MCP"]
+    Server --> Agent["TapMakerAgent<br/>GoalLoop / ReAct / Tools"]
+    Agent --> LLM["LLM Router<br/>Multimodal (Slice #2)"]
+    Agent --> Tools["Tool Registry<br/>+ project.* introspection (Slice #2)"]
     Agent --> Runtime["Runtime Controls<br/>Sandbox / Approval / Health"]
     Agent --> Memory["Memory + Learning<br/>Evidence / Vector Index"]
     Server --> Bus["Runtime Event Bus<br/>Session / Layer / Diagnostics"]
@@ -145,11 +145,45 @@ flowchart TB
     Runtime --> Bus
     Memory --> Bus
 
+    Agent --> GoalLoop["GoalLoop Orchestrator (Slice #2)<br/>typed sub-goal DAG + rework"]
+    GoalLoop --> SkillPacks["Skill packs (Slice #2)<br/>docs/skill_packs/"]
+    GoalLoop --> FeatureState["Feature / Ticket ledger (Slice #2)<br/>.ttmevolve/features.jsonl"]
+    GoalLoop --> ReAct["ReAct loop<br/>(per sub-goal dev_runner)"]
+
     Tools --> Maker["TapTap Maker MCP"]
     Tools --> Project["Maker project workspace"]
     Runtime --> Storage["storage/ runtime state"]
     Memory --> Docs["docs/ persistent knowledge"]
+    GoalLoop --> Artifacts["artifacts/<br/>decisions/ system-contracts/<br/>docs/progress.md sprint-board.md"]
+
+    LLM --> ContentBlock["ContentBlock<br/>TextBlock / ImageBlock"]
+    ContentBlock --> Anthropic["Anthropic base64"]
+    ContentBlock --> OpenAI["OpenAI data: URL"]
+    ContentBlock --> Fallback["text-only fallback"]
 ```
+
+### Post-v1.0.0 Slice #2 — Agent Goal Loop
+
+This slice reorganises the agent's internal layers while the
+distributable version stays at 1.0.0. The default end-user
+behaviour is unchanged; the new surfaces are exposed to
+operators and to other agents through existing runtime
+contract endpoints and the new project-side files.
+
+| Layer | Module | Effect |
+| --- | --- | --- |
+| Multimodal LLM | `llm/content.py` | `TextBlock` / `ImageBlock` flow through Anthropic, OpenAI, MiniMax. Text-only fallback for unopt-in providers. |
+| ReAct observation | `agent/react_loop.py` | When a tool returns images, the next `think` is routed through `think_multimodal`. |
+| Project introspection | `agent/project_introspection.py` | Six read-only tools — `project.manifest`, `project.asset_read`, `project.asset_search`, `project.code_search`, `project.preview_capture`, `project.build_state`. |
+| Skill packs | `agent/skill_packs/` | Project-side knowledge under `docs/skill_packs/`. Five seed packs (UrhoX, Maker MCP, platformer, RPG, puzzle). Auto-recalled during UNDERSTAND. |
+| Typed sub-goal DAG | `agent/goal_dag.py` + `agent/typed_subloop.py` | Sub-goals carry type, dependency graph, capability hint, and acceptance. Layered, parallel execution with an auto-appended integration. |
+| Feature state | `agent/feature_state.py` | Append-only ledger at `.ttmevolve/features.jsonl`. Lifecycle: proposed → approved → in_progress → blocked → shipped → deprecated. |
+
+`GoalLoop(artifacts_root=...)` and the `TTMEVOLVE_GOAL_ARTIFACTS_ROOT`
+env var redirect every project-side write (decisions, system-contracts,
+progress, sprint board, skill packs) so tests and ad-hoc demos
+can keep the dev tree clean. See `CONTRIBUTING.md` →
+"Test isolation" for the rule.
 
 ## 目录结构 / Repository Map
 
@@ -217,7 +251,8 @@ Python 测试 / Python tests:
 
 The latest public checkpoint was verified with the commands below. The `full-offline` `partial` result is an intentionally conservative release boundary, not a source checkpoint failure.
 
-- `.venv\Scripts\python.exe -m pytest -q` -> `748 passed, 14 skipped`
+- `.venv\Scripts\python.exe -m pytest -q` -> `748 passed, 14 skipped` (v1.0.0 baseline)
+- **Post-v1.0.0 Slice #2** (`feature_state`, `goal_dag`, `skill_packs`, `project_introspection`, multimodal LLM): 11 targeted test files -> **136 passed**
 - `npm.cmd --prefix frontend run build` -> passed
 - `npm.cmd --prefix electron run build` -> passed with Vite CJS deprecation warnings only
 - `cargo test --manifest-path src-tauri\Cargo.toml` -> `34 passed`, warnings only

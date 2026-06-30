@@ -12,16 +12,21 @@ TTMEvolve is a desktop AI Agent workbench for TapTap Maker game development. The
 | 项目 / Item | 状态 / Status |
 | --- | --- |
 | 源码 checkpoint / Source checkpoint | Ready |
-| 版本线 / Version line | `0.4.5-one-click-practice-entry+gui-chat-readable` |
+| 可分发版本线 / Distributable version | `1.0.0`（保持在 1.0.0，新能力作为 Post-v1.0.0 Slice 追加） |
+| Agent 内部切片 / Agent internal slices | `Post-v1.0.0 Slice #1`（RAG / Memory / Cybernetic Control）+ `Slice #2`（多模态 / 知识包 / 类型化 DAG / Feature 状态机） |
 | 桌面壳 / Desktop shell | Tauri 2.x + Rust + WebView2 |
 | 前端 / Frontend | React + Vite workbench |
 | 后端 / Backend | Python App Server, default `http://127.0.0.1:7345` |
 | LLM 运行时 / LLM runtime | API providers first; local GGUF is explicit fallback |
 | 完整离线发布 / Full offline release | Partial / not claimed |
 
-当前公开发布只声明源码 checkpoint ready。签名安装包、Maker 远程构建 smoke、生产 RAG 语义质量、本机 `portable/` 缓存状态都不作为当前公开发布承诺。
+当前公开发布声明 v1.0.0 源码 checkpoint ready + 离线 zip 产物 ready。签名安装包、Maker 远程构建 smoke、生产 RAG 语义质量、本机 `portable/` 缓存状态都不作为当前公开发布承诺。
 
-The current public release only claims that the source checkpoint is ready. Signed installers, Maker remote build smoke, production RAG semantic quality, and local `portable/` cache state are not claimed as public release guarantees.
+**Post-v1.0.0 Slice #2** 新增 5 个 agent 内部层（多模态 LLM、项目内省工具、技能包系统、类型化 sub-goal DAG、Feature 状态机），全部以 Post-v1.0.0 Slice 形式追加，**版本号保持在 1.0.0**，详见 `CHANGELOG.md` 和 `README.md` 的架构段。
+
+The current public release claims v1.0.0 source checkpoint ready plus the offline zip artifact ready. Signed installers, Maker remote build smoke, production RAG semantic quality, and local `portable/` cache state are not claimed as public release guarantees.
+
+**Post-v1.0.0 Slice #2** adds five agent-internal layers (multimodal LLM, project introspection tools, skill packs, typed sub-goal DAG, feature-state machine). The distributable version stays at 1.0.0; see `CHANGELOG.md` and the architecture section in `README.md`.
 
 ## 快速启动 / Quick Start
 
